@@ -26,9 +26,14 @@ class YouTubeHymnPlayer extends StatefulWidget {
 
 class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
   late YoutubePlayerController _controller;
-  StreamSubscription? _videoStateSubscription;
+  StreamSubscription? _videoStateSub;
+  StreamSubscription? _valueSub;
+
   String _currentVideoId = '';
   String _activeCantorName = '';
+  double _playbackRate = 1.0;
+  bool _isLooping = false;
+  bool _hasError = false;
 
   @override
   void initState() {
@@ -39,6 +44,7 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
   }
 
   void _initController() {
+    _hasError = false;
     _controller = YoutubePlayerController.fromVideoId(
       videoId: _currentVideoId,
       autoPlay: true,
@@ -47,11 +53,23 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
         showControls: true,
         mute: false,
         enableCaption: false,
+        origin: 'https://www.youtube-nocookie.com',
+        strictRelatedVideos: true,
       ),
     );
 
-    _videoStateSubscription = _controller.videoStateStream.listen((state) {
+    _videoStateSub = _controller.videoStateStream.listen((state) {
       widget.onPositionChanged?.call(state.position);
+    });
+
+    _valueSub = _controller.listen((value) {
+      if (value.hasError && !_hasError && mounted) {
+        setState(() => _hasError = true);
+      }
+      if (value.playerState == PlayerState.ended && _isLooping) {
+        _controller.seekTo(seconds: 0, allowSeekAhead: true);
+        _controller.playVideo();
+      }
     });
   }
 
@@ -59,16 +77,46 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
   void didUpdateWidget(covariant YouTubeHymnPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.hymn.id != widget.hymn.id) {
-      final newId = widget.hymn.resolvedYoutubeId;
-      _currentVideoId = newId;
-      _activeCantorName = widget.hymn.cantor;
-      _controller.loadVideoById(videoId: newId);
+      _loadNewVideo(widget.hymn.resolvedYoutubeId, widget.hymn.cantor);
     }
+  }
+
+  void _loadNewVideo(String newId, String cantorName) {
+    setState(() {
+      _currentVideoId = newId;
+      _activeCantorName = cantorName;
+      _hasError = false;
+    });
+    _controller.loadVideoById(videoId: newId);
+  }
+
+  void _cyclePlaybackSpeed() {
+    HapticFeedback.selectionClick();
+    final speeds = [0.75, 1.0, 1.25];
+    final nextSpeed = speeds[(speeds.indexOf(_playbackRate) + 1) % speeds.length];
+    setState(() => _playbackRate = nextSpeed);
+    _controller.setPlaybackRate(nextSpeed);
+  }
+
+  void _toggleLoop() {
+    HapticFeedback.selectionClick();
+    setState(() => _isLooping = !_isLooping);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _isLooping ? 'تم تفعيل وضع التكرار لحفظ اللحن 🔁' : 'تم إيقاف التكرار',
+          style: GoogleFonts.cairo(fontSize: 12),
+        ),
+        backgroundColor: AppColors.cardNavy,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
   void dispose() {
-    _videoStateSubscription?.cancel();
+    _videoStateSub?.cancel();
+    _valueSub?.cancel();
     _controller.close();
     super.dispose();
   }
@@ -129,7 +177,7 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
             ),
             const SizedBox(height: 6),
             Text(
-              'تسجيلات عالية الجودة مسجلة طقسياً من قنوات التراث القبطي',
+              'تسجيلات كنسية موثقة تعمل مباشرة بدون تقطيع',
               textAlign: TextAlign.center,
               style: GoogleFonts.cairo(fontSize: 12, color: Colors.white70),
             ),
@@ -138,73 +186,55 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
               child: ListView.separated(
                 shrinkWrap: true,
                 itemCount: cantors.length,
-                separatorBuilder: (_, __) => Divider(
+                separatorBuilder: (_, _) => Divider(
                   color: AppColors.primaryGold.withValues(alpha: 0.15),
                   height: 1,
                 ),
                 itemBuilder: (ctx, idx) {
                   final c = cantors[idx];
                   final isSelected = c.videoId == _currentVideoId;
-                  return ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isSelected
-                            ? AppColors.primaryGold
-                            : AppColors.primaryGold.withValues(alpha: 0.12),
+                  return Material(
+                    type: MaterialType.transparency,
+                    child: ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isSelected
+                              ? AppColors.primaryGold
+                              : AppColors.primaryGold.withValues(alpha: 0.12),
+                        ),
+                        child: Icon(
+                          Icons.music_note,
+                          size: 18,
+                          color: isSelected ? Colors.black : AppColors.primaryGold,
+                        ),
                       ),
-                      child: Icon(
-                        Icons.music_note,
-                        size: 18,
-                        color: isSelected ? Colors.black : AppColors.primaryGold,
+                      title: Text(
+                        c.name,
+                        style: GoogleFonts.cairo(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: isSelected ? AppColors.primaryGoldLight : Colors.white,
+                        ),
                       ),
-                    ),
-                    title: Text(
-                      c.name,
-                      style: GoogleFonts.cairo(
-                        fontSize: 14,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                        color: isSelected ? AppColors.primaryGold : Colors.white,
+                      subtitle: Text(
+                        c.description,
+                        style: GoogleFonts.cairo(fontSize: 11, color: Colors.white60),
                       ),
+                      trailing: isSelected
+                          ? const Icon(Icons.check_circle, color: AppColors.primaryGold, size: 20)
+                          : const Icon(Icons.play_arrow_rounded, color: Colors.white54),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        Navigator.pop(ctx);
+                        _loadNewVideo(c.videoId, c.name);
+                      },
                     ),
-                    subtitle: Text(
-                      c.description,
-                      style: GoogleFonts.cairo(fontSize: 11, color: Colors.white54),
-                    ),
-                    trailing: isSelected
-                        ? const Icon(Icons.check_circle, color: AppColors.primaryGold, size: 20)
-                        : null,
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      Navigator.pop(ctx);
-                      setState(() {
-                        _currentVideoId = c.videoId;
-                        _activeCantorName = c.name;
-                      });
-                      _controller.loadVideoById(videoId: c.videoId);
-                    },
                   );
                 },
-              ),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () {
-                Navigator.pop(context);
-                _searchYouTubeMore();
-              },
-              icon: const Icon(Icons.search, color: AppColors.primaryGold, size: 18),
-              label: Text(
-                'البحث عن تسجيلات إضافية لهذا اللحن في يوتيوب ↗',
-                style: GoogleFonts.cairo(fontSize: 13, color: AppColors.primaryGold),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.5)),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ],
@@ -216,193 +246,219 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF141417),
+        color: const Color(0xFF141418),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppColors.primaryGold.withValues(alpha: 0.45),
-          width: 1.2,
-        ),
+        border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.45), width: 1.3),
         boxShadow: [
           BoxShadow(
             color: AppColors.primaryGold.withValues(alpha: 0.12),
             blurRadius: 16,
-            spreadRadius: 1,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // YouTube Player Screen
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: YoutubePlayer(
-              controller: _controller,
-              aspectRatio: 16 / 9,
-            ),
-          ),
-
-          // Player bar controls & metadata
-          Container(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1E),
-              border: Border(
-                top: BorderSide(
-                  color: AppColors.primaryGold.withValues(alpha: 0.2),
-                ),
-              ),
-            ),
-            child: Column(
+          // Header Badge
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.play_circle_filled, color: Colors.redAccent, size: 14),
-                          const SizedBox(width: 4),
-                          Text(
-                            'بث مباشر يوتيوب أونلاين',
-                            style: GoogleFonts.cairo(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      _activeCantorName,
-                      style: GoogleFonts.cairo(
-                        fontSize: 11,
-                        color: AppColors.primaryGold,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    // Change cantor button
-                    Expanded(
-                      child: InkWell(
-                        onTap: () => _selectCantorSheet(context),
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 8),
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryGold.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: AppColors.primaryGold.withValues(alpha: 0.35),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.people_outline, color: AppColors.primaryGold, size: 15),
-                              const SizedBox(width: 5),
-                              Flexible(
-                                child: Text(
-                                  'تغيير المرتل',
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.cairo(
-                                    fontSize: 11,
-                                    color: AppColors.primaryGold,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-
-                    // Open in YouTube app button
-                    InkWell(
-                      onTap: _openExternalYouTube,
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 10),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: Colors.redAccent.withValues(alpha: 0.4),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.open_in_new, color: Colors.redAccent, size: 14),
-                            const SizedBox(width: 4),
-                            Text(
-                              'يوتيوب',
-                              style: GoogleFonts.cairo(
-                                fontSize: 11,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    if (widget.onSwitchToAudio != null) ...[
-                      const SizedBox(width: 8),
-                      // Switch to audio player button
-                      InkWell(
-                        onTap: widget.onSwitchToAudio,
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 10),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.2),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.audiotrack, color: Colors.white70, size: 14),
-                              const SizedBox(width: 4),
-                              Text(
-                                'صوتي فقط',
-                                style: GoogleFonts.cairo(
-                                  fontSize: 11,
-                                  color: Colors.white70,
-                                ),
-                              ),
-                            ],
-                          ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF0000).withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFFF4444).withValues(alpha: 0.5)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.play_circle_fill_rounded, color: Color(0xFFFF4444), size: 14),
+                      const SizedBox(width: 4),
+                      Text(
+                        'يوتيوب أونلاين',
+                        style: GoogleFonts.cairo(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
                       ),
                     ],
-                  ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _activeCantorName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.cairo(
+                      fontSize: 12,
+                      color: AppColors.primaryGoldLight,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                // Deacon speed trainer button
+                InkWell(
+                  onTap: _cyclePlaybackSpeed,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryGold.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${_playbackRate}x',
+                      style: GoogleFonts.cairo(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryGoldLight,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Video Player Area
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: _hasError
+                    ? Container(
+                        color: Colors.black,
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.wifi_off_rounded, color: AppColors.primaryGold, size: 36),
+                            const SizedBox(height: 8),
+                            Text(
+                              'تعذر تشغيل فيديو يوتيوب حالياً',
+                              style: GoogleFonts.cairo(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                if (widget.onSwitchToAudio != null)
+                                  ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.primaryGold,
+                                      foregroundColor: Colors.black,
+                                    ),
+                                    onPressed: widget.onSwitchToAudio,
+                                    icon: const Icon(Icons.headphones_rounded, size: 16),
+                                    label: Text('تشغيل الصوت المباشر', style: GoogleFonts.cairo(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                                  ),
+                                const SizedBox(width: 8),
+                                OutlinedButton(
+                                  onPressed: _openExternalYouTube,
+                                  child: Text('فتح في يوتيوب', style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.primaryGold)),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      )
+                    : YoutubePlayer(
+                        controller: _controller,
+                        aspectRatio: 16 / 9,
+                      ),
+              ),
+            ),
+          ),
+
+          // Action Controls Row (Cantors, Loop, Direct Audio, Open in YouTube)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                _actionPill(
+                  icon: Icons.people_alt_rounded,
+                  label: 'تغيير المرتل',
+                  onTap: () => _selectCantorSheet(context),
+                ),
+                _actionPill(
+                  icon: Icons.repeat_rounded,
+                  label: _isLooping ? 'التكرار: مفعل' : 'تكرار للحفظ',
+                  highlighted: _isLooping,
+                  onTap: _toggleLoop,
+                ),
+                if (widget.onSwitchToAudio != null)
+                  _actionPill(
+                    icon: Icons.headphones_rounded,
+                    label: 'صوت بالخلفية (MP3)',
+                    onTap: widget.onSwitchToAudio!,
+                  ),
+                _actionPill(
+                  icon: Icons.open_in_new_rounded,
+                  label: 'فتح في يوتيوب',
+                  onTap: _openExternalYouTube,
+                ),
+                _actionPill(
+                  icon: Icons.search_rounded,
+                  label: 'تسجيلات أخرى',
+                  onTap: _searchYouTubeMore,
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _actionPill({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool highlighted = false,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: highlighted ? AppColors.primaryGold : AppColors.cardNavy,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.primaryGold.withValues(alpha: highlighted ? 1.0 : 0.3),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: highlighted ? Colors.black : AppColors.primaryGold,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: GoogleFonts.cairo(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: highlighted ? Colors.black : AppColors.textLight,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

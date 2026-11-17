@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/encryption_service.dart';
+import '../../core/services/storage_service.dart';
 import '../../providers/spiritual_tracker_provider.dart';
 
 class ConscienceExamView extends StatefulWidget {
@@ -13,6 +15,28 @@ class ConscienceExamView extends StatefulWidget {
 
 class _ConscienceExamViewState extends State<ConscienceExamView> {
   String _selectedCategory = 'علاقتي بالله';
+  bool _unlocked = false;
+  bool _checkingLock = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometricGate();
+  }
+
+  Future<void> _checkBiometricGate() async {
+    if (!StorageService().isBiometricConfessionLockEnabled()) {
+      if (mounted) setState(() { _unlocked = true; _checkingLock = false; });
+      return;
+    }
+    final ok = await EncryptionService().authenticateForConfession();
+    if (mounted) {
+      setState(() {
+        _unlocked = ok;
+        _checkingLock = false;
+      });
+    }
+  }
 
   final List<String> _categories = [
     'علاقتي بالله',
@@ -61,6 +85,67 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
 
   @override
   Widget build(BuildContext context) {
+    if (_checkingLock || !_unlocked) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBar: AppBar(
+          title: Text(
+            'مذكرات الاعتراف المشفرة',
+            style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 17),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.primaryGold.withValues(alpha: 0.14),
+                    border: Border.all(color: AppColors.primaryGold, width: 1.5),
+                  ),
+                  child: const Icon(Icons.fingerprint_rounded, size: 54, color: AppColors.primaryGold),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'مذكرات الاعتراف محمية بتشفير AES-256 محلياً',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.cairo(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryGoldLight,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'ملاحظاتك مشفرة على جهازك فقط ولا تُرفع لأي سيرفر سحابي إطلاقاً.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.cairo(fontSize: 12.5, color: AppColors.textMuted),
+                ),
+                const SizedBox(height: 22),
+                ElevatedButton.icon(
+                  onPressed: _checkBiometricGate,
+                  icon: const Icon(Icons.lock_open_rounded, color: Colors.black),
+                  label: Text(
+                    'تأكيد الهوية وفتح المذكرات',
+                    style: GoogleFonts.cairo(color: Colors.black, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryGold,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Consumer<SpiritualTrackerProvider>(
       builder: (context, trackerProv, _) {
         final allQuestions = trackerProv.conscienceQuestions;
@@ -85,22 +170,22 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
           ),
           body: Column(
             children: [
-              // Notice banner: Zero-server storage
+              // Notice banner: AES-256 Zero-server storage
               Container(
                 margin: const EdgeInsets.all(16),
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColors.sacredBurgundy.withOpacity(0.2),
+                  color: AppColors.sacredBurgundy.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.primaryGold.withOpacity(0.3)),
+                  border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.35)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.lock_rounded, color: AppColors.primaryGold, size: 22),
+                    const Icon(Icons.verified_user_rounded, color: AppColors.primaryGold, size: 22),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'بيانات فحص الضمير مشفرة محلياً 100% ولا ترفع لأي سيرفر. يمكنك محوها بالكامل بعد الاعتراف.',
+                        'مشفرة محلياً بتقنية AES-256 داخل مفتاح أمان الهاتف (Keystore) ولا تُرفع لأي سيرفر. يمكنك محوها بضغطة زر بعد الاعتراف.',
                         style: GoogleFonts.cairo(fontSize: 12, color: AppColors.primaryGoldLight),
                       ),
                     ),

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'core/services/coptic_calendar_service.dart';
+import 'core/services/firebase_service.dart';
+import 'core/services/notification_service.dart';
 import 'core/services/storage_service.dart';
 import 'providers/theme_provider.dart';
 import 'providers/audio_provider.dart';
@@ -18,6 +20,8 @@ import 'views/onboarding/splash_view.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await StorageService().init();
+  await FirebaseService().initSafely();
+  await NotificationService().init();
   await CopticCalendarService.ensureLectionaryLoaded();
 
   runApp(

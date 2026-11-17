@@ -7,6 +7,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/coptic_calendar_service.dart';
+import '../../core/services/notification_service.dart';
+import '../../core/services/patron_saint_service.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/widgets/luxe_widgets.dart';
 import '../../models/hymn_model.dart';
@@ -15,14 +17,17 @@ import '../../providers/church_mode_provider.dart';
 import '../../providers/liturgy_provider.dart';
 import '../bible/scripture_tafseer_reading_view.dart';
 import '../books/books_library_view.dart';
+import '../community/nearest_church_view.dart';
 import '../community/trivia_game_view.dart';
 import '../conscience/conscience_exam_view.dart';
 import '../hymns/hymn_detail_view.dart';
 import '../icons/christ_icons_gallery_view.dart';
 import '../liturgical/agpeya_view.dart';
 import '../liturgical/katameros_view.dart';
+import '../liturgical/tasbeha_pascha_view.dart';
 import '../liturgies/liturgy_reader_view.dart';
 import '../prayer_rope/coptic_prayer_rope_view.dart';
+import '../synaxarium/my_patron_saint_view.dart';
 import '../synaxarium/synaxarium_daily_view.dart';
 import '../coptic_academy/coptic_academy_view.dart';
 import '../onboarding/auth_view.dart';
@@ -91,6 +96,7 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
   void initState() {
     super.initState();
     _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAskNotificationPermission());
     _carouselTimer = Timer.periodic(const Duration(seconds: 7), (_) {
       if (!mounted || !_iconCarouselController.hasClients) return;
       final next = (_activeIconIndex + 1) % _heroBanners.length;
@@ -100,6 +106,96 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
         curve: Curves.easeOutCubic,
       );
     });
+  }
+
+  Future<void> _maybeAskNotificationPermission() async {
+    final storage = StorageService();
+    if (storage.isNotificationPromptShown()) return;
+    await storage.setNotificationPromptShown(true);
+    if (!mounted) return;
+
+    bool wantDailyVerse = true;
+    bool wantFamilyPrayer = false; // Strictly optional!
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          backgroundColor: AppColors.cardNavy,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+            side: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.5)),
+          ),
+          title: Row(
+            children: [
+              const Icon(Icons.notifications_active_rounded, color: AppColors.primaryGold),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'آية اليوم وتذكير صلاة العائلة',
+                  style: GoogleFonts.cairo(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15.5,
+                    color: AppColors.primaryGoldLight,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'هل تحب السماح بالإشعارات ليصلك يومياً:',
+                style: GoogleFonts.cairo(fontSize: 13, color: Colors.white),
+              ),
+              const SizedBox(height: 10),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                activeColor: AppColors.primaryGold,
+                checkColor: Colors.black,
+                value: wantDailyVerse,
+                onChanged: (v) => setDlg(() => wantDailyVerse = v ?? false),
+                title: Text('✝ آية اليوم + قول شفيعك يومياً', style: GoogleFonts.cairo(fontSize: 13, color: Colors.white)),
+                subtitle: Text('صباحاً الساعة ٨:٠٠ ص (مثل تطبيق أرثوذكسي)', style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textMuted)),
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                activeColor: AppColors.primaryGold,
+                checkColor: Colors.black,
+                value: wantFamilyPrayer,
+                onChanged: (v) => setDlg(() => wantFamilyPrayer = v ?? false),
+                title: Text('🙏 تذكير صلاة العائلة (اختياري)', style: GoogleFonts.cairo(fontSize: 13, color: Colors.white)),
+                subtitle: Text('تذكير لطيف الساعة ٩:٠٠ م لو حابين تصلّوا سوا — مش فرض وتقدر تغيره في أي وقت', style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textMuted)),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('لاحقاً', style: GoogleFonts.cairo(color: AppColors.textMuted)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryGold,
+                foregroundColor: Colors.black,
+              ),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                if (wantDailyVerse || wantFamilyPrayer) {
+                  await NotificationService().requestPermission();
+                }
+                await storage.setDailyVerseNotificationEnabled(wantDailyVerse);
+                await storage.setFamilyPrayerReminderEnabled(wantFamilyPrayer);
+                await NotificationService().syncScheduledNotifications();
+              },
+              child: Text('حفظ وتفعيل', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -467,11 +563,11 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                               ),
                             ),
                             Text(
-                              '${copticToday.formatted} • ${StorageService().getChurchName()} (${StorageService().getDiocese()})',
+                              '${copticToday.formatted} • ${copticToday.seasonName}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.cairo(
-                                fontSize: 11,
+                                fontSize: 11.5,
                                 color: AppColors.primaryGoldLight,
                               ),
                             ),
@@ -720,7 +816,97 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                 ),
               ).animate().fadeIn(duration: 380.ms).slideY(begin: 0.06, end: 0),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
+
+              // 5.5 Personal Patron Saint Daily Quote Card (شفيعي الشخصي وأقواله اليومية)
+              Builder(
+                builder: (context) {
+                  final saint = PatronSaintService.getSaintById(StorageService().getPatronSaintId());
+                  final dailyQuote = PatronSaintService.getDailyQuote(saint.id);
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          luxeRoute(const MyPatronSaintView()),
+                        );
+                        if (mounted) setState(() {});
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF281F12), Color(0xFF15161E)],
+                            begin: Alignment.topRight,
+                            end: Alignment.bottomLeft,
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: AppColors.primaryGold.withValues(alpha: 0.55),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Text(saint.iconEmoji, style: const TextStyle(fontSize: 22)),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'رسالة شفيعك اليوم • ${saint.shortName}',
+                                        style: GoogleFonts.cairo(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.primaryGoldLight,
+                                        ),
+                                      ),
+                                      Text(
+                                        'اضغط لقراءة المزيد أو تغيير شفيعك الشخصي',
+                                        style: GoogleFonts.cairo(
+                                          fontSize: 10.5,
+                                          color: AppColors.primaryGold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.primaryGold),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              '«${dailyQuote.quote}»',
+                              style: GoogleFonts.cairo(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.bold,
+                                height: 1.6,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '🙏 ${dailyQuote.prayer}',
+                              style: GoogleFonts.cairo(
+                                fontSize: 11.5,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 22),
 
               // 6. Illustrated Liturgies & Readings Cards (matches Video Frame 05)
               Padding(
@@ -791,6 +977,26 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                       onTap: () => Navigator.push(
                         context,
                         luxeRoute(const SynaxariumDailyView()),
+                      ),
+                    ),
+                    ThumbListCard(
+                      image: 'assets/images/coptic_banner.jpg',
+                      title: 'التسبحة المقدسة والبصخة وحاسبة الأعياد المتحركة',
+                      subtitle:
+                          'الإبصلمودية (الهوسات الأربعة والمجمع) • ألحان البصخة • موعد القيامة والصوم الكبير لكل سنة',
+                      onTap: () => Navigator.push(
+                        context,
+                        luxeRoute(const TasbehaPaschaView()),
+                      ),
+                    ),
+                    ThumbListCard(
+                      image: 'assets/images/app_cover.jpg',
+                      title: 'أقرب كنيسة قبطية ومزارات الأديرة (GPS)',
+                      subtitle:
+                          'ابحث بضغطة زر عن أقرب كنيسة قبطية لموقعك على الخريطة مع أبرز الكاتدرائيات والأديرة',
+                      onTap: () => Navigator.push(
+                        context,
+                        luxeRoute(const NearestChurchView()),
                       ),
                     ),
                     ThumbListCard(

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/spiritual_tracker_model.dart';
 import '../theme/app_theme.dart';
+import 'encryption_service.dart';
 
 class StorageService {
   static final StorageService _instance = StorageService._internal();
@@ -9,9 +10,11 @@ class StorageService {
   StorageService._internal();
 
   SharedPreferences? _prefs;
+  final EncryptionService _encryption = EncryptionService();
 
   Future<void> init() async {
     _prefs ??= await SharedPreferences.getInstance();
+    await _encryption.init();
   }
 
   // Theme Preference
@@ -40,13 +43,18 @@ class StorageService {
     await _prefs?.setDouble('font_size_scale', scale);
   }
 
-  // User Name & Title
+  // User Name & Title (user-entered, never hardcoded to a fake person!)
   String getUserName() {
     final name = (_prefs?.getString('user_name') ?? '').trim();
-    if (name.isEmpty || name == 'زائر مبارك' || name == 'فادي عادل') {
-      return 'مينا';
+    if (name.isEmpty) {
+      return 'صديق أرثوذكسيا';
     }
     return name;
+  }
+
+  bool hasCustomUserName() {
+    final name = (_prefs?.getString('user_name') ?? '').trim();
+    return name.isNotEmpty && name != 'صديق أرثوذكسيا';
   }
 
   Future<void> setUserName(String name) async {
@@ -55,12 +63,56 @@ class StorageService {
 
   String getUserTitle() {
     final title = _prefs?.getString('user_title') ?? '';
-    return title.trim().isEmpty ? 'عضو بالكنيسة القبطية الأرثوذكسية' : title.trim();
+    return title.trim().isEmpty ? 'أرثوذكسي في المسيح' : title.trim();
   }
 
   Future<void> setUserTitle(String title) async {
     await _prefs?.setString('user_title', title.trim());
   }
+
+  // Personal Patron Saint (شفيعي الشخصي)
+  String getPatronSaintId() {
+    return _prefs?.getString('patron_saint_id') ?? 'virgin_mary';
+  }
+
+  Future<void> setPatronSaintId(String saintId) async {
+    await _prefs?.setString('patron_saint_id', saintId);
+  }
+
+  // Daily Verse & Optional Family Prayer Notifications
+  bool isNotificationPromptShown() => _prefs?.getBool('notif_prompt_shown') ?? false;
+  Future<void> setNotificationPromptShown(bool val) async =>
+      await _prefs?.setBool('notif_prompt_shown', val);
+
+  bool isDailyVerseNotificationEnabled() =>
+      _prefs?.getBool('daily_verse_notif_enabled') ?? false;
+  Future<void> setDailyVerseNotificationEnabled(bool val) async =>
+      await _prefs?.setBool('daily_verse_notif_enabled', val);
+
+  int getDailyVerseHour() => _prefs?.getInt('daily_verse_hour') ?? 8;
+  int getDailyVerseMinute() => _prefs?.getInt('daily_verse_minute') ?? 0;
+  Future<void> setDailyVerseTime(int hour, int minute) async {
+    await _prefs?.setInt('daily_verse_hour', hour);
+    await _prefs?.setInt('daily_verse_minute', minute);
+  }
+
+  bool isFamilyPrayerReminderEnabled() =>
+      _prefs?.getBool('family_prayer_notif_enabled') ?? false; // Strictly optional!
+  Future<void> setFamilyPrayerReminderEnabled(bool val) async =>
+      await _prefs?.setBool('family_prayer_notif_enabled', val);
+
+  int getFamilyPrayerHour() => _prefs?.getInt('family_prayer_hour') ?? 21;
+  int getFamilyPrayerMinute() => _prefs?.getInt('family_prayer_minute') ?? 0;
+  Future<void> setFamilyPrayerTime(int hour, int minute) async {
+    await _prefs?.setInt('family_prayer_hour', hour);
+    await _prefs?.setInt('family_prayer_minute', minute);
+  }
+
+  // Biometric Lock for Confession Notes
+  bool isBiometricConfessionLockEnabled() =>
+      _prefs?.getBool('biometric_lock_confession') ?? true;
+  Future<void> setBiometricConfessionLockEnabled(bool val) async =>
+      await _prefs?.setBool('biometric_lock_confession', val);
 
   // Guest Mode & Auth V2
   bool isGuestMode() {
@@ -95,25 +147,6 @@ class StorageService {
     await _prefs?.setString('user_phone', phone.trim());
   }
 
-  // Diocese & Church Selection Persistence
-  String getDiocese() {
-    final d = (_prefs?.getString('user_diocese') ?? '').trim();
-    return d.isEmpty ? 'إيبارشية القاهرة والبطريركية' : d;
-  }
-
-  Future<void> setDiocese(String diocese) async {
-    await _prefs?.setString('user_diocese', diocese.trim());
-  }
-
-  String getChurchName() {
-    final c = (_prefs?.getString('user_church_name') ?? '').trim();
-    return c.isEmpty ? 'كنيسة الشهيد العظيم مارجرجس' : c;
-  }
-
-  Future<void> setChurchName(String church) async {
-    await _prefs?.setString('user_church_name', church.trim());
-  }
-
   Future<void> deleteAllUserData() async {
     await _prefs?.clear();
   }
@@ -141,11 +174,11 @@ class StorageService {
   Future<void> setTotalQuestionsAnswered(int val) async =>
       await _prefs?.setInt('trivia_total_answered', val);
 
-  // Spiritual Tracker Logs (100% locally encrypted on-device)
+  // Spiritual Tracker Logs (100% locally AES-256 encrypted on-device, ZERO cloud)
   List<SpiritualLog> getSpiritualLogs() {
     final raw = _prefs?.getString('spiritual_logs_encrypted') ?? '[]';
     try {
-      final decrypted = _decryptLocal(raw);
+      final decrypted = _encryption.decryptAes256(raw);
       final list = jsonDecode(decrypted) as List;
       return list.map((item) => SpiritualLog.fromJson(item)).toList();
     } catch (e) {
@@ -155,40 +188,15 @@ class StorageService {
 
   Future<void> saveSpiritualLogs(List<SpiritualLog> logs) async {
     final jsonStr = jsonEncode(logs.map((l) => l.toJson()).toList());
-    await _prefs?.setString('spiritual_logs_encrypted', _encryptLocal(jsonStr));
+    await _prefs?.setString('spiritual_logs_encrypted', _encryption.encryptAes256(jsonStr));
   }
 
-  // Local Symmetric Cipher for Private Confession Notes (100% offline, zero-cloud)
-  static const String _localKey = 'OrthodoxConfessionKey_1743AM';
-
-  String _encryptLocal(String plainText) {
-    final bytes = utf8.encode(plainText);
-    final keyBytes = utf8.encode(_localKey);
-    final out = List<int>.generate(
-      bytes.length,
-      (i) => bytes[i] ^ keyBytes[i % keyBytes.length] ^ ((i * 31) & 0xFF),
-    );
-    return 'ENC_V1:${base64Encode(out)}';
-  }
-
-  String _decryptLocal(String stored) {
-    if (!stored.startsWith('ENC_V1:')) return stored; // backwards compatible
-    final encoded = stored.substring(7);
-    final cipher = base64Decode(encoded);
-    final keyBytes = utf8.encode(_localKey);
-    final out = List<int>.generate(
-      cipher.length,
-      (i) => cipher[i] ^ keyBytes[i % keyBytes.length] ^ ((i * 31) & 0xFF),
-    );
-    return utf8.decode(out);
-  }
-
-  // Conscience Exam Questions & Notes
+  // Conscience Exam Questions & Confession Notes (100% locally AES-256 encrypted, ZERO cloud)
   List<ConscienceQuestion> getConscienceQuestions() {
     final raw = _prefs?.getString('conscience_exam_notes') ?? '';
     if (raw.isNotEmpty) {
       try {
-        final decrypted = _decryptLocal(raw);
+        final decrypted = _encryption.decryptAes256(raw);
         final list = jsonDecode(decrypted) as List;
         return list.map((i) => ConscienceQuestion.fromJson(i)).toList();
       } catch (e) {
@@ -200,7 +208,7 @@ class StorageService {
 
   Future<void> saveConscienceQuestions(List<ConscienceQuestion> questions) async {
     final jsonStr = jsonEncode(questions.map((q) => q.toJson()).toList());
-    await _prefs?.setString('conscience_exam_notes', _encryptLocal(jsonStr));
+    await _prefs?.setString('conscience_exam_notes', _encryption.encryptAes256(jsonStr));
   }
 
   Future<void> clearConscienceNotes() async {
@@ -208,7 +216,6 @@ class StorageService {
   }
 
   static final List<ConscienceQuestion> _defaultConscienceQuestions = [
-    // علاقتي بالله
     ConscienceQuestion(
       id: 'god_1',
       category: 'علاقتي بالله',
@@ -227,8 +234,6 @@ class StorageService {
       title: 'احترام بيت الله وسر التناول',
       explanation: 'هل أحضر القداسات بخشوع واستعداد ووقار أم بتكاسل وسرحان؟',
     ),
-
-    // علاقتي بالقريب
     ConscienceQuestion(
       id: 'others_1',
       category: 'علاقتي بالقريب',
@@ -247,8 +252,6 @@ class StorageService {
       title: 'العطاء وأعمال الرحمة',
       explanation: 'هل تفقدت المحتاجين وساعدت بالمال أو الوقت أو الكلمة المشجعة؟',
     ),
-
-    // نقاوة القلب والجسد
     ConscienceQuestion(
       id: 'self_1',
       category: 'نقاوة القلب والجسد',

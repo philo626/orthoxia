@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/firebase_service.dart';
+import '../../core/services/notification_service.dart';
+import '../../core/services/patron_saint_service.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/theme_provider.dart';
 import '../spiritual_tracker/spiritual_tracker_view.dart';
 import '../conscience/conscience_exam_view.dart';
 import '../onboarding/auth_view.dart';
+import '../synaxarium/my_patron_saint_view.dart';
 import 'privacy_policy_view.dart';
 
 class ProfileSettingsView extends StatefulWidget {
@@ -203,9 +207,9 @@ class _ProfileSettingsViewState extends State<ProfileSettingsView> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '${_storage.getDiocese()} • ${_storage.getChurchName()}',
+                            'شفيعي الشخصي: ${PatronSaintService.getSaintById(_storage.getPatronSaintId()).shortName}',
                             style: GoogleFonts.cairo(
-                              fontSize: 11,
+                              fontSize: 11.5,
                               color: AppColors.primaryGoldLight,
                               fontWeight: FontWeight.w600,
                             ),
@@ -333,6 +337,150 @@ class _ProfileSettingsViewState extends State<ProfileSettingsView> {
 
           const SizedBox(height: 24),
 
+          // Section 1.5: Daily Verse, Patron Saint & Optional Family Prayer Notifications
+          Text(
+            'الإشعارات اليومية وشفيعك الشخصي (اختياري تماماً)',
+            style: GoogleFonts.cairo(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryGold,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.cardNavy,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: Text(
+                      PatronSaintService.getSaintById(_storage.getPatronSaintId()).iconEmoji,
+                      style: const TextStyle(fontSize: 22),
+                    ),
+                    title: Text('شفيعي الشخصي وأقواله اليومية', style: GoogleFonts.cairo(fontSize: 14)),
+                    subtitle: Text(
+                      PatronSaintService.getSaintById(_storage.getPatronSaintId()).name,
+                      style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.primaryGoldLight),
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.primaryGold),
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const MyPatronSaintView()),
+                      );
+                      if (mounted) setState(() {});
+                    },
+                  ),
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.notifications_active_rounded, color: AppColors.primaryGold),
+                    title: Text('إشعار آية اليوم وقول شفيعك', style: GoogleFonts.cairo(fontSize: 14)),
+                    subtitle: Text(
+                      'تصلك آية من الكتاب المقدس يومياً الساعة ${_storage.getDailyVerseHour().toString().padLeft(2, '0')}:${_storage.getDailyVerseMinute().toString().padLeft(2, '0')}',
+                      style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.textMuted),
+                    ),
+                    activeThumbColor: AppColors.primaryGold,
+                    value: _storage.isDailyVerseNotificationEnabled(),
+                    onChanged: (val) async {
+                      if (val) {
+                        await NotificationService().requestPermission();
+                      }
+                      await _storage.setDailyVerseNotificationEnabled(val);
+                      await NotificationService().syncScheduledNotifications();
+                      if (mounted) setState(() {});
+                    },
+                  ),
+                  if (_storage.isDailyVerseNotificationEnabled())
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: Row(
+                        children: [
+                          TextButton.icon(
+                            onPressed: () async {
+                              final picked = await showTimePicker(
+                                context: context,
+                                initialTime: TimeOfDay(
+                                  hour: _storage.getDailyVerseHour(),
+                                  minute: _storage.getDailyVerseMinute(),
+                                ),
+                              );
+                              if (picked != null) {
+                                await _storage.setDailyVerseTime(picked.hour, picked.minute);
+                                await NotificationService().syncScheduledNotifications();
+                                if (mounted) setState(() {});
+                              }
+                            },
+                            icon: const Icon(Icons.access_time_rounded, size: 16, color: AppColors.primaryGold),
+                            label: Text('تغيير وقت الآية', style: GoogleFonts.cairo(fontSize: 12, color: AppColors.primaryGoldLight)),
+                          ),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: () async {
+                              await NotificationService().requestPermission();
+                              await NotificationService().sendTestDailyVerseNow();
+                            },
+                            icon: const Icon(Icons.send_rounded, size: 15, color: AppColors.primaryGold),
+                            label: Text('تجربة إشعار الآن', style: GoogleFonts.cairo(fontSize: 12, color: AppColors.primaryGold)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.family_restroom_rounded, color: AppColors.primaryGold),
+                    title: Text('تذكير صلاة العائلة (اختياري)', style: GoogleFonts.cairo(fontSize: 14)),
+                    subtitle: Text(
+                      'تذكير لطيف لو حابين تصلّوا سوا الساعة ${_storage.getFamilyPrayerHour().toString().padLeft(2, '0')}:${_storage.getFamilyPrayerMinute().toString().padLeft(2, '0')} — مش فرض وتقدر تقفله في أي وقت',
+                      style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.textMuted),
+                    ),
+                    activeThumbColor: AppColors.primaryGold,
+                    value: _storage.isFamilyPrayerReminderEnabled(),
+                    onChanged: (val) async {
+                      if (val) {
+                        await NotificationService().requestPermission();
+                      }
+                      await _storage.setFamilyPrayerReminderEnabled(val);
+                      await NotificationService().syncScheduledNotifications();
+                      if (mounted) setState(() {});
+                    },
+                  ),
+                  if (_storage.isFamilyPrayerReminderEnabled())
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: TextButton.icon(
+                          onPressed: () async {
+                            final picked = await showTimePicker(
+                              context: context,
+                              initialTime: TimeOfDay(
+                                hour: _storage.getFamilyPrayerHour(),
+                                minute: _storage.getFamilyPrayerMinute(),
+                              ),
+                            );
+                            if (picked != null) {
+                              await _storage.setFamilyPrayerTime(picked.hour, picked.minute);
+                              await NotificationService().syncScheduledNotifications();
+                              if (mounted) setState(() {});
+                            }
+                          },
+                          icon: const Icon(Icons.schedule_rounded, size: 16, color: AppColors.primaryGold),
+                          label: Text('تحديد موعد صلاة العائلة', style: GoogleFonts.cairo(fontSize: 12, color: AppColors.primaryGoldLight)),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
           // Section 2: Privacy & Spiritual Tools
           Text(
             'الأدوات الروحية والخصوصية',
@@ -354,13 +502,42 @@ class _ProfileSettingsViewState extends State<ProfileSettingsView> {
               color: Colors.transparent,
               child: Column(
                 children: [
+                  SwitchListTile(
+                    secondary: const Icon(Icons.fingerprint_rounded, color: AppColors.primaryGold),
+                    title: Text('قفل مذكرات الاعتراف بالبصمة (AES-256)', style: GoogleFonts.cairo(fontSize: 13.5)),
+                    subtitle: Text(
+                      'تشفير بنكي AES-256 محلياً على جهازك فقط — لا تُرفع أبداً للإنترنت',
+                      style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.textMuted),
+                    ),
+                    activeThumbColor: AppColors.primaryGold,
+                    value: _storage.isBiometricConfessionLockEnabled(),
+                    onChanged: (val) async {
+                      await _storage.setBiometricConfessionLockEnabled(val);
+                      if (mounted) setState(() {});
+                    },
+                  ),
+                  const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.shield_moon_rounded, color: AppColors.primaryGold),
                     title: Text('فحص الضمير للاعتراف', style: GoogleFonts.cairo(fontSize: 14)),
-                    subtitle: Text('بياناتك مشفرة ومحفوظة على جهازك فقط',
+                    subtitle: Text('مشفرة بتقنية AES-256 ومحفوظة على جهازك فقط',
                         style: GoogleFonts.cairo(fontSize: 12, color: AppColors.textMuted)),
                     trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.primaryGold),
                     onTap: () => _guardPersonalSection('فحص الضمير للاعتراف', const ConscienceExamView()),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: Icon(
+                      FirebaseService().isFirebaseReady ? Icons.cloud_done_rounded : Icons.cloud_queue_rounded,
+                      color: FirebaseService().isFirebaseReady ? AppColors.successGreen : AppColors.primaryGold,
+                    ),
+                    title: Text('حالة المزامنة السحابية (Firebase)', style: GoogleFonts.cairo(fontSize: 14)),
+                    subtitle: Text(
+                      FirebaseService().isFirebaseReady
+                          ? 'متصل بـ Firebase Auth و Cloud Firestore بنجاح'
+                          : 'الوضع المحلي مفعل (أضف google-services.json لتفعيل السحابة)',
+                      style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.textMuted),
+                    ),
                   ),
                   const Divider(height: 1),
                   ListTile(

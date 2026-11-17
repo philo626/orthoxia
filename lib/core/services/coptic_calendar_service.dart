@@ -321,6 +321,66 @@ class CopticCalendarService {
     return results;
   }
 
+  /// Exact Orthodox Alexandrian Computus for Coptic Resurrection Sunday (عيد القيامة المجيد)
+  static DateTime computeOrthodoxEaster(int gregorianYear) {
+    final a = gregorianYear % 4;
+    final b = gregorianYear % 7;
+    final c = gregorianYear % 19;
+    final d = (19 * c + 15) % 30;
+    final e = (2 * a + 4 * b - d + 34) % 7;
+    final month = ((d + e + 114) ~/ 31); // Julian month (3=March, 4=April)
+    final day = ((d + e + 114) % 31) + 1; // Julian day
+    // Convert Julian to Gregorian (+13 days for 1900-2099)
+    return DateTime(gregorianYear, month, day).add(const Duration(days: 13));
+  }
+
+  /// Calculates all major Coptic Orthodox Movable Feasts & Fasts automatically for any year!
+  static List<Map<String, dynamic>> getMovableFeastsForYear(int year) {
+    final easter = computeOrthodoxEaster(year);
+    return [
+      {
+        'name': 'بداية صوم يونان (نينوى)',
+        'date': easter.subtract(const Duration(days: 69)),
+        'type': 'fast',
+      },
+      {
+        'name': 'بداية الصوم الكبير المقدس (٥٥ يوماً)',
+        'date': easter.subtract(const Duration(days: 55)),
+        'type': 'fast',
+      },
+      {
+        'name': 'أحد الشعانين (دخول السيد المسيح أورشليم)',
+        'date': easter.subtract(const Duration(days: 7)),
+        'type': 'feast',
+      },
+      {
+        'name': 'الجمعة العظيمة المقدسة',
+        'date': easter.subtract(const Duration(days: 2)),
+        'type': 'fast',
+      },
+      {
+        'name': 'عيد القيامة المجيد (إخرستوس أنستي)',
+        'date': easter,
+        'type': 'major_feast',
+      },
+      {
+        'name': 'عيد الصعود المجيد',
+        'date': easter.add(const Duration(days: 39)),
+        'type': 'feast',
+      },
+      {
+        'name': 'عيد العنصرة (حلول الروح القدس)',
+        'date': easter.add(const Duration(days: 49)),
+        'type': 'major_feast',
+      },
+      {
+        'name': 'بداية صوم الآباء الرسل',
+        'date': easter.add(const Duration(days: 50)),
+        'type': 'fast',
+      },
+    ];
+  }
+
   /// Searches all saints across the entire year
   static List<Map<String, String>> searchSynaxarium(String query) {
     final cleanQ = query.trim().toLowerCase();

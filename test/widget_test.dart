@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:orthodox_app/core/services/storage_service.dart';
 import 'package:orthodox_app/providers/theme_provider.dart';
 import 'package:orthodox_app/providers/audio_provider.dart';
 import 'package:orthodox_app/providers/spiritual_tracker_provider.dart';
@@ -14,7 +17,13 @@ import 'package:orthodox_app/providers/church_mode_provider.dart';
 import 'package:orthodox_app/views/main_navigation_shell.dart';
 
 void main() {
+  GoogleFonts.config.allowRuntimeFetching = false;
+
   testWidgets('Orthodox App Main Navigation smoke test', (WidgetTester tester) async {
+    await tester.runAsync(() async {
+      SharedPreferences.setMockInitialValues({'notif_prompt_shown': true});
+      await StorageService().init();
+    });
     await tester.pumpWidget(
       MultiProvider(
         providers: [

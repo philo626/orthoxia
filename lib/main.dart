@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'core/services/coptic_calendar_service.dart';
 import 'core/services/firebase_service.dart';
 import 'core/services/notification_service.dart';
+import 'core/services/patron_saint_service.dart';
 import 'core/services/storage_service.dart';
 import 'providers/theme_provider.dart';
 import 'providers/audio_provider.dart';
@@ -23,6 +24,7 @@ void main() async {
   await FirebaseService().initSafely();
   await NotificationService().init();
   await CopticCalendarService.ensureLectionaryLoaded();
+  await PatronSaintService.ensureLoaded();
 
   runApp(
     MultiProvider(

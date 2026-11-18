@@ -38,6 +38,9 @@ class _HymnDetailViewState extends State<HymnDetailView>
   void initState() {
     super.initState();
     _activeHymn = widget.hymn;
+    // Use YouTube online player when an exact title-matched YouTube video exists;
+    // otherwise default to the 100% exact hymn MP3 recording so audio & lyrics ALWAYS match!
+    _useYouTubeMode = _activeHymn.exactYoutube;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_useYouTubeMode) {
         context.read<AudioProvider>().pause();
@@ -73,8 +76,11 @@ class _HymnDetailViewState extends State<HymnDetailView>
     setState(() {
       _activeHymn = list[resolvedIdx];
       _youtubePosition = Duration.zero;
+      _useYouTubeMode = _activeHymn.exactYoutube;
     });
-    if (!_useYouTubeMode) {
+    if (_useYouTubeMode) {
+      context.read<AudioProvider>().pause();
+    } else {
       context.read<AudioProvider>().play(_activeHymn);
     }
   }

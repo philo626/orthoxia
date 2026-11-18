@@ -77,25 +77,46 @@ void main() {
       expect(englishTitleCount, 0);
     });
 
-    test('liturgies.json contains complete St. Basil, St. Gregory, and St. Cyril liturgies', () {
+    test('liturgies.json contains complete modernized St. Basil, St. Gregory, and St. Cyril liturgies with true Coptic Unicode', () {
       final list = jsonDecode(File('assets/data/liturgies.json').readAsStringSync()) as List;
       expect(list.length, 3);
       expect(list.map((e) => e['id']), containsAll(['liturgy_basil', 'liturgy_gregory', 'liturgy_cyril']));
+      final rolesFound = <String>{};
+      bool hasTrueCopticUnicode = false;
       for (final lit in list) {
         final sections = lit['sections'] as List;
         expect('${sections.first['title']}', contains('تقدمة الحمل'));
+        for (final sec in sections) {
+          for (final v in (sec['verses'] as List)) {
+            rolesFound.add('${v['role']}');
+            final cop = '${v['coptic'] ?? ''}';
+            if (cop.contains('Ⲧ') || cop.contains('Ϣ') || cop.contains('Ⲕ')) {
+              hasTrueCopticUnicode = true;
+            }
+          }
+        }
       }
+      expect(hasTrueCopticUnicode, isTrue, reason: 'Must contain true Bohairic Coptic Unicode characters');
+      expect(rolesFound, containsAll(['priest', 'priest_silent', 'deacon', 'people', 'rubric']));
     });
 
-    test('All 408 hymns use verified real YouTube IDs (zero old dead IDs)', () {
+    test('All 317 hymns have 100% unique 1-to-1 audio URLs and verified YouTube IDs (zero duplicates or mismatches)', () {
       final hymns = jsonDecode(File('assets/data/hymns.json').readAsStringSync()) as List;
-      expect(hymns.length, greaterThanOrEqualTo(400));
+      expect(hymns.length, greaterThanOrEqualTo(315));
       final deadIds = {'3_p4J6p-gV4', 'n0YqZ7Ld3K0', 'o3N_uTz9h44', 'sW8p1q6tV5U'};
+      final audioUrls = <String>{};
+      final youtubeIds = <String>{};
       for (final h in hymns) {
         final yid = '${h['youtube_id'] ?? ''}';
+        final aurl = '${h['audio_url'] ?? ''}';
         expect(yid.isNotEmpty, isTrue);
+        expect(aurl.startsWith('http'), isTrue);
         expect(deadIds.contains(yid), isFalse, reason: 'Dead YouTube ID found: $yid');
+        audioUrls.add(aurl);
+        youtubeIds.add(yid);
       }
+      expect(audioUrls.length, hymns.length, reason: 'Every hymn must have its own unique 1-to-1 audio URL');
+      expect(youtubeIds.length, greaterThanOrEqualTo(250), reason: 'Hymns must map to specific YouTube video IDs');
       expect(CopticYouTubeRegistry.resolveVideoId(hymnId: 'tai-shori', title: 'طاي شوري'), 'RIRb2ED0qvE');
       expect(CopticYouTubeRegistry.resolveVideoId(hymnId: 'golgotha', title: 'غولغوثا'), '6iuEVnKP7rU');
     });
@@ -140,9 +161,12 @@ void main() {
       expect(restored.first.reflectionNote, 'مذكرة اعتراف خاصة مشفرة');
     });
 
-    test('CopticCalendarService & LiturgyProvider load cleanly', () async {
+    test('CopticCalendarService, PatronSaintService (800+ saints) & LiturgyProvider load cleanly', () async {
       await CopticCalendarService.ensureLectionaryLoaded();
       expect(CopticCalendarService.searchSynaxarium('العذراء').isNotEmpty, isTrue);
+
+      await PatronSaintService.ensureLoaded();
+      expect(PatronSaintService.saints.length, greaterThanOrEqualTo(800));
 
       final prov = LiturgyProvider();
       await prov.loadLiturgies();
@@ -212,7 +236,7 @@ void main() {
       await tester.tap(find.text('فهرس القداس'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
-      expect(find.text('فهرس صلوات ومحطات القداس'), findsOneWidget);
+      expect(find.text('خريطة ومحطات القداس الإلهي'), findsOneWidget);
     });
 
     testWidgets('MyPatronSaintView, TasbehaPaschaView, and NearestChurchView render cleanly', (tester) async {

@@ -20,11 +20,20 @@ class MyPatronSaintView extends StatefulWidget {
 class _MyPatronSaintViewState extends State<MyPatronSaintView> {
   final StorageService _storage = StorageService();
   late String _selectedSaintId;
+  bool _loadingSynaxariumSaints = true;
 
   @override
   void initState() {
     super.initState();
     _selectedSaintId = _storage.getPatronSaintId();
+    _initAllSaints();
+  }
+
+  Future<void> _initAllSaints() async {
+    await PatronSaintService.ensureLoaded();
+    if (mounted) {
+      setState(() => _loadingSynaxariumSaints = false);
+    }
   }
 
   Future<void> _chooseSaint(PatronSaintProfile saint) async {
@@ -49,102 +58,209 @@ class _MyPatronSaintViewState extends State<MyPatronSaintView> {
   }
 
   void _openSaintPickerSheet() {
+    String searchQuery = '';
+    String selectedCategory = 'الكل';
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        height: MediaQuery.of(ctx).size.height * 0.78,
-        padding: const EdgeInsets.fromLTRB(18, 14, 18, 20),
-        decoration: const BoxDecoration(
-          color: Color(0xFF13151D),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-          border: Border(top: BorderSide(color: AppColors.primaryGold, width: 1.5)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 44,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryGold.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final allSaints = PatronSaintService.saints;
+          final filtered = allSaints.where((s) {
+            final matchCat = selectedCategory == 'الكل' || s.category == selectedCategory;
+            final q = searchQuery.trim();
+            final matchSearch = q.isEmpty ||
+                s.name.contains(q) ||
+                s.shortName.contains(q) ||
+                s.title.contains(q) ||
+                s.feastDate.contains(q);
+            return matchCat && matchSearch;
+          }).toList();
+
+          return Container(
+            height: MediaQuery.of(ctx).size.height * 0.86,
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+            decoration: const BoxDecoration(
+              color: Color(0xFF13151D),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+              border: Border(top: BorderSide(color: AppColors.primaryGold, width: 1.5)),
             ),
-            const SizedBox(height: 14),
-            Text(
-              'اختر قديسك وشفيعك الشخصي',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.cairo(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primaryGoldLight,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'سيظهر لك يومياً قول وتعليم وصلوة خاصة من شفيعك المختار على الشاشة الرئيسية',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.cairo(fontSize: 12, color: AppColors.textMuted),
-            ),
-            const SizedBox(height: 14),
-            Expanded(
-              child: ListView.separated(
-                itemCount: PatronSaintService.saints.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 8),
-                itemBuilder: (c, idx) {
-                  final s = PatronSaintService.saints[idx];
-                  final isSel = s.id == _selectedSaintId;
-                  return Material(
-                    type: MaterialType.transparency,
-                    child: ListTile(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        side: BorderSide(
-                          color: isSel
-                              ? AppColors.primaryGold
-                              : AppColors.primaryGold.withValues(alpha: 0.18),
-                          width: isSel ? 1.5 : 0.8,
-                        ),
-                      ),
-                      tileColor: isSel
-                          ? AppColors.primaryGold.withValues(alpha: 0.14)
-                          : AppColors.cardNavy,
-                      leading: CircleAvatar(
-                        backgroundColor: AppColors.primaryGold.withValues(alpha: 0.18),
-                        child: Text(s.iconEmoji, style: const TextStyle(fontSize: 20)),
-                      ),
-                      title: Text(
-                        s.name,
-                        style: GoogleFonts.cairo(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.bold,
-                          color: isSel ? AppColors.primaryGoldLight : Colors.white,
-                        ),
-                      ),
-                      subtitle: Text(
-                        s.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textMuted),
-                      ),
-                      trailing: isSel
-                          ? const Icon(Icons.check_circle_rounded, color: AppColors.primaryGold)
-                          : const Icon(Icons.radio_button_unchecked, color: AppColors.textMuted, size: 18),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _chooseSaint(s);
-                      },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryGold.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                  );
-                },
-              ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const CopticCross(size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      'موسوعة كل قديسي وشفعاء الكنيسة (${allSaints.length} قديس)',
+                      style: GoogleFonts.cairo(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryGoldLight,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'ابحث واختر أي قديس أو شهيد أو أب من السنكسار وبستان الرهبان ليكون شفيعك اليومي',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.textMuted),
+                ),
+                const SizedBox(height: 12),
+
+                // Search Bar
+                TextField(
+                  onChanged: (v) => setSheetState(() => searchQuery = v),
+                  style: GoogleFonts.cairo(color: Colors.white, fontSize: 13.5),
+                  decoration: InputDecoration(
+                    hintText: 'ابحث باسم القديس أو الشهيد أو تاريخ العيد (مثال: كاراس، دميانة، توت)...',
+                    hintStyle: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 12),
+                    prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primaryGold, size: 20),
+                    filled: true,
+                    fillColor: const Color(0xFF1C1E2A),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.3)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.25)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: AppColors.primaryGold, width: 1.2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // Category Chips
+                SizedBox(
+                  height: 36,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: PatronSaintService.categories.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 6),
+                    itemBuilder: (_, cIdx) {
+                      final cat = PatronSaintService.categories[cIdx];
+                      final isSelCat = cat == selectedCategory;
+                      return ChoiceChip(
+                        label: Text(
+                          cat,
+                          style: GoogleFonts.cairo(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                            color: isSelCat ? Colors.black : AppColors.textLight,
+                          ),
+                        ),
+                        selected: isSelCat,
+                        selectedColor: AppColors.primaryGold,
+                        backgroundColor: const Color(0xFF1C1E2A),
+                        showCheckmark: false,
+                        side: BorderSide(
+                          color: isSelCat
+                              ? AppColors.primaryGold
+                              : AppColors.primaryGold.withValues(alpha: 0.22),
+                        ),
+                        onSelected: (_) => setSheetState(() => selectedCategory = cat),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // Results Count
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Text(
+                    'نتائج البحث: ${filtered.length} قديس وشفيع',
+                    style: GoogleFonts.cairo(fontSize: 11, color: AppColors.primaryGoldLight),
+                  ),
+                ),
+                const SizedBox(height: 4),
+
+                // Saints List
+                Expanded(
+                  child: filtered.isEmpty
+                      ? Center(
+                          child: Text(
+                            'لا يوجد قديس مطابق لبحثك، جرب كتابة الاسم بطريقة أخرى',
+                            style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 13),
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 8),
+                          itemBuilder: (c, idx) {
+                            final s = filtered[idx];
+                            final isSel = s.id == _selectedSaintId;
+                            return Material(
+                              type: MaterialType.transparency,
+                              child: ListTile(
+                                dense: true,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  side: BorderSide(
+                                    color: isSel
+                                        ? AppColors.primaryGold
+                                        : AppColors.primaryGold.withValues(alpha: 0.18),
+                                    width: isSel ? 1.5 : 0.8,
+                                  ),
+                                ),
+                                tileColor: isSel
+                                    ? AppColors.primaryGold.withValues(alpha: 0.14)
+                                    : AppColors.cardNavy,
+                                leading: CircleAvatar(
+                                  backgroundColor: AppColors.primaryGold.withValues(alpha: 0.18),
+                                  child: Text(s.iconEmoji, style: const TextStyle(fontSize: 19)),
+                                ),
+                                title: Text(
+                                  s.name,
+                                  style: GoogleFonts.cairo(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: isSel ? AppColors.primaryGoldLight : Colors.white,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  '${s.category} • ${s.feastDate}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textMuted),
+                                ),
+                                trailing: isSel
+                                    ? const Icon(Icons.check_circle_rounded, color: AppColors.primaryGold)
+                                    : const Icon(Icons.radio_button_unchecked, color: AppColors.textMuted, size: 18),
+                                onTap: () {
+                                  Navigator.pop(ctx);
+                                  _chooseSaint(s);
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -153,6 +269,7 @@ class _MyPatronSaintViewState extends State<MyPatronSaintView> {
   Widget build(BuildContext context) {
     final saint = PatronSaintService.getSaintById(_selectedSaintId);
     final todayQuote = PatronSaintService.getDailyQuote(saint.id);
+    final totalSaintsCount = PatronSaintService.saints.length;
 
     return Scaffold(
       backgroundColor: AppColors.deepNavy,
@@ -167,13 +284,13 @@ class _MyPatronSaintViewState extends State<MyPatronSaintView> {
         actions: [
           TextButton.icon(
             onPressed: _openSaintPickerSheet,
-            icon: const Icon(Icons.swap_horiz_rounded, color: AppColors.primaryGold, size: 18),
+            icon: const Icon(Icons.people_alt_rounded, color: AppColors.primaryGold, size: 18),
             label: Text(
-              'تغيير الشفيع',
+              'كل القديسين ($totalSaintsCount)',
               style: GoogleFonts.cairo(
                 color: AppColors.primaryGold,
                 fontWeight: FontWeight.bold,
-                fontSize: 12,
+                fontSize: 11.5,
               ),
             ),
           ),
@@ -214,7 +331,19 @@ class _MyPatronSaintViewState extends State<MyPatronSaintView> {
                   ),
                   child: Text(saint.iconEmoji, style: const TextStyle(fontSize: 32)),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white10,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    saint.category,
+                    style: GoogleFonts.cairo(fontSize: 11, color: AppColors.primaryGoldLight),
+                  ),
+                ),
+                const SizedBox(height: 6),
                 Text(
                   saint.name,
                   textAlign: TextAlign.center,
@@ -247,15 +376,22 @@ class _MyPatronSaintViewState extends State<MyPatronSaintView> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                OutlinedButton.icon(
+                ElevatedButton.icon(
                   onPressed: _openSaintPickerSheet,
-                  icon: const Icon(Icons.auto_awesome_rounded, size: 16, color: AppColors.primaryGold),
+                  icon: const Icon(Icons.search_rounded, size: 18, color: Colors.black),
                   label: Text(
-                    'اختر شفيعاً آخر من الـ ١٢ قديساً',
-                    style: GoogleFonts.cairo(color: AppColors.primaryGoldLight, fontSize: 12),
+                    _loadingSynaxariumSaints
+                        ? 'اختر من موسوعة كل القديسين...'
+                        : 'ابحث واختر من كل قديسي الكنيسة ($totalSaintsCount قديس)',
+                    style: GoogleFonts.cairo(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12.5,
+                    ),
                   ),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.45)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryGold,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                 ),
@@ -402,6 +538,48 @@ class _MyPatronSaintViewState extends State<MyPatronSaintView> {
               ],
             ),
           ),
+
+          if (saint.biography.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.cardNavy,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.25)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.menu_book_rounded, color: AppColors.primaryGold, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'سيرة القديس من السنكسار القبطي (${saint.feastDate})',
+                          style: GoogleFonts.cairo(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryGoldLight,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    saint.biography,
+                    style: GoogleFonts.amiri(
+                      fontSize: 16,
+                      height: 1.75,
+                      color: AppColors.textLight,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
           const SizedBox(height: 20),
 

@@ -99,6 +99,8 @@ class Hymn {
   final String audioUrl;
   final String localAsset;
   final String youtubeId;
+  final String youtubeTitle;
+  final bool exactYoutube;
   final String youtubeUrl;
   final List<HymnRecording> recordings;
   final int versesCount;
@@ -114,6 +116,8 @@ class Hymn {
     required this.audioUrl,
     this.localAsset = '',
     this.youtubeId = '',
+    this.youtubeTitle = '',
+    this.exactYoutube = true,
     this.youtubeUrl = '',
     this.recordings = const [],
     required this.versesCount,
@@ -150,6 +154,8 @@ class Hymn {
       audioUrl: json['audio_url'] ?? '',
       localAsset: json['local_asset'] ?? '',
       youtubeId: json['youtube_id'] ?? '',
+      youtubeTitle: json['youtube_title'] ?? '',
+      exactYoutube: json['exact_youtube'] ?? true,
       youtubeUrl: json['youtube_url'] ?? '',
       recordings: recList.map((r) => HymnRecording.fromJson(Map<String, dynamic>.from(r))).toList(),
       versesCount: json['verses_count'] ?? list.length,
@@ -167,6 +173,8 @@ class Hymn {
         'audio_url': audioUrl,
         'local_asset': localAsset,
         'youtube_id': youtubeId,
+        'youtube_title': youtubeTitle,
+        'exact_youtube': exactYoutube,
         'youtube_url': youtubeUrl,
         'recordings': recordings.map((r) => r.toJson()).toList(),
         'verses_count': versesCount,

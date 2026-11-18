@@ -39,7 +39,9 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
   void initState() {
     super.initState();
     _currentVideoId = widget.hymn.resolvedYoutubeId;
-    _activeCantorName = widget.hymn.cantor;
+    _activeCantorName = widget.hymn.youtubeTitle.isNotEmpty
+        ? widget.hymn.youtubeTitle
+        : '${widget.hymn.title} • ${widget.hymn.cantor}';
     _initController();
   }
 
@@ -77,7 +79,12 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
   void didUpdateWidget(covariant YouTubeHymnPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.hymn.id != widget.hymn.id) {
-      _loadNewVideo(widget.hymn.resolvedYoutubeId, widget.hymn.cantor);
+      _loadNewVideo(
+        widget.hymn.resolvedYoutubeId,
+        widget.hymn.youtubeTitle.isNotEmpty
+            ? widget.hymn.youtubeTitle
+            : '${widget.hymn.title} • ${widget.hymn.cantor}',
+      );
     }
   }
 
@@ -137,8 +144,10 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
 
   void _selectCantorSheet(BuildContext context) {
     final cantors = CopticYouTubeRegistry.getAvailableCantors(
-      widget.hymn.title,
-      widget.hymn.cantor,
+      hymnTitle: widget.hymn.title,
+      defaultCantor: widget.hymn.cantor,
+      primaryVideoId: widget.hymn.resolvedYoutubeId,
+      primaryVideoTitle: widget.hymn.youtubeTitle,
     );
 
     showModalBottomSheet(

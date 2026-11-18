@@ -24,8 +24,7 @@ class BibleBook {
       return <String>[];
     }).toList();
 
-    // Books 0..38 are Old Testament (39 books), 39..65 are New Testament (27 books)
-    final testament = index < 39 ? 'OLD' : 'NEW';
+    final testament = json['testament']?.toString() ?? (index < 39 ? 'OLD' : 'NEW');
 
     return BibleBook(
       abbrev: json['abbrev'] ?? '',

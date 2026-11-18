@@ -116,6 +116,17 @@ void main() {
       }
       expect(hasTrueCopticUnicode, isTrue, reason: 'Must contain true Bohairic Coptic Unicode characters');
       expect(rolesFound, containsAll(['priest', 'priest_silent', 'deacon', 'people', 'rubric']));
+
+      // Verify Bible is the authentic Smith & Van Dyck translation with concise book names
+      final bibleBooks = jsonDecode(File('assets/data/bible.json').readAsStringSync()) as List;
+      expect(bibleBooks.length, greaterThanOrEqualTo(66));
+      final psalms = bibleBooks.firstWhere((b) => b['abbrev'] == 'sl');
+      expect('${psalms['chapters'][0][0]}', contains('طُوبَى لِلرَّجُلِ الَّذِي لَمْ يَسْلُكْ'));
+      for (final b in bibleBooks) {
+        if (b['testament'] == 'NEW') {
+          expect('${b['name']}'.length, lessThanOrEqualTo(20), reason: 'Book name must fit button cleanly: ${b['name']}');
+        }
+      }
     });
 
     test('All 317 hymns have 100% unique 1-to-1 audio URLs and verified YouTube IDs (zero duplicates or mismatches)', () {

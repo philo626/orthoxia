@@ -170,10 +170,10 @@ class _BibleExplorerViewState extends State<BibleExplorerView> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'الكتاب المقدس كاملاً (٦٦ سفراً)',
+                          'الكتاب المقدس (ترجمة فانديك المعتمدة)',
                           style: TextStyle(
                             fontFamily: 'Cairo',
-                            fontSize: 16,
+                            fontSize: 15.5,
                             fontWeight: FontWeight.bold,
                             color: AppColors.goldLight,
                           ),
@@ -230,11 +230,11 @@ class _BibleExplorerViewState extends State<BibleExplorerView> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     child: Row(
                       children: [
-                        _filterChip(context, bible, 'ALL', 'جميع الأسفار (٦٦)'),
+                        _filterChip(context, bible, 'ALL', 'الكل (${bible.allBooks.length})'),
                         const SizedBox(width: 8),
-                        _filterChip(context, bible, 'OLD', 'العهد القديم (٣٩)'),
+                        _filterChip(context, bible, 'OLD', 'العهد القديم (${bible.oldTestamentBooks.length})'),
                         const SizedBox(width: 8),
-                        _filterChip(context, bible, 'NEW', 'العهد الجديد (٢٧)'),
+                        _filterChip(context, bible, 'NEW', 'العهد الجديد (${bible.newTestamentBooks.length})'),
                       ],
                     ),
                   ),
@@ -392,20 +392,23 @@ class _BibleExplorerViewState extends State<BibleExplorerView> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      book.name,
-                      style: const TextStyle(
-                        fontFamily: 'Cairo',
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        color: AppColors.cream,
+                    Expanded(
+                      child: Text(
+                        book.name,
+                        style: const TextStyle(
+                          fontFamily: 'Cairo',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: AppColors.cream,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
+                    const SizedBox(width: 6),
                     Icon(
                       isNT ? Icons.auto_stories : Icons.menu_book,
-                      size: 18,
+                      size: 17,
                       color: AppColors.gold,
                     ),
                   ],

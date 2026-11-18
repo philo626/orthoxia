@@ -32,8 +32,9 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
   double _fontSize = 18.0;
   int _selectedSectionIndex = 0;
   String _activeRoleFilter = 'all'; // 'all', 'priest', 'priest_silent', 'deacon', 'people'
-  String _activeDisplayMode = 'all'; // 'all', 'arabic', 'arabized', 'coptic'
-  bool _showSilentPrayers = true;
+  String _activeDisplayMode = 'arabized'; // Default: Clear Arabic + Arabized (like Orsozoxi + Katamars)
+  bool _showSilentPrayers = false;
+  bool _showRubrics = false;
   String _searchQuery = '';
   bool _showSearchBar = false;
 
@@ -388,9 +389,10 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
     final activeSection = sections[safeSecIdx];
     final progressValue = sections.isEmpty ? 0.0 : (safeSecIdx + 1) / sections.length;
 
-    // Filter verses by selected role, silent toggle, and search query
+    // Filter verses by selected role, silent toggle, rubrics toggle, and search query
     final filteredVerses = activeSection.verses.where((v) {
       if (!_showSilentPrayers && v.role == 'priest_silent') return false;
+      if (!_showRubrics && v.role == 'rubric') return false;
       if (_activeRoleFilter != 'all') {
         if (_activeRoleFilter == 'priest' && v.role != 'priest' && v.role != 'priest_silent') {
           return false;
@@ -664,6 +666,26 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
                             onSelected: (val) {
                               HapticFeedback.selectionClick();
                               setState(() => _showSilentPrayers = val);
+                            },
+                          ),
+                          const SizedBox(width: 6),
+                          FilterChip(
+                            visualDensity: VisualDensity.compact,
+                            selected: _showRubrics,
+                            selectedColor: const Color(0xFF3E3216),
+                            backgroundColor: const Color(0xFF1A1C27),
+                            checkmarkColor: AppColors.primaryGoldLight,
+                            label: Text(
+                              '📜 شرح الطقس',
+                              style: GoogleFonts.cairo(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            onSelected: (val) {
+                              HapticFeedback.selectionClick();
+                              setState(() => _showRubrics = val);
                             },
                           ),
                         ],

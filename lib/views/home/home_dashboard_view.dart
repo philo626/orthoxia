@@ -25,11 +25,13 @@ import '../conscience/conscience_exam_view.dart';
 import '../hymns/hymn_detail_view.dart';
 import '../icons/christ_icons_gallery_view.dart';
 import '../liturgical/agpeya_view.dart';
+import '../liturgical/church_sacraments_rites_view.dart';
 import '../liturgical/katameros_view.dart';
 import '../liturgical/remember_them_view.dart';
 import '../liturgical/tasbeha_pascha_view.dart';
 import '../liturgies/liturgy_reader_view.dart';
 import '../prayer_rope/coptic_prayer_rope_view.dart';
+import '../sunday_school/sunday_school_kids_view.dart';
 import '../synaxarium/my_patron_saint_view.dart';
 import '../synaxarium/synaxarium_daily_view.dart';
 import '../coptic_academy/coptic_academy_view.dart';
@@ -1115,6 +1117,26 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                       onTap: () => Navigator.push(
                         context,
                         luxeRoute(const BibleExplorerView()),
+                      ),
+                    ),
+                    ThumbListCard(
+                      image: 'assets/images/coptic_banner.jpg',
+                      title: 'الطقوس والأسرار الكنسية واللقان والسجدة',
+                      subtitle:
+                          'صلاة اللقان المقدس • صلوات السجدة في العنصرة • سر الإكليل • القنديل • المعمودية والميرون',
+                      onTap: () => Navigator.push(
+                        context,
+                        luxeRoute(const ChurchSacramentsRitesView()),
+                      ),
+                    ),
+                    ThumbListCard(
+                      image: 'assets/images/christ_good_shepherd.jpg',
+                      title: 'ركن مدارس الأحد والطفل القبطي 🌟',
+                      subtitle:
+                          'قصص قديسي الكنيسة وأبطال الكتاب المقدس مسموعة بصوت راوٍ مع آيات الحفظ والنجوم',
+                      onTap: () => Navigator.push(
+                        context,
+                        luxeRoute(const SundaySchoolKidsView()),
                       ),
                     ),
                     ThumbListCard(

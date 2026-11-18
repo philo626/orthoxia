@@ -16,9 +16,11 @@ import '../hymns/hymns_library_view.dart';
 import '../liturgies/liturgy_reader_view.dart';
 import '../search/global_search_view.dart';
 import 'agpeya_view.dart';
+import 'church_sacraments_rites_view.dart';
 import 'katameros_view.dart';
 import 'remember_them_view.dart';
 import '../home/spiritual_prescription_view.dart';
+import '../sunday_school/sunday_school_kids_view.dart';
 import '../synaxarium/synaxarium_daily_view.dart';
 
 class LiturgicalHubView extends StatefulWidget {
@@ -77,6 +79,24 @@ class _LiturgicalHubViewState extends State<LiturgicalHubView> {
         'onTap': () => Navigator.push(
               context,
               luxeRoute(const BibleExplorerView()),
+            ),
+      },
+      {
+        'image': 'assets/images/coptic_banner.jpg',
+        'title': 'الطقوس والأسرار الكنسية واللقان والسجدة',
+        'subtitle': 'لقان الغطاس وخميس العهد والرسل • السجدة • الإكليل المقدس • مسحة المرضى • المعمودية',
+        'onTap': () => Navigator.push(
+              context,
+              luxeRoute(const ChurchSacramentsRitesView()),
+            ),
+      },
+      {
+        'image': 'assets/images/christ_good_shepherd.jpg',
+        'title': 'ركن مدارس الأحد والطفل القبطي 🌟',
+        'subtitle': 'قصص القديسين وأبطال الإيمان مسموعة بصوت راوٍ مع آيات الحفظ والنجوم',
+        'onTap': () => Navigator.push(
+              context,
+              luxeRoute(const SundaySchoolKidsView()),
             ),
       },
       {

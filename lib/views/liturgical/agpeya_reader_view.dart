@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/speech_pronunciation_service.dart';
 import '../../models/agpeya_model.dart';
 import '../../providers/theme_provider.dart';
 import 'widgets/floating_church_bar.dart';
@@ -10,6 +11,20 @@ class AgpeyaReaderView extends StatelessWidget {
   final AgpeyaHour hour;
 
   const AgpeyaReaderView({super.key, required this.hour});
+
+  String _collectHourFullText() {
+    final buf = StringBuffer('${hour.nameAr}. ${hour.theme}. ');
+    for (final s in hour.sections) {
+      buf.write('${s.title}. ');
+      if (s.content != null) buf.write('${s.content} ');
+      if (s.psalms != null) {
+        for (final p in s.psalms!) {
+          buf.write('${p.title}. ${p.text} ');
+        }
+      }
+    }
+    return buf.toString();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,13 +36,25 @@ class AgpeyaReaderView extends StatelessWidget {
       appBar: AppBar(
         title: Column(
           children: [
-            Text(hour.nameAr, style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 18)),
+            Text(hour.nameAr, style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 17)),
             Text(
               hour.nameCoptic,
-              style: GoogleFonts.cairo(fontSize: 12, color: AppColors.primaryGoldLight),
+              style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.primaryGoldLight),
             ),
           ],
         ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: SpeechPlayStopButton(
+              textToSpeak: _collectHourFullText(),
+              label: hour.nameAr,
+              playText: 'استماع 🔊',
+              stopText: 'إيقاف الصوت ⏹️',
+              compact: true,
+            ),
+          ),
+        ],
       ),
       body: Stack(
         children: [

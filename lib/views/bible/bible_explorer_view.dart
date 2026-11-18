@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/bible_reading_progress_service.dart';
 import '../../models/bible_model.dart';
 import '../../providers/bible_provider.dart';
 import 'bible_reader_view.dart';
@@ -15,10 +16,12 @@ class BibleExplorerView extends StatefulWidget {
 
 class _BibleExplorerViewState extends State<BibleExplorerView> {
   final TextEditingController _searchCtrl = TextEditingController();
+  final BibleReadingProgressService _progress = BibleReadingProgressService();
 
   @override
   void initState() {
     super.initState();
+    _progress.ensureLoaded();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<BibleProvider>().loadBible();
     });
@@ -75,6 +78,7 @@ class _BibleExplorerViewState extends State<BibleExplorerView> {
                 itemCount: book.chaptersCount,
                 itemBuilder: (ctx, idx) {
                   final chNum = idx + 1;
+                  final isDone = _progress.isChapterCompleted(book.abbrev, chNum);
                   return InkWell(
                     onTap: () {
                       context.read<BibleProvider>().setCurrentBookAndChapter(book, chNum);
@@ -84,22 +88,28 @@ class _BibleExplorerViewState extends State<BibleExplorerView> {
                         MaterialPageRoute(
                           builder: (_) => const BibleReaderView(),
                         ),
-                      );
+                      ).then((_) {
+                        if (mounted) setState(() {});
+                      });
                     },
                     borderRadius: BorderRadius.circular(10),
                     child: Container(
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: AppColors.gold.withValues(alpha: 0.1),
+                        color: isDone
+                            ? Colors.green.withValues(alpha: 0.22)
+                            : AppColors.gold.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
+                        border: Border.all(
+                          color: isDone ? Colors.greenAccent : AppColors.gold.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: Text(
-                        '$chNum',
-                        style: const TextStyle(
+                        isDone ? '✓$chNum' : '$chNum',
+                        style: TextStyle(
                           fontFamily: 'Cairo',
                           fontWeight: FontWeight.bold,
-                          color: AppColors.cream,
+                          color: isDone ? Colors.greenAccent : AppColors.cream,
                         ),
                       ),
                     ),
@@ -145,8 +155,8 @@ class _BibleExplorerViewState extends State<BibleExplorerView> {
               children: [
                 // Luxury Bible Cover Banner
                 Container(
-                  height: 110,
-                  margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                  height: 96,
+                  margin: const EdgeInsets.fromLTRB(16, 6, 16, 4),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(color: AppColors.gold.withValues(alpha: 0.45)),
@@ -182,6 +192,60 @@ class _BibleExplorerViewState extends State<BibleExplorerView> {
                       ],
                     ),
                   ),
+                ),
+
+                // Bible Reading Completion Progress Bar (ختم الكتاب المقدس)
+                ValueListenableBuilder<int>(
+                  valueListenable: _progress.completedCountNotifier,
+                  builder: (context, completedCh, _) {
+                    final totalCh = _progress.getTotalChaptersCount(bible.allBooks);
+                    final pct = totalCh > 0 ? (completedCh / totalCh).clamp(0.0, 1.0) : 0.0;
+                    return Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF161923),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                '✅ متابعة ختم الكتاب المقدس:',
+                                style: TextStyle(
+                                  fontFamily: 'Cairo',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.goldLight,
+                                ),
+                              ),
+                              Text(
+                                'أتممت $completedCh من $totalCh إصحاح (${(pct * 100).toStringAsFixed(1)}%)',
+                                style: const TextStyle(
+                                  fontFamily: 'Cairo',
+                                  fontSize: 11.5,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: LinearProgressIndicator(
+                              value: pct,
+                              minHeight: 5,
+                              backgroundColor: Colors.white10,
+                              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.gold),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
 
                 // Search Field
@@ -416,13 +480,23 @@ class _BibleExplorerViewState extends State<BibleExplorerView> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      '${book.chaptersCount} إصحاح',
-                      style: TextStyle(
-                        fontFamily: 'Cairo',
-                        fontSize: 12,
-                        color: Colors.white.withValues(alpha: 0.6),
-                      ),
+                    Builder(
+                      builder: (_) {
+                        final doneCnt = _progress.getBookCompletedChaptersCount(book);
+                        return Text(
+                          doneCnt > 0
+                              ? '✓ $doneCnt / ${book.chaptersCount} إصحاح'
+                              : '${book.chaptersCount} إصحاح',
+                          style: TextStyle(
+                            fontFamily: 'Cairo',
+                            fontSize: 12,
+                            fontWeight: doneCnt > 0 ? FontWeight.bold : FontWeight.normal,
+                            color: doneCnt > 0
+                                ? Colors.greenAccent
+                                : Colors.white.withValues(alpha: 0.6),
+                          ),
+                        );
+                      },
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

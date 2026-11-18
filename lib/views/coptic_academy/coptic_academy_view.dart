@@ -369,44 +369,64 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
                 ],
               ),
               const SizedBox(height: 10),
-              // Audio Pronunciation Buttons Row (نطق الحرف + نطق الكلمة)
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _speakCurrentLetter(letter),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryGold,
-                        foregroundColor: Colors.black,
-                        visualDensity: VisualDensity.compact,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              // Audio Pronunciation Buttons Row (نطق الحرف + نطق الكلمة + إيقاف الصوت)
+              ValueListenableBuilder<bool>(
+                valueListenable: _speech.isSpeakingNotifier,
+                builder: (context, speaking, _) {
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            if (speaking) {
+                              _speech.stop();
+                            } else {
+                              _speakCurrentLetter(letter);
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: speaking ? Colors.redAccent : AppColors.primaryGold,
+                            foregroundColor: speaking ? Colors.white : Colors.black,
+                            visualDensity: VisualDensity.compact,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          icon: Icon(speaking ? Icons.stop_circle_rounded : Icons.volume_up_rounded, size: 17),
+                          label: Text(
+                            speaking ? 'إيقاف الصوت ⏹️' : 'سماع نطق الحرف (${letter.name})',
+                            style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 11.5),
+                          ),
+                        ),
                       ),
-                      icon: const Icon(Icons.volume_up_rounded, size: 17),
-                      label: Text(
-                        'سماع نطق الحرف (${letter.name})',
-                        style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 11.5),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            if (speaking) {
+                              _speech.stop();
+                            } else {
+                              _speakWordOnly(letter.exampleArabized, letter.exampleMeaning);
+                            }
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: speaking ? Colors.redAccent : AppColors.primaryGoldLight,
+                            side: BorderSide(color: speaking ? Colors.redAccent : AppColors.primaryGold),
+                            visualDensity: VisualDensity.compact,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          icon: Icon(
+                            speaking ? Icons.stop_rounded : Icons.record_voice_over_rounded,
+                            size: 16,
+                            color: speaking ? Colors.redAccent : AppColors.primaryGold,
+                          ),
+                          label: Text(
+                            speaking ? 'إيقاف الصوت ⏹️' : 'نطق الكلمة (${letter.exampleArabized})',
+                            style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 11.5),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () =>
-                          _speakWordOnly(letter.exampleArabized, letter.exampleMeaning),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primaryGoldLight,
-                        side: const BorderSide(color: AppColors.primaryGold),
-                        visualDensity: VisualDensity.compact,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      icon: const Icon(Icons.record_voice_over_rounded, size: 16, color: AppColors.primaryGold),
-                      label: Text(
-                        'نطق الكلمة (${letter.exampleArabized})',
-                        style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 11.5),
-                      ),
-                    ),
-                  ),
-                ],
+                    ],
+                  );
+                },
               ),
               const Divider(height: 18, color: Colors.white12),
               InkWell(
@@ -670,19 +690,30 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
                         ),
                       ),
                     const SizedBox(height: 20),
-                    ElevatedButton.icon(
-                      onPressed: () => _speakWordOnly(card.arabized, card.meaning),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryGold,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      icon: const Icon(Icons.volume_up_rounded, size: 19),
-                      label: Text(
-                        'استمع لنطق «${card.arabized}» صوتياً',
-                        style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 13),
-                      ),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: _speech.isSpeakingNotifier,
+                      builder: (context, speaking, _) {
+                        return ElevatedButton.icon(
+                          onPressed: () {
+                            if (speaking) {
+                              _speech.stop();
+                            } else {
+                              _speakWordOnly(card.arabized, card.meaning);
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: speaking ? Colors.redAccent : AppColors.primaryGold,
+                            foregroundColor: speaking ? Colors.white : Colors.black,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          icon: Icon(speaking ? Icons.stop_circle_rounded : Icons.volume_up_rounded, size: 19),
+                          label: Text(
+                            speaking ? 'إيقاف الصوت ⏹️' : 'استمع لنطق «${card.arabized}» صوتياً',
+                            style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -807,13 +838,32 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                TextButton.icon(
-                  onPressed: () => _speakWordOnly(current.arabized, ''),
-                  icon: const Icon(Icons.volume_up_rounded, color: AppColors.primaryGold, size: 18),
-                  label: Text(
-                    'استمع لنطق الكلمة 🔊',
-                    style: GoogleFonts.cairo(color: AppColors.primaryGoldLight, fontSize: 12),
-                  ),
+                ValueListenableBuilder<bool>(
+                  valueListenable: _speech.isSpeakingNotifier,
+                  builder: (context, speaking, _) {
+                    return TextButton.icon(
+                      onPressed: () {
+                        if (speaking) {
+                          _speech.stop();
+                        } else {
+                          _speakWordOnly(current.arabized, '');
+                        }
+                      },
+                      icon: Icon(
+                        speaking ? Icons.stop_circle_rounded : Icons.volume_up_rounded,
+                        color: speaking ? Colors.redAccent : AppColors.primaryGold,
+                        size: 18,
+                      ),
+                      label: Text(
+                        speaking ? 'إيقاف الصوت ⏹️' : 'استمع لنطق الكلمة 🔊',
+                        style: GoogleFonts.cairo(
+                          color: speaking ? Colors.redAccent : AppColors.primaryGoldLight,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

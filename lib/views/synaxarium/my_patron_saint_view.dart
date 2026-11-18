@@ -477,19 +477,13 @@ class _MyPatronSaintViewState extends State<MyPatronSaintView> {
                   runSpacing: 8,
                   alignment: WrapAlignment.end,
                   children: [
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        SpeechPronunciationService().speakText(
+                    SpeechPlayStopButton(
+                      textToSpeak:
                           'رسالة شفيعك اليوم ${saint.name}: ${todayQuote.quote}. تدريب اليوم: ${todayQuote.lesson}. ${todayQuote.prayer}',
-                          label: saint.shortName,
-                        );
-                      },
-                      icon: const Icon(Icons.volume_up_rounded, size: 15, color: AppColors.primaryGold),
-                      label: Text('استماع 🔊', style: GoogleFonts.cairo(color: AppColors.primaryGoldLight, fontSize: 12)),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.4)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
+                      label: saint.shortName,
+                      playText: 'استماع 🔊',
+                      stopText: 'إيقاف الصوت ⏹️',
+                      compact: true,
                     ),
                     OutlinedButton.icon(
                       onPressed: () {

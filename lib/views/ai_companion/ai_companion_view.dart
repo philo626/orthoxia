@@ -300,37 +300,12 @@ class _AiCompanionViewState extends State<AiCompanionView> {
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.end,
                                   children: [
-                                    InkWell(
-                                      onTap: () {
-                                        HapticFeedback.selectionClick();
-                                        _speech.speakText(
-                                          cleanedText,
-                                          label: 'إجابة الهيئة الآبائية',
-                                        );
-                                      },
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.primaryGold.withValues(alpha: 0.15),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Icon(Icons.volume_up_rounded, size: 14, color: AppColors.primaryGold),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              'استماع صوتي',
-                                              style: GoogleFonts.cairo(
-                                                fontSize: 10.5,
-                                                fontWeight: FontWeight.bold,
-                                                color: AppColors.primaryGoldLight,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
+                                    SpeechPlayStopButton(
+                                      textToSpeak: cleanedText,
+                                      label: 'إجابة الهيئة الآبائية $index',
+                                      playText: 'استماع صوتي 🔊',
+                                      stopText: 'إيقاف الصوت ⏹️',
+                                      compact: true,
                                     ),
                                     const SizedBox(width: 8),
                                     InkWell(

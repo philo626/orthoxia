@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/bible_reading_progress_service.dart';
 import '../../core/services/speech_pronunciation_service.dart';
 import '../../core/widgets/blessing_poster_studio_sheet.dart';
 import '../../models/bible_model.dart';
@@ -20,6 +21,15 @@ class _BibleReaderViewState extends State<BibleReaderView> {
   double _fontSize = 19.0;
   final ScrollController _scrollController = ScrollController();
   final SpeechPronunciationService _speech = SpeechPronunciationService();
+  final BibleReadingProgressService _progress = BibleReadingProgressService();
+
+  @override
+  void initState() {
+    super.initState();
+    _progress.ensureLoaded().then((_) {
+      if (mounted) setState(() {});
+    });
+  }
 
   @override
   void dispose() {
@@ -62,15 +72,12 @@ class _BibleReaderViewState extends State<BibleReaderView> {
                   ),
                 ),
                 const Spacer(),
-                IconButton(
-                  tooltip: 'استماع للآية',
-                  icon: const Icon(Icons.volume_up_rounded, color: AppColors.primaryGold),
-                  onPressed: () {
-                    _speech.speakText(
-                      '$verseText. ${book.name} إصحاح $chapter آية $verseNum',
-                      label: '${book.name} $chapter:$verseNum',
-                    );
-                  },
+                SpeechPlayStopButton(
+                  textToSpeak: '$verseText. ${book.name} إصحاح $chapter آية $verseNum',
+                  label: '${book.name} $chapter:$verseNum',
+                  playText: 'استماع 🔊',
+                  stopText: 'إيقاف الصوت ⏹️',
+                  compact: true,
                 ),
               ],
             ),
@@ -244,15 +251,18 @@ class _BibleReaderViewState extends State<BibleReaderView> {
               itemBuilder: (context, idx) {
                 final chNum = idx + 1;
                 final isSel = chNum == chapter;
+                final isDone = _progress.isChapterCompleted(book.abbrev, chNum);
                 return ChoiceChip(
                   visualDensity: VisualDensity.compact,
                   showCheckmark: false,
                   label: Text(
-                    'إصحاح $chNum',
+                    isDone ? '✓ إصحاح $chNum' : 'إصحاح $chNum',
                     style: GoogleFonts.cairo(
                       fontSize: 11.5,
                       fontWeight: FontWeight.bold,
-                      color: isSel ? Colors.black : AppColors.textLight,
+                      color: isSel
+                          ? Colors.black
+                          : (isDone ? Colors.greenAccent : AppColors.textLight),
                     ),
                   ),
                   selected: isSel,
@@ -270,9 +280,9 @@ class _BibleReaderViewState extends State<BibleReaderView> {
             ),
           ),
 
-          // Chapter Navigation Bar
+          // Chapter Navigation & Completion Bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: Colors.black.withValues(alpha: 0.25),
               border: Border(
@@ -288,15 +298,58 @@ class _BibleReaderViewState extends State<BibleReaderView> {
                     bible.previousChapter();
                     if (_scrollController.hasClients) _scrollController.jumpTo(0);
                   },
-                  icon: const Icon(Icons.arrow_back_ios_rounded, size: 14, color: AppColors.primaryGold),
+                  icon: const Icon(Icons.arrow_back_ios_rounded, size: 13, color: AppColors.primaryGold),
                   label: Text(
-                    'الإصحاح السابق',
-                    style: GoogleFonts.cairo(color: AppColors.primaryGoldLight, fontSize: 12.5),
+                    'السابق',
+                    style: GoogleFonts.cairo(color: AppColors.primaryGoldLight, fontSize: 12),
                   ),
                 ),
-                Text(
-                  '${verses.length} آية',
-                  style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 12),
+                // Mark Chapter Completed Button ("أتممت قراءة الإصحاح")
+                Builder(
+                  builder: (context) {
+                    final completed = _progress.isChapterCompleted(book.abbrev, chapter);
+                    return ElevatedButton.icon(
+                      onPressed: () async {
+                        HapticFeedback.mediumImpact();
+                        final nowDone = await _progress.toggleChapterCompleted(book.abbrev, chapter);
+                        if (!mounted) return;
+                        setState(() {});
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              nowDone
+                                  ? 'بارك الله قراءتك! تم تسجيل قراءة ${book.name} إصحاح $chapter ✅'
+                                  : 'تم إلغاء علامة القراءة لهذا الإصحاح',
+                              style: GoogleFonts.cairo(fontSize: 12),
+                            ),
+                            backgroundColor: AppColors.cardNavy,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: completed
+                            ? Colors.green.withValues(alpha: 0.25)
+                            : AppColors.primaryGold.withValues(alpha: 0.16),
+                        foregroundColor: completed ? Colors.greenAccent : AppColors.primaryGoldLight,
+                        elevation: 0,
+                        visualDensity: VisualDensity.compact,
+                        side: BorderSide(
+                          color: completed ? Colors.greenAccent : AppColors.primaryGold,
+                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      icon: Icon(
+                        completed ? Icons.check_circle_rounded : Icons.check_circle_outline_rounded,
+                        size: 16,
+                        color: completed ? Colors.greenAccent : AppColors.primaryGold,
+                      ),
+                      label: Text(
+                        completed ? 'تمت قراءة الإصحاح ✓' : 'أتممت قراءة الإصحاح',
+                        style: GoogleFonts.cairo(fontSize: 11.5, fontWeight: FontWeight.bold),
+                      ),
+                    );
+                  },
                 ),
                 TextButton.icon(
                   onPressed: () {
@@ -304,10 +357,10 @@ class _BibleReaderViewState extends State<BibleReaderView> {
                     bible.nextChapter();
                     if (_scrollController.hasClients) _scrollController.jumpTo(0);
                   },
-                  icon: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.primaryGold),
+                  icon: const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: AppColors.primaryGold),
                   label: Text(
-                    'الإصحاح التالي',
-                    style: GoogleFonts.cairo(color: AppColors.primaryGoldLight, fontSize: 12.5),
+                    'التالي',
+                    style: GoogleFonts.cairo(color: AppColors.primaryGoldLight, fontSize: 12),
                   ),
                 ),
               ],

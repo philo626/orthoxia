@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../constants/app_colors.dart';
 
 /// Neural Arabic & Coptic-Phonetic Speech Pronunciation Service
-/// Powers:
-/// 1. Coptic Academy letter & word pronunciation (نطق الحروف والكلمات القبطية صوتياً)
-/// 2. Audio Reader for Bible chapters, Synaxarium biographies, Agpeya, and Patristic AI answers
+/// With reactive Play / Stop state and global floating Stop control.
 class SpeechPronunciationService {
   static final SpeechPronunciationService _instance = SpeechPronunciationService._internal();
   factory SpeechPronunciationService() => _instance;
@@ -28,6 +29,19 @@ class SpeechPronunciationService {
     });
   }
 
+  /// Toggles speech: if currently speaking this label (or any speech when stopIfAny=true), stops immediately.
+  Future<void> toggleSpeak(
+    String rawText, {
+    required String label,
+    bool stopIfAnySpeaking = false,
+  }) async {
+    if (_isSpeaking && (_activeLabel == label || stopIfAnySpeaking)) {
+      await stop();
+      return;
+    }
+    await speakText(rawText, label: label);
+  }
+
   /// Pronounces a Coptic letter name & phonetic sound clearly
   Future<void> pronounceCopticLetter({
     required String letterName,
@@ -46,7 +60,9 @@ class SpeechPronunciationService {
     required String arabized,
     required String meaning,
   }) async {
-    final script = '$arabized. ومعناها بالعربية: $meaning.';
+    final script = meaning.isNotEmpty
+        ? '$arabized. ومعناها بالعربية: $meaning.'
+        : arabized;
     await speakText(script, label: 'نطق كلمة $arabized');
   }
 
@@ -125,7 +141,6 @@ class SpeechPronunciationService {
         if (trimmed.length <= maxLen) {
           current = trimmed;
         } else {
-          // Split long sentence by words
           final words = trimmed.split(' ');
           for (final w in words) {
             if ((current.length + w.length + 1) <= maxLen) {
@@ -160,5 +175,80 @@ class SpeechPronunciationService {
       chunks.add(current);
     }
     return chunks;
+  }
+}
+
+/// Reusable Play / Stop Speech Button that automatically switches to "⏹️ إيقاف الصوت" when active!
+class SpeechPlayStopButton extends StatelessWidget {
+  final String textToSpeak;
+  final String label;
+  final String playText;
+  final String stopText;
+  final bool compact;
+
+  const SpeechPlayStopButton({
+    super.key,
+    required this.textToSpeak,
+    required this.label,
+    this.playText = 'استماع 🔊',
+    this.stopText = 'إيقاف الصوت ⏹️',
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final speech = SpeechPronunciationService();
+    return ValueListenableBuilder<bool>(
+      valueListenable: speech.isSpeakingNotifier,
+      builder: (context, speaking, _) {
+        return ValueListenableBuilder<String>(
+          valueListenable: speech.activeLabelNotifier,
+          builder: (context, activeLbl, _) {
+            final isThisActive = speaking && (activeLbl == label || compact);
+            return ElevatedButton.icon(
+              onPressed: () {
+                HapticFeedback.selectionClick();
+                if (speaking) {
+                  speech.stop();
+                } else {
+                  speech.speakText(textToSpeak, label: label);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isThisActive
+                    ? Colors.redAccent
+                    : AppColors.primaryGold.withValues(alpha: 0.18),
+                foregroundColor: isThisActive ? Colors.white : AppColors.primaryGoldLight,
+                elevation: 0,
+                visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
+                padding: EdgeInsets.symmetric(
+                  horizontal: compact ? 10 : 14,
+                  vertical: compact ? 6 : 10,
+                ),
+                side: BorderSide(
+                  color: isThisActive
+                      ? Colors.redAccent
+                      : AppColors.primaryGold.withValues(alpha: 0.5),
+                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: Icon(
+                isThisActive ? Icons.stop_circle_rounded : Icons.volume_up_rounded,
+                size: compact ? 15 : 18,
+                color: isThisActive ? Colors.white : AppColors.primaryGold,
+              ),
+              label: Text(
+                isThisActive ? stopText : playText,
+                style: GoogleFonts.cairo(
+                  fontSize: compact ? 11.5 : 12.5,
+                  fontWeight: FontWeight.bold,
+                  color: isThisActive ? Colors.white : AppColors.primaryGoldLight,
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 }

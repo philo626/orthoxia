@@ -290,22 +290,12 @@ class _CopticPrayerRopeViewState extends State<CopticPrayerRopeView>
                     ),
                   ),
                   const SizedBox(height: 8),
-                  TextButton.icon(
-                    onPressed: () {
-                      SpeechPronunciationService().speakText(
-                        '${prayer['arabized']}. ${prayer['arabic']}',
-                        label: prayer['title']!,
-                      );
-                    },
-                    icon: const Icon(Icons.volume_up_rounded, size: 17, color: AppColors.primaryGold),
-                    label: Text(
-                      'استمع لنطق الصلاة السهمية 🔊',
-                      style: GoogleFonts.cairo(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primaryGoldLight,
-                      ),
-                    ),
+                  SpeechPlayStopButton(
+                    textToSpeak: '${prayer['arabized']}. ${prayer['arabic']}',
+                    label: prayer['title']!,
+                    playText: 'استمع لنطق الصلاة السهمية 🔊',
+                    stopText: 'إيقاف الصوت ⏹️',
+                    compact: true,
                   ),
                 ],
               ),

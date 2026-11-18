@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/coptic_calendar_service.dart';
+import '../../core/services/speech_pronunciation_service.dart';
 import '../../core/widgets/coptic_cross.dart';
 import '../../core/widgets/luxe_widgets.dart';
 import '../../models/hymn_model.dart';
@@ -1217,6 +1218,27 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
                       ),
                     ),
                   ),
+                InkWell(
+                  onTap: () {
+                    final speech = SpeechPronunciationService();
+                    if (speech.isSpeaking) {
+                      speech.stop();
+                    } else {
+                      speech.speakText(verse.arabic, label: roleLabel);
+                    }
+                  },
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: SpeechPronunciationService().isSpeakingNotifier,
+                    builder: (_, speaking, __) => Padding(
+                      padding: const EdgeInsets.only(left: 10),
+                      child: Icon(
+                        speaking ? Icons.stop_circle_rounded : Icons.volume_up_rounded,
+                        size: 16,
+                        color: speaking ? Colors.redAccent : Colors.white70,
+                      ),
+                    ),
+                  ),
+                ),
                 InkWell(
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: verse.arabic));

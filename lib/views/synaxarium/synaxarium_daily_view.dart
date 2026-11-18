@@ -532,27 +532,12 @@ class _SynaxariumDailyViewState extends State<SynaxariumDailyView> {
                                           Row(
                                             mainAxisAlignment: MainAxisAlignment.end,
                                             children: [
-                                              OutlinedButton.icon(
-                                                onPressed: () {
-                                                  SpeechPronunciationService().speakText(
-                                                    '$title. $text',
-                                                    label: title,
-                                                  );
-                                                },
-                                                icon: const Icon(Icons.volume_up_rounded, size: 16, color: AppColors.primaryGold),
-                                                label: Text(
-                                                  'استماع 🔊',
-                                                  style: GoogleFonts.cairo(
-                                                    color: AppColors.primaryGoldLight,
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                                style: OutlinedButton.styleFrom(
-                                                  side: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.45)),
-                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                                ),
+                                              SpeechPlayStopButton(
+                                                textToSpeak: '$title. $text',
+                                                label: title,
+                                                playText: 'استماع 🔊',
+                                                stopText: 'إيقاف الصوت ⏹️',
+                                                compact: true,
                                               ),
                                               const SizedBox(width: 8),
                                               OutlinedButton.icon(

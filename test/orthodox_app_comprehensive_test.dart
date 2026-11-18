@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:orthodox_app/core/services/ai_theology_service.dart';
+import 'package:orthodox_app/core/services/bible_reading_progress_service.dart';
 import 'package:orthodox_app/core/services/coptic_calendar_service.dart';
 import 'package:orthodox_app/core/services/coptic_fast_service.dart';
 import 'package:orthodox_app/core/services/coptic_youtube_registry.dart';
@@ -19,9 +20,11 @@ import 'package:orthodox_app/providers/theme_provider.dart';
 import 'package:orthodox_app/views/community/nearest_church_view.dart';
 import 'package:orthodox_app/views/coptic_academy/coptic_academy_view.dart';
 import 'package:orthodox_app/views/home/spiritual_prescription_view.dart';
+import 'package:orthodox_app/views/liturgical/church_sacraments_rites_view.dart';
 import 'package:orthodox_app/views/liturgical/remember_them_view.dart';
 import 'package:orthodox_app/views/liturgical/tasbeha_pascha_view.dart';
 import 'package:orthodox_app/views/liturgies/liturgy_reader_view.dart';
+import 'package:orthodox_app/views/sunday_school/sunday_school_kids_view.dart';
 import 'package:orthodox_app/views/synaxarium/my_patron_saint_view.dart';
 import 'package:orthodox_app/views/synaxarium/synaxarium_daily_view.dart';
 
@@ -343,6 +346,35 @@ void main() {
       );
       await tester.pump();
       expect(find.text('خلوة الـ ٥ دقائق (بماذا تشعر الآن؟)'), findsOneWidget);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: ChurchSacramentsRitesView(),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('الطقوس الكنسية والأسرار واللقان'), findsOneWidget);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: SundaySchoolKidsView(),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('ركن مدارس الأحد والطفل القبطي'), findsOneWidget);
+
+      final progress = BibleReadingProgressService();
+      await tester.runAsync(() async {
+        await progress.ensureLoaded();
+        await progress.toggleChapterCompleted('mt', 1);
+      });
+      expect(progress.isChapterCompleted('mt', 1), isTrue);
     });
   });
 }

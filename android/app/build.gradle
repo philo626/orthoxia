@@ -30,7 +30,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.orthodox.app.orthodox_app"
+        applicationId = "com.philo626.copticcompanion"
         minSdkVersion = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

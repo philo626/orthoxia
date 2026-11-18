@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import '../../firebase_options.dart';
 import '../../models/prayer_request_model.dart';
 
 class FirebaseAuthResult {
@@ -37,16 +38,18 @@ class FirebaseService {
 
   User? get currentUser => _isInitialized ? FirebaseAuth.instance.currentUser : null;
 
-  /// Safely initializes Firebase if google-services.json / FirebaseOptions are configured.
+  /// Safely initializes Firebase using DefaultFirebaseOptions & google-services.json
   Future<void> initSafely() async {
     if (_isInitialized) return;
     try {
-      await Firebase.initializeApp();
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
       _isInitialized = true;
-      debugPrint('✅ Firebase initialized successfully!');
+      debugPrint('✅ Firebase initialized successfully (project: coptic-companion-e08f0)!');
     } catch (e) {
       _isInitialized = false;
-      debugPrint('ℹ️ Firebase running in local offline-first mode (add google-services.json to enable cloud sync): $e');
+      debugPrint('ℹ️ Firebase running in local offline-first mode: $e');
     }
   }
 
@@ -145,7 +148,10 @@ class FirebaseService {
     }
 
     try {
-      final googleUser = await GoogleSignIn().signIn();
+      final googleSignIn = GoogleSignIn(
+        serverClientId: '374506508479-1oq4tomh0rjrp2o6voevcvta7l1qa47k.apps.googleusercontent.com',
+      );
+      final googleUser = await googleSignIn.signIn();
       if (googleUser == null) {
         return const FirebaseAuthResult(
           success: false,

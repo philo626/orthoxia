@@ -7,15 +7,17 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/coptic_calendar_service.dart';
+import '../../core/services/coptic_fast_service.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/services/patron_saint_service.dart';
 import '../../core/services/storage_service.dart';
+import '../../core/widgets/blessing_poster_studio_sheet.dart';
 import '../../core/widgets/luxe_widgets.dart';
 import '../../models/hymn_model.dart';
 import '../../models/katameros_model.dart';
 import '../../providers/church_mode_provider.dart';
 import '../../providers/liturgy_provider.dart';
-import '../bible/scripture_tafseer_reading_view.dart';
+import '../bible/bible_explorer_view.dart';
 import '../books/books_library_view.dart';
 import '../community/nearest_church_view.dart';
 import '../community/trivia_game_view.dart';
@@ -24,6 +26,7 @@ import '../hymns/hymn_detail_view.dart';
 import '../icons/christ_icons_gallery_view.dart';
 import '../liturgical/agpeya_view.dart';
 import '../liturgical/katameros_view.dart';
+import '../liturgical/remember_them_view.dart';
 import '../liturgical/tasbeha_pascha_view.dart';
 import '../liturgies/liturgy_reader_view.dart';
 import '../prayer_rope/coptic_prayer_rope_view.dart';
@@ -34,6 +37,7 @@ import '../onboarding/auth_view.dart';
 import '../profile/privacy_policy_view.dart';
 import '../search/global_search_view.dart';
 import '../spiritual_tracker/spiritual_tracker_view.dart';
+import 'spiritual_prescription_view.dart';
 
 class HomeDashboardView extends StatefulWidget {
   final Function(int tabIndex) onNavigateTab;
@@ -581,14 +585,14 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
 
               const SizedBox(height: 14),
 
-              // 4. Verse of the Day Card ("آية اليوم" / "الله محبة" with < and > — matches Frame 03)
+              // 4. Verse of the Day Card with Poster Studio & Cycle Buttons
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: PressScale(
                   scale: 0.98,
                   onTap: () => Navigator.push(
                     context,
-                    luxeRoute(ScriptureTafseerReadingView(initialIndex: _verseIndex)),
+                    luxeRoute(const BibleExplorerView()),
                   ),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -607,7 +611,6 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Right side in RTL: "آية اليوم" + "الله محبة >"
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -654,8 +657,34 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        // Left side in RTL: Circular < button to cycle verses
+                        const SizedBox(width: 8),
+                        // Poster Studio Button (مشاركة كصورة فاخرة للواتساب وستوري)
+                        GestureDetector(
+                          onTap: () {
+                            BlessingPosterStudioSheet.show(
+                              context,
+                              title: 'آية اليوم • ${currentVerse['short']}',
+                              bodyText: currentVerse['full']!,
+                              reference: 'الكتاب المقدس',
+                            );
+                          },
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.primaryGold.withValues(alpha: 0.16),
+                              border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.45)),
+                            ),
+                            child: const Icon(
+                              Icons.photo_camera_back_rounded,
+                              color: AppColors.primaryGoldLight,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        // Circular < button to cycle verses
                         GestureDetector(
                           onTap: () {
                             HapticFeedback.selectionClick();
@@ -681,6 +710,139 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                       ],
                     ),
                   ),
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              // 4.5 Smart Coptic Fasting Assistant Card (حالة الصوم اليوم والعيد القادم)
+              Builder(
+                builder: (context) {
+                  final fast = CopticFastService.getTodayFastStatus();
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: fast.isFastingToday
+                              ? [const Color(0xFF231B2E), const Color(0xFF14161F)]
+                              : [const Color(0xFF1E2618), const Color(0xFF14161F)],
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: AppColors.primaryGold.withValues(alpha: 0.42),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                fast.isFastingToday
+                                    ? Icons.spa_rounded
+                                    : Icons.celebration_rounded,
+                                color: AppColors.primaryGold,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  fast.title,
+                                  style: GoogleFonts.cairo(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primaryGoldLight,
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryGold.withValues(alpha: 0.18),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  fast.fishAllowed ? '🐟 يُسمح بالسمك' : '🥗 صوم بدون سمك',
+                                  style: GoogleFonts.cairo(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${fast.degree} • ${fast.abstinenceGuide}',
+                            style: GoogleFonts.cairo(
+                              fontSize: 11.5,
+                              color: Colors.white70,
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 14),
+
+              // 4.6 5-Minute Spiritual Prescription Bar ("بماذا تشعر الآن؟")
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '🧭 بماذا تشعر الآن؟ (روشتة وخلوة الـ ٥ دقائق)',
+                          style: GoogleFonts.cairo(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryGoldLight,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      height: 36,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: SpiritualPrescriptionView.prescriptions.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (context, idx) {
+                          final p = SpiritualPrescriptionView.prescriptions[idx];
+                          return ActionChip(
+                            visualDensity: VisualDensity.compact,
+                            backgroundColor: AppColors.cardNavy,
+                            side: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.35)),
+                            label: Text(
+                              '${p.emoji} ${p.label}',
+                              style: GoogleFonts.cairo(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                luxeRoute(SpiritualPrescriptionView(initialMoodIndex: idx)),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
@@ -721,7 +883,7 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                             label: 'الكتاب المقدس',
                             onTap: () => Navigator.push(
                               context,
-                              luxeRoute(const ScriptureTafseerReadingView(initialIndex: 0)),
+                              luxeRoute(const BibleExplorerView()),
                             ),
                           ),
                         ),
@@ -946,13 +1108,23 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                       onTap: () => _openLiturgy(context, 'liturgy_basil'),
                     ),
                     ThumbListCard(
-                      image: 'assets/images/christ_pantocrator.jpg',
-                      title: 'إنجيل اليوم والتفسير الآبائي',
+                      image: 'assets/images/bible_cover.jpg',
+                      title: 'الكتاب المقدس كاملاً (٦٦ سفراً)',
                       subtitle:
-                          'النص الإنجيلي المشكّل مع درج التفاسير الآبائية للقمص تادرس والبابا شنودة',
+                          'جميع أسفار العهد القديم والعهد الجديد مع القراءة الصوتية والبحث السريع',
                       onTap: () => Navigator.push(
                         context,
-                        luxeRoute(const ScriptureTafseerReadingView(initialIndex: 1)),
+                        luxeRoute(const BibleExplorerView()),
+                      ),
+                    ),
+                    ThumbListCard(
+                      image: 'assets/images/coptic_banner.jpg',
+                      title: 'دفتر «اذكرهم يا رب» على مذبح صلاتي',
+                      subtitle:
+                          'سجل أسماء أسرتك والمرضى والمسافرين والمنتقلين ليذكرهم التطبيق في صلاتك اليومية',
+                      onTap: () => Navigator.push(
+                        context,
+                        luxeRoute(const RememberThemView()),
                       ),
                     ),
                     ThumbListCard(

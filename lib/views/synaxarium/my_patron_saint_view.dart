@@ -7,7 +7,9 @@ import '../../core/constants/app_colors.dart';
 import '../../core/services/firebase_service.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/services/patron_saint_service.dart';
+import '../../core/services/speech_pronunciation_service.dart';
 import '../../core/services/storage_service.dart';
+import '../../core/widgets/blessing_poster_studio_sheet.dart';
 import '../../core/widgets/coptic_cross.dart';
 
 class MyPatronSaintView extends StatefulWidget {
@@ -470,9 +472,42 @@ class _MyPatronSaintViewState extends State<MyPatronSaintView> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.end,
                   children: [
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        SpeechPronunciationService().speakText(
+                          'رسالة شفيعك اليوم ${saint.name}: ${todayQuote.quote}. تدريب اليوم: ${todayQuote.lesson}. ${todayQuote.prayer}',
+                          label: saint.shortName,
+                        );
+                      },
+                      icon: const Icon(Icons.volume_up_rounded, size: 15, color: AppColors.primaryGold),
+                      label: Text('استماع 🔊', style: GoogleFonts.cairo(color: AppColors.primaryGoldLight, fontSize: 12)),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.4)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        BlessingPosterStudioSheet.show(
+                          context,
+                          title: 'من أقوال ${saint.shortName}',
+                          bodyText: todayQuote.quote,
+                          reference: saint.name,
+                          footerPrayer: todayQuote.prayer,
+                        );
+                      },
+                      icon: const Icon(Icons.photo_camera_back_rounded, size: 15, color: AppColors.primaryGold),
+                      label: Text('كارت مصور 📸', style: GoogleFonts.cairo(color: AppColors.primaryGoldLight, fontWeight: FontWeight.bold, fontSize: 12)),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.5)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
                     OutlinedButton.icon(
                       onPressed: () {
                         Clipboard.setData(ClipboardData(
@@ -489,7 +524,6 @@ class _MyPatronSaintViewState extends State<MyPatronSaintView> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
-                    const SizedBox(width: 8),
                     ElevatedButton.icon(
                       onPressed: () {
                         SharePlus.instance.share(

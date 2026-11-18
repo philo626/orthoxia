@@ -5,7 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:orthodox_app/core/services/ai_theology_service.dart';
 import 'package:orthodox_app/core/services/coptic_calendar_service.dart';
+import 'package:orthodox_app/core/services/coptic_fast_service.dart';
 import 'package:orthodox_app/core/services/coptic_youtube_registry.dart';
 import 'package:orthodox_app/core/services/notification_service.dart';
 import 'package:orthodox_app/core/services/patron_saint_service.dart';
@@ -15,6 +17,9 @@ import 'package:orthodox_app/providers/church_mode_provider.dart';
 import 'package:orthodox_app/providers/liturgy_provider.dart';
 import 'package:orthodox_app/providers/theme_provider.dart';
 import 'package:orthodox_app/views/community/nearest_church_view.dart';
+import 'package:orthodox_app/views/coptic_academy/coptic_academy_view.dart';
+import 'package:orthodox_app/views/home/spiritual_prescription_view.dart';
+import 'package:orthodox_app/views/liturgical/remember_them_view.dart';
 import 'package:orthodox_app/views/liturgical/tasbeha_pascha_view.dart';
 import 'package:orthodox_app/views/liturgies/liturgy_reader_view.dart';
 import 'package:orthodox_app/views/synaxarium/my_patron_saint_view.dart';
@@ -45,6 +50,19 @@ void main() {
       final movable = CopticCalendarService.getMovableFeastsForYear(2026);
       expect(movable.length, 8);
       expect(CopticCalendarService.copticMonths.length, 13);
+
+      // Verify CopticFastService & AiTheologyService markdown cleaner
+      final fastGreatLent = CopticFastService.getTodayFastStatus(DateTime(2026, 3, 15));
+      expect(fastGreatLent.isFastingToday, isTrue);
+      expect(fastGreatLent.fishAllowed, isFalse);
+
+      final cleanedAi = AiTheologyService.cleanMarkdownFormatting(
+        '### ***عنوان الإجابة***\n***\n* **النقطة الأولى:** شرح واضح.',
+      );
+      expect(cleanedAi.contains('*'), isFalse);
+      expect(cleanedAi.contains('#'), isFalse);
+      expect(cleanedAi.contains('☦ عنوان الإجابة'), isTrue);
+      expect(cleanedAi.contains('• النقطة الأولى:'), isTrue);
     });
   });
 
@@ -279,6 +297,41 @@ void main() {
       );
       await tester.pump();
       expect(find.text('أقرب كنيسة قبطية ومزارات الكنيسة'), findsOneWidget);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: CopticAcademyView(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('أكاديمية اللغة القبطية'), findsOneWidget);
+      expect(find.textContaining('سماع نطق الحرف'), findsOneWidget);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: RememberThemView(),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('دفتر «اذكرهم يا رب» في صلاتي'), findsOneWidget);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: SpiritualPrescriptionView(),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('خلوة الـ ٥ دقائق (بماذا تشعر الآن؟)'), findsOneWidget);
     });
   });
 }

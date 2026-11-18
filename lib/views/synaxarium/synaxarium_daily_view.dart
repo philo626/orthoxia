@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/coptic_calendar_service.dart';
+import '../../core/services/speech_pronunciation_service.dart';
 import '../../core/widgets/coptic_cross.dart';
 import '../../providers/theme_provider.dart';
 
@@ -527,10 +528,33 @@ class _SynaxariumDailyViewState extends State<SynaxariumDailyView> {
                                             ),
                                           ),
                                           const SizedBox(height: 12),
-                                          // Share & Copy Actions
+                                          // Audio Reader, Share & Copy Actions
                                           Row(
                                             mainAxisAlignment: MainAxisAlignment.end,
                                             children: [
+                                              OutlinedButton.icon(
+                                                onPressed: () {
+                                                  SpeechPronunciationService().speakText(
+                                                    '$title. $text',
+                                                    label: title,
+                                                  );
+                                                },
+                                                icon: const Icon(Icons.volume_up_rounded, size: 16, color: AppColors.primaryGold),
+                                                label: Text(
+                                                  'استماع 🔊',
+                                                  style: GoogleFonts.cairo(
+                                                    color: AppColors.primaryGoldLight,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                style: OutlinedButton.styleFrom(
+                                                  side: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.45)),
+                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
                                               OutlinedButton.icon(
                                                 onPressed: () {
                                                   Clipboard.setData(ClipboardData(text: '$title\n\n$text'));

@@ -238,7 +238,7 @@ class AiTheologyService {
         : '';
 
     const systemPrompt =
-        'أنت «المساعد الآبائي القبطي الأرثوذكسي» في تطبيق أرثوذكسيا. أجب عن سؤال المستخدم بدقة لاهوتية وروحية وطقسية وفق إيمان الكنيسة القبطية الأرثوذكسية وتفاسير الآباء (القديس أثناسيوس الرسولي، القديس كيرلس الكبير، القديس يوحنا ذهبي الفم، قداسة البابا شنودة الثالث، القمص تادرس يعقوب ملطي، والقس أنطونيوس فكري). اكتب بلغة عربية واضحة ومرتبة في نقاط مع ذكر الشواهد الكتابية والآبائية.';
+        'أنت «المساعد الآبائي القبطي الأرثوذكسي» في تطبيق أرثوذكسيا. أجب عن سؤال المستخدم بدقة لاهوتية وروحية وطقسية وفق إيمان الكنيسة القبطية الأرثوذكسية وتفاسير الآباء (القديس أثناسيوس الرسولي، القديس كيرلس الكبير، القديس يوحنا ذهبي الفم، قداسة البابا شنودة الثالث، القمص تادرس يعقوب ملطي، والقس أنطونيوس فكري). اكتب بلغة عربية واضحة ومرتبة في نقاط مرقمة (١. ٢. ٣.) أو نقاط (•) مع وضع الآيات وأقوال الآباء بين علامتي تنصيص «...»، وممنوع تماماً استخدام علامات النجوم (*** أو ** أو *) أو رموز الماركداون (#).';
 
     // 3. Try Live Online AI Generation (works out-of-the-box with zero API key via Pollinations OpenAI endpoint, or Anthropic if key supplied)
     try {
@@ -259,7 +259,8 @@ class AiTheologyService {
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-        final aiText = decoded['choices']?[0]?['message']?['content']?.toString().trim() ?? '';
+        final rawAiText = decoded['choices']?[0]?['message']?['content']?.toString().trim() ?? '';
+        final aiText = cleanMarkdownFormatting(rawAiText);
         if (aiText.isNotEmpty) {
           return AiMessage(
             text: aiText,
@@ -299,5 +300,31 @@ class AiTheologyService {
         'تراث الكنيسة القبطية الأرثوذكسية',
       ],
     );
+  }
+
+  /// Strips raw Markdown asterisks (***, **, *), hashes (###), and horizontal rules (---)
+  /// and normalizes bullet points for clean Arabic Patristic display.
+  static String cleanMarkdownFormatting(String raw) {
+    if (raw.isEmpty) return '';
+    String text = raw;
+    // Replace horizontal rules *** or --- with clean line break
+    text = text.replaceAll(RegExp(r'^\s*(\*{3,}|-{3,}|_{3,})\s*$', multiLine: true), '');
+    // Replace markdown headings ### Title with ☦ Title
+    text = text.replaceAllMapped(
+      RegExp(r'^\s*#{1,6}\s*(.+)$', multiLine: true),
+      (m) => '☦ ${m.group(1)!.replaceAll('*', '').trim()}',
+    );
+    // Replace markdown bullet points "* item" or "- item" at line start with "• item"
+    text = text.replaceAllMapped(
+      RegExp(r'^\s*[\*\-]\s+(.+)$', multiLine: true),
+      (m) => '• ${m.group(1)!.trim()}',
+    );
+    // Strip inline ***bold*** and **bold** and *italic*
+    text = text.replaceAll(RegExp(r'\*{1,3}'), '');
+    // Strip inline markdown underscores __bold__
+    text = text.replaceAll(RegExp(r'_{2,}'), '');
+    // Collapse 3+ newlines into 2
+    text = text.replaceAll(RegExp(r'\n{3,}'), '\n\n');
+    return text.trim();
   }
 }

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/speech_pronunciation_service.dart';
+import '../../core/widgets/blessing_poster_studio_sheet.dart';
 import '../../models/bible_model.dart';
-import '../../models/commentary_model.dart';
 import '../../providers/bible_provider.dart';
-import '../../providers/books_provider.dart';
 
 class BibleReaderView extends StatefulWidget {
   const BibleReaderView({super.key});
@@ -16,19 +17,33 @@ class BibleReaderView extends StatefulWidget {
 }
 
 class _BibleReaderViewState extends State<BibleReaderView> {
-  double _fontSize = 18.0;
+  double _fontSize = 19.0;
   final ScrollController _scrollController = ScrollController();
+  final SpeechPronunciationService _speech = SpeechPronunciationService();
 
-  void _onVerseTapped(BuildContext context, BibleBook book, int chapter, int verseNum, String verseText) {
+  @override
+  void dispose() {
+    _speech.stop();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onVerseTapped(
+    BuildContext context,
+    BibleBook book,
+    int chapter,
+    int verseNum,
+    String verseText,
+  ) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
+          color: const Color(0xFF13151D),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
+          border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.4)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -36,56 +51,66 @@ class _BibleReaderViewState extends State<BibleReaderView> {
           children: [
             Row(
               children: [
-                const Icon(Icons.bookmark_border, color: AppColors.gold),
+                const Icon(Icons.bookmark_border_rounded, color: AppColors.primaryGold),
                 const SizedBox(width: 8),
                 Text(
-                  '${book.name} $chapter:$verseNum',
-                  style: const TextStyle(
-                    fontFamily: 'Cairo',
+                  '${book.name} $chapter : $verseNum',
+                  style: GoogleFonts.cairo(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.gold,
+                    color: AppColors.primaryGoldLight,
                   ),
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'استماع للآية',
+                  icon: const Icon(Icons.volume_up_rounded, color: AppColors.primaryGold),
+                  onPressed: () {
+                    _speech.speakText(
+                      '$verseText. ${book.name} إصحاح $chapter آية $verseNum',
+                      label: '${book.name} $chapter:$verseNum',
+                    );
+                  },
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(12),
+                color: Colors.black.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(14),
               ),
               child: Text(
                 verseText,
-                style: const TextStyle(
-                  fontFamily: 'Cairo',
-                  fontSize: 14,
-                  color: AppColors.cream,
-                  height: 1.5,
+                style: GoogleFonts.amiri(
+                  fontSize: 18,
+                  color: Colors.white,
+                  height: 1.65,
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             Row(
               children: [
                 Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.gold.withValues(alpha: 0.2),
-                      foregroundColor: AppColors.goldLight,
-                      side: const BorderSide(color: AppColors.gold),
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primaryGoldLight,
+                      side: const BorderSide(color: AppColors.primaryGold),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    icon: const Icon(Icons.copy, size: 18),
-                    label: const Text('نسخ الآية', style: TextStyle(fontFamily: 'Cairo')),
+                    icon: const Icon(Icons.copy_rounded, size: 17),
+                    label: Text('نسخ الآية', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
                     onPressed: () {
-                      Clipboard.setData(ClipboardData(text: '$verseText (${book.name} $chapter:$verseNum)'));
+                      Clipboard.setData(
+                        ClipboardData(text: '«$verseText» (${book.name} $chapter: $verseNum)'),
+                      );
                       Navigator.pop(ctx);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('تم نسخ الآية المباركة بنجاح!'),
-                          backgroundColor: AppColors.burgundy,
+                        SnackBar(
+                          content: Text('تم نسخ الآية المباركة بنجاح', style: GoogleFonts.cairo()),
+                          backgroundColor: AppColors.cardNavy,
                         ),
                       );
                     },
@@ -95,15 +120,15 @@ class _BibleReaderViewState extends State<BibleReaderView> {
                 Expanded(
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.gold,
+                      backgroundColor: AppColors.primaryGold,
                       foregroundColor: Colors.black,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    icon: const Icon(Icons.share, size: 18),
-                    label: const Text('مشاركة', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
+                    icon: const Icon(Icons.share_rounded, size: 17),
+                    label: Text('مشاركة نص', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
                     onPressed: () {
                       SharePlus.instance.share(
-                        ShareParams(text: '$verseText\n(${book.name} $chapter:$verseNum)'),
+                        ShareParams(text: '«$verseText»\n(${book.name} $chapter: $verseNum)'),
                       );
                       Navigator.pop(ctx);
                     },
@@ -112,151 +137,27 @@ class _BibleReaderViewState extends State<BibleReaderView> {
               ],
             ),
             const SizedBox(height: 8),
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.goldLight,
-                side: BorderSide(color: AppColors.gold.withValues(alpha: 0.4)),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF281F12),
+                foregroundColor: AppColors.primaryGoldLight,
+                side: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.5)),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              icon: const Icon(Icons.menu_book, size: 18),
-              label: const Text('عرض التفاسير والآبائيات لهذا السفر', style: TextStyle(fontFamily: 'Cairo')),
+              icon: const Icon(Icons.photo_camera_back_rounded, size: 18, color: AppColors.primaryGold),
+              label: Text(
+                'تصميم كصورة فاخرة للواتساب وستوري 📸',
+                style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 12.5),
+              ),
               onPressed: () {
                 Navigator.pop(ctx);
-                _showCommentarySheet(context, book.name, chapter, verseNum);
+                BlessingPosterStudioSheet.show(
+                  context,
+                  title: 'آية من الكتاب المقدس',
+                  bodyText: verseText,
+                  reference: '${book.name} $chapter : $verseNum',
+                );
               },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showCommentarySheet(BuildContext context, String bookName, int chapter, int verse) {
-    final booksProvider = context.read<BooksProvider>();
-    // Try to find commentary for this book
-    final commentaries = booksProvider.commentaries;
-    final matches = commentaries.where(
-      (c) => c.bibleBookName.contains(bookName) || bookName.contains(c.bibleBookName),
-    );
-    final BibleBookCommentary? bookComm = matches.isNotEmpty ? matches.first : (commentaries.isNotEmpty ? commentaries.first : null);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        height: MediaQuery.of(context).size.height * 0.75,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.auto_stories, color: AppColors.gold),
-                    const SizedBox(width: 8),
-                    Text(
-                      'تفسير الآباء: $bookName $chapter',
-                      style: const TextStyle(
-                        fontFamily: 'Cairo',
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.gold,
-                      ),
-                    ),
-                  ],
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, color: Colors.grey),
-                  onPressed: () => Navigator.pop(ctx),
-                ),
-              ],
-            ),
-            const Divider(color: AppColors.gold),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.gold.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.gold.withValues(alpha: 0.2)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'المرجع والشراح المعتمدون:',
-                            style: TextStyle(
-                              fontFamily: 'Cairo',
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                              color: AppColors.goldLight,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            bookComm != null ? bookComm.commentator : 'القمص تادرس يعقوب ملطي والقمص أنطونيوس فكري وآباء الكنيسة الأولى',
-                            style: const TextStyle(fontFamily: 'Cairo', fontSize: 13, color: AppColors.cream),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'نظرة لاهوتية وروحية على الإصحاح $chapter من $bookName:',
-                      style: const TextStyle(
-                        fontFamily: 'Cairo',
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        color: AppColors.gold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      bookComm != null && bookComm.chapters.isNotEmpty
-                          ? bookComm.chapters.first.introduction
-                          : 'يشرح الآباء القديسون هذا السفر المقدس باعتباره كشفاً لخطة الخلاص الإلهي. في كل آية نرى يد الله الممتدة للبشرية، داعية النفس للاتحاد به في الصلاة والبر، والارتفاع فوق هموم العالم الفاني.',
-                      style: const TextStyle(
-                        fontFamily: 'Cairo',
-                        fontSize: 14,
-                        color: AppColors.cream,
-                        height: 1.6,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'شرح الآية المحددة:',
-                      style: TextStyle(
-                        fontFamily: 'Cairo',
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: AppColors.goldLight,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'يؤكد القديس يوحنا ذهبي الفم والقديس كيرلس الكبير أن هذه الآية المباركة تزرع في القلب السلام والثبات الإيماني في مواجهة التجارب، موجهة أنظارنا نحو مجد القيامة والحياة الأبدية مع المسيح.',
-                      style: const TextStyle(
-                        fontFamily: 'Cairo',
-                        fontSize: 14,
-                        color: AppColors.cream,
-                        height: 1.6,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ),
           ],
         ),
@@ -272,7 +173,8 @@ class _BibleReaderViewState extends State<BibleReaderView> {
 
     if (book == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('قارئ الكتاب المقدس')),
+        backgroundColor: AppColors.deepNavy,
+        appBar: AppBar(title: const Text('الكتاب المقدس')),
         body: const Center(child: Text('لم يتم اختيار سفر.')),
       );
     }
@@ -283,129 +185,193 @@ class _BibleReaderViewState extends State<BibleReaderView> {
         : <String>[];
 
     return Scaffold(
+      backgroundColor: AppColors.deepNavy,
       appBar: AppBar(
+        backgroundColor: const Color(0xFF10121A),
         title: Text(
-          '${book.name} - الإصحاح $chapter',
-          style: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold),
+          '${book.name} • الإصحاح $chapter',
+          style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         centerTitle: true,
         actions: [
+          // Audio Reader Button for the Chapter
+          ValueListenableBuilder<bool>(
+            valueListenable: _speech.isSpeakingNotifier,
+            builder: (context, speaking, _) {
+              return IconButton(
+                tooltip: speaking ? 'إيقاف القراءة الصوتية' : 'استماع للإصحاح صوتياً',
+                icon: Icon(
+                  speaking ? Icons.stop_circle_rounded : Icons.volume_up_rounded,
+                  color: speaking ? Colors.redAccent : AppColors.primaryGold,
+                ),
+                onPressed: () {
+                  if (speaking) {
+                    _speech.stop();
+                  } else {
+                    final fullChapterText =
+                        '${book.name}، الإصحاح $chapter. ${verses.join('. ')}';
+                    _speech.speakText(
+                      fullChapterText,
+                      label: '${book.name} - إصحاح $chapter',
+                    );
+                  }
+                },
+              );
+            },
+          ),
           IconButton(
-            icon: const Icon(Icons.format_size, color: AppColors.gold),
+            tooltip: 'حجم الخط',
+            icon: const Icon(Icons.format_size_rounded, color: AppColors.primaryGold),
             onPressed: () {
               setState(() {
-                _fontSize = _fontSize == 18.0 ? 22.0 : (_fontSize == 22.0 ? 15.0 : 18.0);
+                _fontSize = _fontSize >= 25.0 ? 17.0 : _fontSize + 2.0;
               });
             },
           ),
         ],
       ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          border: Border(top: BorderSide(color: AppColors.gold.withValues(alpha: 0.2))),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.gold.withValues(alpha: 0.15),
-                foregroundColor: AppColors.goldLight,
-              ),
-              onPressed: () {
-                bible.previousChapter();
-                _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-              },
-              icon: const Icon(Icons.chevron_right),
-              label: const Text('السابق', style: TextStyle(fontFamily: 'Cairo')),
-            ),
-            Container(
+      body: Column(
+        children: [
+          // Horizontal Quick Chapter Selector Bar
+          Container(
+            height: 44,
+            color: const Color(0xFF13151E),
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.gold.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                '$chapter / ${book.chaptersCount}',
-                style: const TextStyle(
-                  fontFamily: 'Cairo',
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.gold,
-                ),
-              ),
-            ),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.gold.withValues(alpha: 0.15),
-                foregroundColor: AppColors.goldLight,
-              ),
-              onPressed: () {
-                bible.nextChapter();
-                _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+              itemCount: book.chaptersCount,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (context, idx) {
+                final chNum = idx + 1;
+                final isSel = chNum == chapter;
+                return ChoiceChip(
+                  visualDensity: VisualDensity.compact,
+                  showCheckmark: false,
+                  label: Text(
+                    'إصحاح $chNum',
+                    style: GoogleFonts.cairo(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.bold,
+                      color: isSel ? Colors.black : AppColors.textLight,
+                    ),
+                  ),
+                  selected: isSel,
+                  selectedColor: AppColors.primaryGold,
+                  backgroundColor: const Color(0xFF1E212D),
+                  onSelected: (_) {
+                    _speech.stop();
+                    bible.setCurrentBookAndChapter(book, chNum);
+                    if (_scrollController.hasClients) {
+                      _scrollController.jumpTo(0);
+                    }
+                  },
+                );
               },
-              icon: const Icon(Icons.chevron_left),
-              label: const Text('التالي', style: TextStyle(fontFamily: 'Cairo')),
             ),
-          ],
-        ),
-      ),
-      body: verses.isEmpty
-          ? const Center(child: Text('لا توجد آيات متوفرة في هذا الإصحاح'))
-          : ListView.builder(
+          ),
+
+          // Chapter Navigation Bar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.25),
+              border: Border(
+                bottom: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.2)),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton.icon(
+                  onPressed: () {
+                    _speech.stop();
+                    bible.previousChapter();
+                    if (_scrollController.hasClients) _scrollController.jumpTo(0);
+                  },
+                  icon: const Icon(Icons.arrow_back_ios_rounded, size: 14, color: AppColors.primaryGold),
+                  label: Text(
+                    'الإصحاح السابق',
+                    style: GoogleFonts.cairo(color: AppColors.primaryGoldLight, fontSize: 12.5),
+                  ),
+                ),
+                Text(
+                  '${verses.length} آية',
+                  style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 12),
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    _speech.stop();
+                    bible.nextChapter();
+                    if (_scrollController.hasClients) _scrollController.jumpTo(0);
+                  },
+                  icon: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.primaryGold),
+                  label: Text(
+                    'الإصحاح التالي',
+                    style: GoogleFonts.cairo(color: AppColors.primaryGoldLight, fontSize: 12.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Verses List
+          Expanded(
+            child: ListView.builder(
               controller: _scrollController,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
               itemCount: verses.length,
               itemBuilder: (ctx, idx) {
-                final verseNum = idx + 1;
-                final verseText = verses[idx];
-
+                final vNum = idx + 1;
+                final vText = verses[idx];
                 return InkWell(
-                  onTap: () => _onVerseTapped(context, book, chapter, verseNum, verseText),
-                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => _onVerseTapped(context, book, chapter, vNum, vText),
+                  borderRadius: BorderRadius.circular(10),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 28,
-                          height: 28,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppColors.gold.withValues(alpha: 0.15),
-                            border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
-                          ),
-                          child: Text(
-                            '$verseNum',
-                            style: const TextStyle(
-                              fontFamily: 'Cairo',
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.goldLight,
+                    padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 8),
+                    child: RichText(
+                      textDirection: TextDirection.rtl,
+                      text: TextSpan(
+                        children: [
+                          WidgetSpan(
+                            alignment: PlaceholderAlignment.middle,
+                            child: Container(
+                              margin: const EdgeInsets.only(left: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryGold.withValues(alpha: 0.16),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: AppColors.primaryGold.withValues(alpha: 0.4),
+                                ),
+                              ),
+                              child: Text(
+                                '$vNum',
+                                style: GoogleFonts.cairo(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primaryGoldLight,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            verseText,
-                            style: TextStyle(
-                              fontFamily: 'Cairo',
-                              fontSize: _fontSize,
-                              color: AppColors.cream,
+                          TextSpan(
+                            text: vText,
+                            style: GoogleFonts.amiri(
+                              fontSize: _fontSize + 2,
+                              color: const Color(0xFFF7F4EC),
                               height: 1.8,
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 );
               },
             ),
+          ),
+        ],
+      ),
     );
   }
 }

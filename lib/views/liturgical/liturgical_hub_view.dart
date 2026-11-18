@@ -11,13 +11,14 @@ import '../../core/widgets/luxe_widgets.dart';
 import '../../models/katameros_model.dart';
 import '../../providers/liturgy_provider.dart';
 import '../bible/bible_explorer_view.dart';
-import '../bible/scripture_tafseer_reading_view.dart';
 import '../books/books_library_view.dart';
 import '../hymns/hymns_library_view.dart';
 import '../liturgies/liturgy_reader_view.dart';
 import '../search/global_search_view.dart';
 import 'agpeya_view.dart';
 import 'katameros_view.dart';
+import 'remember_them_view.dart';
+import '../home/spiritual_prescription_view.dart';
 import '../synaxarium/synaxarium_daily_view.dart';
 
 class LiturgicalHubView extends StatefulWidget {
@@ -70,12 +71,21 @@ class _LiturgicalHubViewState extends State<LiturgicalHubView> {
         'onTap': () => _openLiturgyById(context, 'liturgy_basil'),
       },
       {
-        'image': 'assets/images/christ_pantocrator.jpg',
-        'title': 'إنجيل اليوم والتفسير الآبائي',
-        'subtitle': 'قراءة الإنجيل بالتشكيل الكامل مع درج التفاسير الآبائية المباشر',
+        'image': 'assets/images/bible_cover.jpg',
+        'title': 'الكتاب المقدس كاملاً (٦٦ سفراً)',
+        'subtitle': 'جميع أسفار العهد القديم والعهد الجديد مع القراءة الصوتية والبحث السريع',
         'onTap': () => Navigator.push(
               context,
-              luxeRoute(const ScriptureTafseerReadingView(initialIndex: 0)),
+              luxeRoute(const BibleExplorerView()),
+            ),
+      },
+      {
+        'image': 'assets/images/coptic_banner.jpg',
+        'title': 'دفتر «اذكرهم يا رب» في صلاتي اليومية',
+        'subtitle': 'سجل أسماء أسرتك والمرضى والمسافرين والراقدين لتصلي من أجلهم بالاسم يومياً',
+        'onTap': () => Navigator.push(
+              context,
+              luxeRoute(const RememberThemView()),
             ),
       },
       {
@@ -133,10 +143,10 @@ class _LiturgicalHubViewState extends State<LiturgicalHubView> {
         },
       },
       {
-        'image': 'assets/images/bible_cover.jpg',
-        'title': 'إنجيل يوحنا والكتاب المقدس الكامل (٦٦ سفراً)',
-        'subtitle': 'العهد القديم والعهد الجديد بالتشكيل الكامل مع البحث والتفسير الآبائي',
-        'onTap': () => Navigator.push(context, luxeRoute(const BibleExplorerView())),
+        'image': 'assets/images/christ_good_shepherd.jpg',
+        'title': 'خلوة الـ ٥ دقائق (بماذا تشعر الآن؟)',
+        'subtitle': 'روشتة روحية فورية (آية وعد إلهي • مزمور • قول آبائي • صلاة مسموعة ومقروءة)',
+        'onTap': () => Navigator.push(context, luxeRoute(const SpiritualPrescriptionView())),
       },
       {
         'image': 'assets/images/thumb_gregory.jpg',
@@ -155,13 +165,13 @@ class _LiturgicalHubViewState extends State<LiturgicalHubView> {
       },
       {
         'image': 'assets/images/thumb_fathers.jpg',
-        'title': 'مكتبة التفاسير والكتب الأرثوذكسية',
-        'subtitle': 'تفاسير القمص تادرس يعقوب ملطي وكتب قداسة البابا شنودة الثالث والآباء',
+        'title': 'المكتبة الروحية وكتب الآباء',
+        'subtitle': 'كتب قداسة البابا شنودة الثالث وتراث الآباء الأولين والعقيدة الأرثوذكسية',
         'onTap': () => Navigator.push(context, luxeRoute(const BooksLibraryView())),
       },
       {
         'image': 'assets/images/thumb_hymns.jpg',
-        'title': 'مكتبة الألحان القبطية (٤٠٨ لحناً)',
+        'title': 'مكتبة الألحان القبطية (بث مباشر وصوتيات)',
         'subtitle': 'الألحان مسجلة بأصوات المعلم إبراهيم عياد والمرتلين مع الكلمات الثلاثية',
         'onTap': () => Navigator.push(
               context,

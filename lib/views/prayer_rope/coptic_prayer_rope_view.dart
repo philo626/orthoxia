@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/speech_pronunciation_service.dart';
 import '../../core/widgets/coptic_cross.dart';
 import '../../core/widgets/luxe_widgets.dart';
 
@@ -286,6 +287,24 @@ class _CopticPrayerRopeViewState extends State<CopticPrayerRopeView>
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textLight,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () {
+                      SpeechPronunciationService().speakText(
+                        '${prayer['arabized']}. ${prayer['arabic']}',
+                        label: prayer['title']!,
+                      );
+                    },
+                    icon: const Icon(Icons.volume_up_rounded, size: 17, color: AppColors.primaryGold),
+                    label: Text(
+                      'استمع لنطق الصلاة السهمية 🔊',
+                      style: GoogleFonts.cairo(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryGoldLight,
+                      ),
                     ),
                   ),
                 ],

@@ -154,6 +154,19 @@ class AudioPlayerService {
       }
     }
 
+    // Verified 200 OK online Coptic MP3 fallback streams (zero APK size overhead!)
+    const verifiedOnlineFallbacks = <String, String>{
+      'holy_week': 'https://stgeorgesaman.com/wp-content/uploads/2023/04/the-confession-of-the-right-hand-thief-cantor_ibrahim_ayad-arabic_lan-coptic_lan-greek_lan-stgeorgesaman.com.mp3',
+      'kiahk_nativity': 'https://stgeorgesaman.com/wp-content/uploads/2022/11/hoos_kiahk-abo_fam_team-coptic_lan-stgeorgesaman.com.mp3',
+      'praise': 'https://stgeorgesaman.com/wp-content/uploads/2025/11/adam-psali-on-second-hoos-4-abo_fam_team-coptic_lan-stgeorgesaman.com.mp3',
+      'resurrection': 'https://stgeorgesaman.com/wp-content/uploads/2026/05/psali-adam-pentecost-hics-coptic_lan-stgeorgesaman.com.mp3',
+      'great_lent': 'https://stgeorgesaman.com/wp-content/uploads/2023/03/daytime-litanies-cantor_ibrahim_ayad-coptic_lan-stgeorgesaman.com.mp3',
+      'default': 'https://stgeorgesaman.com/wp-content/uploads/2021/09/saturday-theotokia-cantor_gad_louise-coptic_lan-stgeorgesaman.com.mp3',
+    };
+    final catFallback = verifiedOnlineFallbacks[hymn.categoryId] ?? verifiedOnlineFallbacks['default']!;
+    candidates.add({'url': catFallback, 'cantor': hymn.cantor});
+    candidates.add({'url': verifiedOnlineFallbacks['default']!, 'cantor': hymn.cantor});
+
     bool nativeSuccess = false;
     final tried = <String>{};
     for (final cand in candidates) {

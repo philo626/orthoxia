@@ -214,7 +214,7 @@ class _BibleExplorerViewState extends State<BibleExplorerView> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text(
-                                '✅ متابعة ختم الكتاب المقدس:',
+                                'متابعة ختم الكتاب المقدس:',
                                 style: TextStyle(
                                   fontFamily: 'Cairo',
                                   fontSize: 12,

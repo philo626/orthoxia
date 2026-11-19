@@ -22,7 +22,7 @@ class SacramentRiteSection {
 class SacramentRite {
   final String id;
   final String title;
-  final String emoji;
+  final IconData icon;
   final String occasion;
   final String overview;
   final List<SacramentRiteSection> sections;
@@ -30,7 +30,7 @@ class SacramentRite {
   const SacramentRite({
     required this.id,
     required this.title,
-    required this.emoji,
+    required this.icon,
     required this.occasion,
     required this.overview,
     required this.sections,
@@ -44,7 +44,7 @@ class ChurchSacramentsRitesView extends StatefulWidget {
     SacramentRite(
       id: 'lakan',
       title: 'طقس وصلاة اللقان المقدس',
-      emoji: '💧',
+      icon: Icons.water_drop_outlined,
       occasion: 'يُصلى ٣ مرات في السنة: عيد الغطاس • خميس العهد • عيد الآباء الرسل',
       overview: 'صلاة تقديس الماء في اللقان تذكاراً لمعمودية الرب يسوع في نهر الأردن (الغطاس)، ولغسله أرجل التلاميذ باتضاع (خميس العهد)، ولإرسالية التلاميذ لتعميد الأمم (عيد الرسل).',
       sections: [
@@ -71,7 +71,7 @@ class ChurchSacramentsRitesView extends StatefulWidget {
     SacramentRite(
       id: 'pentecost_sagda',
       title: 'صلوات السجدة المقدسة (عيد العنصرة)',
-      emoji: '🔥',
+      icon: Icons.local_fire_department_outlined,
       occasion: 'تُصلى عصر يوم أحد عيد العنصرة (حلول الروح القدس)',
       overview: 'ثلاث سجدات خاشعة للثالوث القدوس (السجدة الأولى للآب، والثانية للابن، والثالثة للروح القدس)، حيث نركع لأول مرة بعد خمسين يوماً من القيامة شكراً على حلول الروح القدس المعزي.',
       sections: [
@@ -104,7 +104,7 @@ class ChurchSacramentsRitesView extends StatefulWidget {
     SacramentRite(
       id: 'matrimony',
       title: 'طقس سر الإكليل المقدس (الزيجة)',
-      emoji: '👑',
+      icon: Icons.workspace_premium_outlined,
       occasion: 'سر اتحاد العروسين في الرب على مثال اتحاد المسيح بالكنيسة',
       overview: 'سر مقدس يصير به العروسان جسداً واحداً بالروح القدس، ويشمل تبريك الخواتم (العربون)، القراءات، دهن الزيت، إلباس البرنس والأكاليل، والوصايا المقدسة.',
       sections: [
@@ -125,7 +125,7 @@ class ChurchSacramentsRitesView extends StatefulWidget {
     SacramentRite(
       id: 'unction_sick',
       title: 'طقس سر مسحة المرضى (القنديل)',
-      emoji: '⚕️',
+      icon: Icons.healing_outlined,
       occasion: 'سبع صلوات لشفاء النفس والجسد (ويُصلى القنديل العام في جمعة ختام الصوم)',
       overview: 'تأسيساً على وصية معلمنا يعقوب الرسول: «أمريض أحد بينكم؟ فليدعُ قسوس الكنيسة فيصلوا عليه ويدهنوه بزيت باسم الرب، وصلاة الإيمان تشفي المريض».',
       sections: [
@@ -140,7 +140,7 @@ class ChurchSacramentsRitesView extends StatefulWidget {
     SacramentRite(
       id: 'baptism_myron',
       title: 'طقس سر المعمودية والميرون المقدس',
-      emoji: '🕊️',
+      icon: Icons.spa_outlined,
       occasion: 'سر الميلاد الثاني من الماء والروح وختم الروح القدس (٣٦ رشماً)',
       overview: 'بالمعمودية ندفن مع المسيح ونقوم معه خليقة جديدة، وبالميرون المقدس ننال سكنى وختم الروح القدس في كل حواسنا وأعضائنا.',
       sections: [
@@ -202,17 +202,23 @@ class _ChurchSacramentsRitesViewState extends State<ChurchSacramentsRitesView> {
                 final sel = idx == _selectedRiteIdx;
                 return ChoiceChip(
                   showCheckmark: false,
+                  avatar: Icon(
+                    r.icon,
+                    size: 15,
+                    color: sel ? Colors.black : AppColors.primaryGold,
+                  ),
                   label: Text(
-                    '${r.emoji} ${r.title}',
+                    r.title,
                     style: GoogleFonts.cairo(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: sel ? Colors.black : Colors.white,
+                      color: sel ? Colors.black : AppColors.textLight,
                     ),
                   ),
                   selected: sel,
                   selectedColor: AppColors.primaryGold,
                   backgroundColor: AppColors.cardNavy,
+                  side: BorderSide(color: sel ? AppColors.primaryGold : AppColors.hairline),
                   onSelected: (_) {
                     HapticFeedback.selectionClick();
                     SpeechPronunciationService().stop();
@@ -231,18 +237,25 @@ class _ChurchSacramentsRitesViewState extends State<ChurchSacramentsRitesView> {
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF2B2012), Color(0xFF14151D)],
-                    ),
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: AppColors.primaryGold, width: 1.3),
+                    color: AppColors.cardNavy,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: AppColors.hairline),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Text(rite.emoji, style: const TextStyle(fontSize: 28)),
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.surfaceNavy,
+                              border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.35)),
+                            ),
+                            child: Icon(rite.icon, color: AppColors.primaryGold, size: 22),
+                          ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(
@@ -284,7 +297,7 @@ class _ChurchSacramentsRitesViewState extends State<ChurchSacramentsRitesView> {
                           textToSpeak:
                               '${rite.title}. ${rite.overview}. ${rite.sections.map((s) => "${s.title}: ${s.arabicText}").join(". ")}',
                           label: rite.title,
-                          playText: 'استماع للطقس كاملاً 🔊',
+                          playText: 'استماع للطقس كاملاً',
                           stopText: 'إيقاف الصوت ⏹️',
                         ),
                       ),
@@ -340,7 +353,7 @@ class _ChurchSacramentsRitesViewState extends State<ChurchSacramentsRitesView> {
                             SpeechPlayStopButton(
                               textToSpeak: '${sec.title}. ${sec.arabicText}',
                               label: sec.title,
-                              playText: 'استماع 🔊',
+                              playText: 'استماع',
                               stopText: 'إيقاف ⏹️',
                               compact: true,
                             ),

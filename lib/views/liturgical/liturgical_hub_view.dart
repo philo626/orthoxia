@@ -20,7 +20,6 @@ import 'church_sacraments_rites_view.dart';
 import 'katameros_view.dart';
 import 'remember_them_view.dart';
 import '../home/spiritual_prescription_view.dart';
-import '../sunday_school/sunday_school_kids_view.dart';
 import '../synaxarium/synaxarium_daily_view.dart';
 
 class LiturgicalHubView extends StatefulWidget {
@@ -74,8 +73,8 @@ class _LiturgicalHubViewState extends State<LiturgicalHubView> {
       },
       {
         'image': 'assets/images/bible_cover.jpg',
-        'title': 'الكتاب المقدس كاملاً (٦٦ سفراً)',
-        'subtitle': 'جميع أسفار العهد القديم والعهد الجديد مع القراءة الصوتية والبحث السريع',
+        'title': 'الكتاب المقدس كاملاً (٧٣ سفراً)',
+        'subtitle': 'العهد القديم والعهد الجديد والأسفار القانونية الثانية (ترجمة فانديك الكنسية)',
         'onTap': () => Navigator.push(
               context,
               luxeRoute(const BibleExplorerView()),
@@ -88,15 +87,6 @@ class _LiturgicalHubViewState extends State<LiturgicalHubView> {
         'onTap': () => Navigator.push(
               context,
               luxeRoute(const ChurchSacramentsRitesView()),
-            ),
-      },
-      {
-        'image': 'assets/images/christ_good_shepherd.jpg',
-        'title': 'ركن مدارس الأحد والطفل القبطي 🌟',
-        'subtitle': 'قصص القديسين وأبطال الإيمان مسموعة بصوت راوٍ مع آيات الحفظ والنجوم',
-        'onTap': () => Navigator.push(
-              context,
-              luxeRoute(const SundaySchoolKidsView()),
             ),
       },
       {

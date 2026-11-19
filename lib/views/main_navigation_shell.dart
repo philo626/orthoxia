@@ -47,18 +47,18 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           final isAudioPlaying = audioProv.isPlaying;
           return Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF0C0C0E).withValues(alpha: 0.96),
-              border: Border(
+              color: AppColors.deepNavy.withValues(alpha: 0.97),
+              border: const Border(
                 top: BorderSide(
-                  color: AppColors.primaryGold.withValues(alpha: 0.22),
-                  width: 1,
+                  color: AppColors.hairline,
+                  width: 0.9,
                 ),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.7),
-                  blurRadius: 24,
-                  offset: const Offset(0, -6),
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 16,
+                  offset: const Offset(0, -4),
                 ),
               ],
             ),
@@ -67,21 +67,21 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 640),
                 child: SizedBox(
-                  height: 68,
+                  height: 66,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       _buildNavTab(
                         index: 0,
-                        icon: Icons.home_rounded,
+                        icon: Icons.home_outlined,
                         label: 'الرئيسية',
                       ),
                       _buildNavTab(
                         index: 1,
-                        icon: Icons.nightlight_round,
+                        icon: Icons.auto_stories_outlined,
                         label: 'الهيئة الآبائية',
                       ),
-                      // Center Raised Champagne-Gold Circle Button (as in Video Frames 03, 05, 10, 11)
+                      // Center Refined Antique-Gold Coptic Medallion
                       GestureDetector(
                         onTap: () {
                           HapticFeedback.mediumImpact();
@@ -92,47 +92,40 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                           }
                         },
                         child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 260),
-                          width: 52,
-                          height: 52,
+                          duration: const Duration(milliseconds: 240),
+                          width: 48,
+                          height: 48,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: AppColors.champagne,
+                            color: _currentIndex == 2 ? AppColors.primaryGold : AppColors.cardNavy,
                             border: Border.all(
-                              color: AppColors.primaryGoldLight,
-                              width: 1.5,
+                              color: AppColors.primaryGold.withValues(alpha: 0.7),
+                              width: 1.2,
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.primaryGold.withValues(alpha: 0.45),
-                                blurRadius: 18,
-                                spreadRadius: 1,
-                              ),
-                            ],
                           ),
                           child: Center(
                             child: isAudioPlaying
-                                ? const Icon(
+                                ? Icon(
                                     Icons.pause_rounded,
-                                    color: Color(0xFF1E160B),
-                                    size: 28,
+                                    color: _currentIndex == 2 ? const Color(0xFF1A140B) : AppColors.primaryGoldLight,
+                                    size: 24,
                                   )
-                                : const CopticCross(
-                                    size: 26,
-                                    color: Color(0xFF1E160B),
+                                : CopticCross(
+                                    size: 22,
+                                    color: _currentIndex == 2 ? const Color(0xFF1A140B) : AppColors.primaryGoldLight,
                                   ),
                           ),
                         ),
                       ),
                       _buildNavTab(
                         index: 3,
-                        icon: Icons.menu_book_rounded,
-                        label: 'القداسات والصلوات',
+                        icon: Icons.menu_book_outlined,
+                        label: 'القداسات',
                       ),
                       _buildNavTab(
                         index: 4,
                         icon: Icons.person_outline_rounded,
-                        label: 'الشخصية',
+                        label: 'حسابي',
                       ),
                     ],
                   ),

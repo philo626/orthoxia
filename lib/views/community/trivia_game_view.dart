@@ -270,7 +270,7 @@ class TriviaGameView extends StatelessWidget {
                               ),
                             ),
                             Text(
-                              'السؤال #${triviaProv.questionNumber} ♾️',
+                              'السؤال #${triviaProv.questionNumber}',
                               style: GoogleFonts.cairo(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
@@ -344,7 +344,7 @@ class TriviaGameView extends StatelessWidget {
                               Expanded(
                                 child: _buildLifelineButton(
                                   icon: Icons.filter_2_rounded,
-                                  label: 'حذف إجابتين (١٥🪙)',
+                                  label: 'حذف إجابتين (١٥)',
                                   enabled: triviaProv.hiddenOptions.isEmpty && triviaProv.coins >= 15,
                                   onTap: () {
                                     HapticFeedback.mediumImpact();
@@ -356,7 +356,7 @@ class TriviaGameView extends StatelessWidget {
                               Expanded(
                                 child: _buildLifelineButton(
                                   icon: Icons.lightbulb_outline_rounded,
-                                  label: 'تلميح (١٠🪙)',
+                                  label: 'تلميح (١٠)',
                                   enabled: !triviaProv.hintRevealed && triviaProv.coins >= 10,
                                   onTap: () {
                                     HapticFeedback.mediumImpact();
@@ -368,7 +368,7 @@ class TriviaGameView extends StatelessWidget {
                               Expanded(
                                 child: _buildLifelineButton(
                                   icon: Icons.skip_next_rounded,
-                                  label: 'تخطي (١٠🪙)',
+                                  label: 'تخطي (١٠)',
                                   enabled: triviaProv.coins >= 10,
                                   onTap: () {
                                     HapticFeedback.mediumImpact();

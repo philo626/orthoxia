@@ -7,6 +7,7 @@ import '../../core/services/notification_service.dart';
 import '../../core/services/patron_saint_service.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/saint_icon_avatar.dart';
 import '../../providers/theme_provider.dart';
 import '../spiritual_tracker/spiritual_tracker_view.dart';
 import '../conscience/conscience_exam_view.dart';
@@ -358,9 +359,12 @@ class _ProfileSettingsViewState extends State<ProfileSettingsView> {
               child: Column(
                 children: [
                   ListTile(
-                    leading: Text(
-                      PatronSaintService.getSaintById(_storage.getPatronSaintId()).iconEmoji,
-                      style: const TextStyle(fontSize: 22),
+                    leading: SaintIconAvatar(
+                      imageUrl: PatronSaintService.getImageUrlForSaint(
+                        PatronSaintService.getSaintById(_storage.getPatronSaintId()),
+                      ),
+                      size: 38,
+                      shape: SaintAvatarShape.circle,
                     ),
                     title: Text('شفيعي الشخصي وأقواله اليومية', style: GoogleFonts.cairo(fontSize: 14)),
                     subtitle: Text(

@@ -644,20 +644,25 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
                         children: [
                           _buildRoleChip('all', 'الكل', null),
                           const SizedBox(width: 6),
-                          _buildRoleChip('priest', '🔴 الكاهن', const Color(0xFF7A1C1C)),
+                          _buildRoleChip('priest', 'الكاهن', const Color(0xFF7A1C1C)),
                           const SizedBox(width: 6),
-                          _buildRoleChip('deacon', '🔵 الشماس', const Color(0xFF163E6C)),
+                          _buildRoleChip('deacon', 'الشماس', const Color(0xFF163E6C)),
                           const SizedBox(width: 6),
-                          _buildRoleChip('people', '🟡 الشعب', const Color(0xFF5A4618)),
+                          _buildRoleChip('people', 'الشعب', const Color(0xFF5A4618)),
                           const SizedBox(width: 6),
                           FilterChip(
                             visualDensity: VisualDensity.compact,
                             selected: _showSilentPrayers,
-                            selectedColor: const Color(0xFF4A1E6D),
-                            backgroundColor: const Color(0xFF1A1C27),
+                            selectedColor: const Color(0xFF3E2452),
+                            backgroundColor: AppColors.cardNavy,
                             checkmarkColor: Colors.white,
+                            avatar: Icon(
+                              Icons.visibility_off_outlined,
+                              size: 14,
+                              color: _showSilentPrayers ? Colors.white : AppColors.textMuted,
+                            ),
                             label: Text(
-                              '🤫 الصلوات السرية',
+                              'الصلوات السرية',
                               style: GoogleFonts.cairo(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
@@ -673,11 +678,16 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
                           FilterChip(
                             visualDensity: VisualDensity.compact,
                             selected: _showRubrics,
-                            selectedColor: const Color(0xFF3E3216),
-                            backgroundColor: const Color(0xFF1A1C27),
+                            selectedColor: const Color(0xFF3A301A),
+                            backgroundColor: AppColors.cardNavy,
                             checkmarkColor: AppColors.primaryGoldLight,
+                            avatar: Icon(
+                              Icons.menu_book_outlined,
+                              size: 14,
+                              color: _showRubrics ? AppColors.primaryGoldLight : AppColors.textMuted,
+                            ),
                             label: Text(
-                              '📜 شرح الطقس',
+                              'شرح الطقس',
                               style: GoogleFonts.cairo(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,

@@ -406,7 +406,7 @@ class _HymnsLibraryViewState extends State<HymnsLibraryView> {
                                         border: Border.all(color: Colors.redAccent.withValues(alpha: 0.35)),
                                       ),
                                       child: Text(
-                                        'يوتيوب 🎥',
+                                        'يوتيوب',
                                         style: GoogleFonts.cairo(
                                           fontSize: 9.5,
                                           fontWeight: FontWeight.bold,

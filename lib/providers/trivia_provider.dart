@@ -6,9 +6,9 @@ import '../core/services/storage_service.dart';
 import '../models/trivia_model.dart';
 
 enum TriviaGameMode {
-  endless('التحدي اللانهائي ♾️'),
-  bibleDetective('من القائل / أي سفر؟ 📖'),
-  liturgyRites('طقس القداس والسنكسار ☦️');
+  endless('التحدي الشامل'),
+  bibleDetective('من القائل / أي سفر؟'),
+  liturgyRites('طقس القداس والسنكسار');
 
   final String label;
   const TriviaGameMode(this.label);
@@ -252,7 +252,7 @@ class TriviaProvider with ChangeNotifier {
 
       return TriviaQuestion(
         id: 'dyn_bible_${DateTime.now().microsecondsSinceEpoch}',
-        category: 'آيات الكتاب المقدس ♾️',
+        category: 'آيات الكتاب المقدس',
         difficulty: 'متجدد',
         question: 'في أي سفر من أسفار الكتاب المقدس وردت هذه الآية المباركة:\n«$verseText»؟',
         options: options,
@@ -279,7 +279,7 @@ class TriviaProvider with ChangeNotifier {
 
     return TriviaQuestion(
       id: 'dyn_ch_${DateTime.now().microsecondsSinceEpoch}',
-      category: 'علوم الكتاب المقدس ♾️',
+      category: 'علوم الكتاب المقدس',
       difficulty: 'متوسط',
       question: 'كم عدد إصحاحات سفر «$bookName» في الكتاب المقدس؟',
       options: options,
@@ -317,7 +317,7 @@ class TriviaProvider with ChangeNotifier {
 
         return TriviaQuestion(
           id: 'dyn_syn_${DateTime.now().microsecondsSinceEpoch}',
-          category: 'السنكسار القبطي ♾️',
+          category: 'السنكسار القبطي',
           difficulty: 'متجدد',
           question: 'في أي يوم من أيام السنة القبطية تعيّد الكنيسة بتذكار:\n«$rawTitle»؟',
           options: options,

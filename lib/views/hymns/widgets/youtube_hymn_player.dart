@@ -111,7 +111,7 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          _isLooping ? 'تم تفعيل وضع التكرار لحفظ اللحن 🔁' : 'تم إيقاف التكرار',
+          _isLooping ? 'تم تفعيل وضع التكرار لحفظ اللحن' : 'تم إيقاف التكرار',
           style: GoogleFonts.cairo(fontSize: 12),
         ),
         backgroundColor: AppColors.cardNavy,

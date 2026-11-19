@@ -217,11 +217,11 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Row(
                 children: [
-                  _buildTabChip(0, '🔤 الأبجدية (٣٢ حرفاً)'),
+                  _buildTabChip(0, 'الأبجدية (٣٢ حرفاً)'),
                   const SizedBox(width: 6),
-                  _buildTabChip(1, '🃏 بطاقات الكلمات'),
+                  _buildTabChip(1, 'بطاقات الكلمات'),
                   const SizedBox(width: 6),
-                  _buildTabChip(2, '🏆 اختبار سريع'),
+                  _buildTabChip(2, 'اختبار سريع'),
                 ],
               ),
             ),
@@ -452,7 +452,7 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
                     ),
                     Column(
                       children: [
-                        Text('النطق المعرب 🔊',
+                        Text('النطق المعرب',
                             style: GoogleFonts.cairo(fontSize: 11, color: AppColors.primaryGold)),
                         Text(
                           letter.exampleArabized,
@@ -683,7 +683,7 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
                       ),
                     ] else
                       Text(
-                        '👆 اضغط هنا لإظهار المعنى وسماع النطق الصوتي',
+                        'اضغط لإظهار المعنى وسماع النطق الصوتي',
                         style: GoogleFonts.cairo(
                           fontSize: 12.5,
                           color: AppColors.primaryGold,
@@ -855,7 +855,7 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
                         size: 18,
                       ),
                       label: Text(
-                        speaking ? 'إيقاف الصوت ⏹️' : 'استمع لنطق الكلمة 🔊',
+                        speaking ? 'إيقاف الصوت' : 'استمع لنطق الكلمة',
                         style: GoogleFonts.cairo(
                           color: speaking ? Colors.redAccent : AppColors.primaryGoldLight,
                           fontSize: 12,

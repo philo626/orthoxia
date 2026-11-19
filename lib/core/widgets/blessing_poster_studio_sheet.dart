@@ -136,10 +136,10 @@ class _BlessingPosterStudioSheetState extends State<BlessingPosterStudioSheet> {
             ),
             const SizedBox(height: 12),
             Text(
-              'استوديو كارت البركة المصور 📸',
+              'استوديو كارت البركة المصور',
               textAlign: TextAlign.center,
-              style: GoogleFonts.cairo(
-                fontSize: 16.5,
+              style: GoogleFonts.amiri(
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: AppColors.primaryGoldLight,
               ),
@@ -250,10 +250,10 @@ class _BlessingPosterStudioSheetState extends State<BlessingPosterStudioSheet> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          '🙏 ${widget.footerPrayer}',
+                          widget.footerPrayer,
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.cairo(
-                            fontSize: 11.5,
+                          style: GoogleFonts.amiri(
+                            fontSize: 14,
                             color: Colors.white70,
                           ),
                         ),
@@ -299,8 +299,8 @@ class _BlessingPosterStudioSheetState extends State<BlessingPosterStudioSheet> {
                     )
                   : const Icon(Icons.share_rounded, size: 20),
               label: Text(
-                _isExporting ? 'جاري تجهيز الصورة...' : 'مشاركة كصورة للواتساب وستوري الآن 📸',
-                style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 14),
+                _isExporting ? 'جاري تجهيز الصورة...' : 'مشاركة كصورة للواتساب وستوري',
+                style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 13.5),
               ),
             ),
           ],

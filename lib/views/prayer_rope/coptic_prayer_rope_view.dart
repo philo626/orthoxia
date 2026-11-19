@@ -293,7 +293,7 @@ class _CopticPrayerRopeViewState extends State<CopticPrayerRopeView>
                   SpeechPlayStopButton(
                     textToSpeak: '${prayer['arabized']}. ${prayer['arabic']}',
                     label: prayer['title']!,
-                    playText: 'استمع لنطق الصلاة السهمية 🔊',
+                    playText: 'استمع لنطق الصلاة السهمية',
                     stopText: 'إيقاف الصوت ⏹️',
                     compact: true,
                   ),

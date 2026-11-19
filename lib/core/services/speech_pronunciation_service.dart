@@ -178,7 +178,7 @@ class SpeechPronunciationService {
   }
 }
 
-/// Reusable Play / Stop Speech Button that automatically switches to "⏹️ إيقاف الصوت" when active!
+/// Reusable Play / Stop Speech Button that automatically switches to "إيقاف الصوت" when active.
 class SpeechPlayStopButton extends StatelessWidget {
   final String textToSpeak;
   final String label;
@@ -190,8 +190,8 @@ class SpeechPlayStopButton extends StatelessWidget {
     super.key,
     required this.textToSpeak,
     required this.label,
-    this.playText = 'استماع 🔊',
-    this.stopText = 'إيقاف الصوت ⏹️',
+    this.playText = 'استماع',
+    this.stopText = 'إيقاف الصوت',
     this.compact = false,
   });
 
@@ -216,8 +216,8 @@ class SpeechPlayStopButton extends StatelessWidget {
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: isThisActive
-                    ? Colors.redAccent
-                    : AppColors.primaryGold.withValues(alpha: 0.18),
+                    ? AppColors.sacredBurgundy
+                    : AppColors.primaryGold.withValues(alpha: 0.14),
                 foregroundColor: isThisActive ? Colors.white : AppColors.primaryGoldLight,
                 elevation: 0,
                 visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
@@ -227,14 +227,14 @@ class SpeechPlayStopButton extends StatelessWidget {
                 ),
                 side: BorderSide(
                   color: isThisActive
-                      ? Colors.redAccent
-                      : AppColors.primaryGold.withValues(alpha: 0.5),
+                      ? AppColors.rubricRed
+                      : AppColors.primaryGold.withValues(alpha: 0.35),
                 ),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               icon: Icon(
-                isThisActive ? Icons.stop_circle_rounded : Icons.volume_up_rounded,
-                size: compact ? 15 : 18,
+                isThisActive ? Icons.stop_rounded : Icons.volume_up_rounded,
+                size: compact ? 15 : 17,
                 color: isThisActive ? Colors.white : AppColors.primaryGold,
               ),
               label: Text(

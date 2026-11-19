@@ -23,29 +23,29 @@ class _RememberThemViewState extends State<RememberThemView> {
   final TextEditingController _nameCtrl = TextEditingController();
   int _activeCatIndex = 0;
 
-  static const List<Map<String, String>> _categories = [
+  static const List<Map<String, dynamic>> _categories = [
     {
       'id': 'family',
       'title': 'الأسرة والأحباء',
-      'icon': '👨‍👩‍👧‍👦',
+      'iconData': Icons.people_outline_rounded,
       'subtitle': 'اذكر يا رب سلام وحفظ أسرتي وأحبائي',
     },
     {
       'id': 'sick',
       'title': 'المرضى والمتضايقون',
-      'icon': '⚕️',
+      'iconData': Icons.healing_outlined,
       'subtitle': 'أوشية المرضى • اشفهم يا رب وعزِّ قلوبهم',
     },
     {
       'id': 'travelers',
       'title': 'المسافرون والمغتربون',
-      'icon': '✈️',
+      'iconData': Icons.flight_outlined,
       'subtitle': 'أوشية المسافرين • احفظهم وردهم سالمين',
     },
     {
       'id': 'departed',
       'title': 'الراقدون في الرب',
-      'icon': '🕯️',
+      'iconData': Icons.local_fire_department_outlined,
       'subtitle': 'أوشية الراقدين • نيح نفوسهم في فردوس النعيم',
     },
   ];
@@ -195,7 +195,7 @@ class _RememberThemViewState extends State<RememberThemView> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(cat['icon']!, style: const TextStyle(fontSize: 18)),
+                            Icon(cat['iconData'] as IconData, color: AppColors.primaryGold, size: 19),
                             const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -379,14 +379,15 @@ class _RememberThemViewState extends State<RememberThemView> {
                         }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: speaking ? Colors.redAccent : AppColors.primaryGold,
+                        backgroundColor: speaking ? AppColors.sacredBurgundy : AppColors.primaryGold,
                         foregroundColor: speaking ? Colors.white : Colors.black,
+                        elevation: 0,
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       icon: Icon(speaking ? Icons.stop_rounded : Icons.volume_up_rounded),
                       label: Text(
-                        speaking ? 'إيقاف القراءة الصوتية' : 'استمع للصلاة بأسمائهم صوتياً 🔊',
+                        speaking ? 'إيقاف القراءة الصوتية' : 'استمع للصلاة بأسمائهم صوتياً',
                         style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 13.5),
                       ),
                     );

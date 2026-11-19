@@ -7,6 +7,7 @@ import '../../core/services/firebase_service.dart';
 import '../../core/services/patron_saint_service.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/widgets/coptic_cross.dart';
+import '../../core/widgets/saint_icon_avatar.dart';
 import '../main_navigation_shell.dart';
 import '../profile/privacy_policy_view.dart';
 
@@ -459,8 +460,15 @@ class _AuthViewState extends State<AuthView> {
                     final s = PatronSaintService.saints[idx];
                     final sel = s.id == _selectedSaintId;
                     return ChoiceChip(
+                      showCheckmark: false,
+                      avatar: SaintIconAvatar(
+                        imageUrl: PatronSaintService.getImageUrlForSaint(s),
+                        size: 24,
+                        shape: SaintAvatarShape.circle,
+                        showBorder: false,
+                      ),
                       label: Text(
-                        '${s.iconEmoji} ${s.shortName}',
+                        s.shortName,
                         style: GoogleFonts.cairo(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
@@ -470,6 +478,7 @@ class _AuthViewState extends State<AuthView> {
                       selected: sel,
                       selectedColor: AppColors.primaryGold,
                       backgroundColor: AppColors.cardNavy,
+                      side: BorderSide(color: sel ? AppColors.primaryGold : AppColors.hairline),
                       onSelected: (_) {
                         HapticFeedback.selectionClick();
                         setState(() => _selectedSaintId = s.id);

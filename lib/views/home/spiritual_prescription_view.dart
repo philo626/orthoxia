@@ -9,7 +9,7 @@ import '../../core/widgets/coptic_cross.dart';
 class SpiritualMoodPrescription {
   final String id;
   final String label;
-  final String emoji;
+  final IconData icon;
   final String verse;
   final String verseRef;
   final String psalmExcerpt;
@@ -21,7 +21,7 @@ class SpiritualMoodPrescription {
   const SpiritualMoodPrescription({
     required this.id,
     required this.label,
-    required this.emoji,
+    required this.icon,
     required this.verse,
     required this.verseRef,
     required this.psalmExcerpt,
@@ -41,7 +41,7 @@ class SpiritualPrescriptionView extends StatefulWidget {
     SpiritualMoodPrescription(
       id: 'anxiety',
       label: 'قلق وخوف',
-      emoji: '😰',
+      icon: Icons.shield_outlined,
       verse: 'لاَ تَخَفْ لأَنِّي مَعَكَ. لاَ تَتَلَفَّتْ لأَنِّي إِلهُكَ. قَدْ أَيَّدْتُكَ وَأَعَنْتُكَ وَعَضَدْتُكَ بِيَمِينِ بِرِّي.',
       verseRef: 'إشعياء ٤١ : ١٠',
       psalmExcerpt: 'الرَّبُّ نُورِي وَخَلاَصِي، مِمَّنْ أَخَافُ؟ الرَّبُّ حِصْنُ حَيَاتِي، مِمَّنْ أَرْتَعِبُ؟',
@@ -53,7 +53,7 @@ class SpiritualPrescriptionView extends StatefulWidget {
     SpiritualMoodPrescription(
       id: 'sadness',
       label: 'حزن وضيق',
-      emoji: '😔',
+      icon: Icons.water_drop_outlined,
       verse: 'قَرِيبٌ هُوَ الرَّبُّ مِنَ الْمُنْكَسِرِي الْقُلُوبِ، وَيُخَلِّصُ الْمُنْسَحِقِي الرُّوحِ.',
       verseRef: 'مزمور ٣٤ : ١٨',
       psalmExcerpt: 'عِنْدَ كَثْرَةِ هُمُومِي فِي دَاخِلِي، تَعْزِيَاتُكَ تُلَذِّذُ نَفْسِي.',
@@ -65,7 +65,7 @@ class SpiritualPrescriptionView extends StatefulWidget {
     SpiritualMoodPrescription(
       id: 'lukewarm',
       label: 'فتور روحي',
-      emoji: '🥀',
+      icon: Icons.local_fire_department_outlined,
       verse: 'اِقْتَرِبُوا إِلَى اللهِ فَيَقْتَرِبَ إِلَيْكُمْ.',
       verseRef: 'يعقوب ٤ : ٨',
       psalmExcerpt: 'قَلْباً نَقِيّاً اخْلُقْ فِيَّ يَا اللهُ، وَرُوحاً مُسْتَقِيماً جَدِّدْ فِي دَاخِلِي.',
@@ -77,7 +77,7 @@ class SpiritualPrescriptionView extends StatefulWidget {
     SpiritualMoodPrescription(
       id: 'confusion',
       label: 'حيرة وقرار',
-      emoji: '🤔',
+      icon: Icons.explore_outlined,
       verse: 'تَوَكَّلْ عَلَى الرَّبِّ بِكُلِّ قَلْبِكَ، وَعَلَى فَهْمِكَ لاَ تَعْتَمِدْ. فِي كُلِّ طُرُقِكَ اعْرِفْهُ، وَهُوَ يُقَوِّمُ سُبُلَكَ.',
       verseRef: 'أمثال ٣ : ٥ - ٦',
       psalmExcerpt: 'عَرِّفْنِي يَا رَبُّ طُرُقَكَ، وَسُبُلَكَ عَلِّمْنِي. دَرِّبْنِي فِي حَقِّكَ وَعَلِّمْنِي.',
@@ -89,7 +89,7 @@ class SpiritualPrescriptionView extends StatefulWidget {
     SpiritualMoodPrescription(
       id: 'repentance',
       label: 'توبة ورجوع',
-      emoji: '💔',
+      icon: Icons.favorite_border_rounded,
       verse: 'إِنِ اعْتَرَفْنَا بِخَطَايَانَا فَهُوَ أَمِينٌ وَعَادِلٌ، حَتَّى يَغْفِرَ لَنَا خَطَايَانَا وَيُطَهِّرَنَا مِنْ كُلِّ إِثْمٍ.',
       verseRef: '١ يوحنا ١ : ٩',
       psalmExcerpt: 'ارْحَمْنِي يَا اللهُ كَعَظِيمِ رَحْمَتِكَ، وَمِثْلَ كَثْرَةِ رَأْفَتِكَ امْحُ مَآثِمِي.',
@@ -101,7 +101,7 @@ class SpiritualPrescriptionView extends StatefulWidget {
     SpiritualMoodPrescription(
       id: 'gratitude',
       label: 'فرح وشكر',
-      emoji: '🌟',
+      icon: Icons.wb_sunny_outlined,
       verse: 'بَارِكِي يَا نَفْسِي الرَّبَّ، وَلاَ تَنْسَيْ كُلَّ حَسَنَاتِهِ.',
       verseRef: 'مزمور ١٠٣ : ٢',
       psalmExcerpt: 'هذَا هُوَ الْيَوْمُ الَّذِي صَنَعَهُ الرَّبُّ، نَبْتَهِجُ وَنَفْرَحُ فِيهِ.',
@@ -161,8 +161,13 @@ class _SpiritualPrescriptionViewState extends State<SpiritualPrescriptionView> {
               final p = SpiritualPrescriptionView.prescriptions[i];
               final sel = i == _selectedIdx;
               return ChoiceChip(
+                avatar: Icon(
+                  p.icon,
+                  size: 15,
+                  color: sel ? Colors.black : AppColors.primaryGold,
+                ),
                 label: Text(
-                  '${p.emoji} ${p.label}',
+                  p.label,
                   style: GoogleFonts.cairo(
                     fontSize: 12.5,
                     fontWeight: FontWeight.bold,
@@ -173,6 +178,9 @@ class _SpiritualPrescriptionViewState extends State<SpiritualPrescriptionView> {
                 selectedColor: AppColors.primaryGold,
                 backgroundColor: AppColors.cardNavy,
                 showCheckmark: false,
+                side: BorderSide(
+                  color: sel ? AppColors.primaryGold : AppColors.hairline,
+                ),
                 onSelected: (_) {
                   HapticFeedback.selectionClick();
                   _speech.stop();
@@ -268,14 +276,14 @@ class _SpiritualPrescriptionViewState extends State<SpiritualPrescriptionView> {
                               }
                             },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: speaking ? Colors.redAccent : AppColors.primaryGold,
+                              backgroundColor: speaking ? AppColors.sacredBurgundy : AppColors.primaryGold,
                               foregroundColor: speaking ? Colors.white : Colors.black,
                               padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                             icon: Icon(speaking ? Icons.stop_rounded : Icons.volume_up_rounded, size: 18),
                             label: Text(
-                              speaking ? 'إيقاف الصوت' : 'استماع للخلوة 🔊',
+                              speaking ? 'إيقاف الصوت' : 'استماع للخلوة',
                               style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 12.5),
                             ),
                           );
@@ -298,11 +306,11 @@ class _SpiritualPrescriptionViewState extends State<SpiritualPrescriptionView> {
                           foregroundColor: AppColors.primaryGoldLight,
                           side: const BorderSide(color: AppColors.primaryGold),
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         icon: const Icon(Icons.photo_camera_back_rounded, size: 18, color: AppColors.primaryGold),
                         label: Text(
-                          'مشاركة كصورة 📸',
+                          'مشاركة كصورة',
                           style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 12.5),
                         ),
                       ),

@@ -49,7 +49,7 @@ class AgpeyaReaderView extends StatelessWidget {
             child: SpeechPlayStopButton(
               textToSpeak: _collectHourFullText(),
               label: hour.nameAr,
-              playText: 'استماع 🔊',
+              playText: 'استماع',
               stopText: 'إيقاف الصوت ⏹️',
               compact: true,
             ),

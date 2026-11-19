@@ -75,7 +75,7 @@ class _BibleReaderViewState extends State<BibleReaderView> {
                 SpeechPlayStopButton(
                   textToSpeak: '$verseText. ${book.name} إصحاح $chapter آية $verseNum',
                   label: '${book.name} $chapter:$verseNum',
-                  playText: 'استماع 🔊',
+                  playText: 'استماع',
                   stopText: 'إيقاف الصوت ⏹️',
                   compact: true,
                 ),
@@ -153,7 +153,7 @@ class _BibleReaderViewState extends State<BibleReaderView> {
               ),
               icon: const Icon(Icons.photo_camera_back_rounded, size: 18, color: AppColors.primaryGold),
               label: Text(
-                'تصميم كصورة فاخرة للواتساب وستوري 📸',
+                'تصميم كبطاقة مصورة للمشاركة',
                 style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 12.5),
               ),
               onPressed: () {
@@ -318,7 +318,7 @@ class _BibleReaderViewState extends State<BibleReaderView> {
                           SnackBar(
                             content: Text(
                               nowDone
-                                  ? 'بارك الله قراءتك! تم تسجيل قراءة ${book.name} إصحاح $chapter ✅'
+                                  ? 'بارك الله قراءتك! تم تسجيل قراءة ${book.name} إصحاح $chapter'
                                   : 'تم إلغاء علامة القراءة لهذا الإصحاح',
                               style: GoogleFonts.cairo(fontSize: 12),
                             ),

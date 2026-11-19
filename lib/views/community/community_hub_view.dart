@@ -27,7 +27,7 @@ class CommunityHubView extends StatelessWidget {
             tabs: const [
               Tab(
                 icon: Icon(Icons.emoji_events_rounded, size: 20),
-                text: 'المسابقات والأسئلة اللانهائية ♾️',
+                text: 'المسابقات الأرثوذكسية',
               ),
               Tab(
                 icon: Icon(Icons.volunteer_activism_rounded, size: 20),

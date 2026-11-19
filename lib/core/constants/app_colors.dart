@@ -1,45 +1,46 @@
 import 'package:flutter/material.dart';
 
-/// Obsidian & Champagne-Gold palette (matches the reference video design).
+/// Warm Basalt & Antique Leaf-Gold liturgical palette.
 class AppColors {
-  // Champagne Gold
-  static const Color primaryGold = Color(0xFFD9B77E);
-  static const Color primaryGoldLight = Color(0xFFF3E0B8);
-  static const Color primaryGoldDark = Color(0xFFA9834B);
+  // Antique Liturgical Gold (dignified, restrained — never flashy neon)
+  static const Color primaryGold = Color(0xFFC8A253);
+  static const Color primaryGoldLight = Color(0xFFE7D3A7);
+  static const Color primaryGoldDark = Color(0xFF8F6E32);
 
-  // Warm deep accents (kept names for backwards compatibility)
-  static const Color sacredBurgundy = Color(0xFF5C2A22);
-  static const Color sacredBurgundyDark = Color(0xFF221A12);
+  // Warm deep monastic crimson accents
+  static const Color sacredBurgundy = Color(0xFF75212A);
+  static const Color sacredBurgundyDark = Color(0xFF241614);
 
-  // Obsidian surfaces (old "navy" names now map to obsidian tones)
-  static const Color deepNavy = Color(0xFF0B0B0D); // App background
-  static const Color cardNavy = Color(0xFF1A1A1D); // Elevated card
-  static const Color surfaceNavy = Color(0xFF131315); // Secondary surface
-  static const Color tileSurface = Color(0xFF232326);
+  // Warm Basalt & Dark Ink Surfaces
+  static const Color deepNavy = Color(0xFF0E0D0C); // App canvas
+  static const Color cardNavy = Color(0xFF171513); // Elevated surface
+  static const Color surfaceNavy = Color(0xFF121110); // Inset surface
+  static const Color tileSurface = Color(0xFF1E1B18); // Interactive tile
+  static const Color hairline = Color(0xFF2A2621); // Whisper-thin editorial border
 
   // AMOLED Church Mode (True Black)
   static const Color amoledBlack = Color(0xFF000000);
-  static const Color amoledCard = Color(0xFF0E0E0F);
+  static const Color amoledCard = Color(0xFF0C0B0A);
 
   // Light Parchment Theme
-  static const Color parchmentBg = Color(0xFFF9F6F0);
+  static const Color parchmentBg = Color(0xFFF7F3EB);
   static const Color parchmentCard = Color(0xFFFFFFFF);
-  static const Color parchmentText = Color(0xFF2C2416);
+  static const Color parchmentText = Color(0xFF282016);
 
-  // Accents
-  static const Color accentCross = Color(0xFFC9A25F);
-  static const Color successGreen = Color(0xFF10B981);
-  static const Color fastingPurple = Color(0xFF8B5CF6);
-  static const Color prayerBlue = Color(0xFF38BDF8);
-  static const Color rubricRed = Color(0xFFD08770); // Kholagy rubric colour
+  // Restrained Semantic Accents
+  static const Color accentCross = Color(0xFFC8A253);
+  static const Color successGreen = Color(0xFF4F8261); // Muted monastic sage
+  static const Color fastingPurple = Color(0xFF7B669E); // Muted Lenten violet
+  static const Color prayerBlue = Color(0xFF5B86A8); // Soft cathedral slate blue
+  static const Color rubricRed = Color(0xFFC26D5E); // Traditional Kholagy rubric vermilion
 
-  // Text Colors
-  static const Color textLight = Color(0xFFF4EFE6);
-  static const Color textMuted = Color(0xFF9A948A);
-  static const Color textGold = Color(0xFFE6CB98);
-  static const Color textCoptic = Color(0xFFEBD3A3);
-  static const Color textArabized = Color(0xFFC9A46A);
-  static const Color textArabic = Color(0xFFF4EFE6);
+  // Text Colors (Warm Alabaster & Stone)
+  static const Color textLight = Color(0xFFF3ECE0);
+  static const Color textMuted = Color(0xFF9C9386);
+  static const Color textGold = Color(0xFFE5CD9B);
+  static const Color textCoptic = Color(0xFFEBD4A6);
+  static const Color textArabized = Color(0xFFC4A064);
+  static const Color textArabic = Color(0xFFF3ECE0);
 
   // Aliases for convenience
   static const Color gold = primaryGold;
@@ -47,16 +48,16 @@ class AppColors {
   static const Color burgundy = sacredBurgundy;
   static const Color cream = Color(0xFFF7F1E6);
 
-  // Reusable gradients
+  // Refined subtle gradients
   static const LinearGradient champagne = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFFF6E3BC), Color(0xFFD9B77E), Color(0xFFA9834B)],
+    colors: [Color(0xFFE7D3A7), Color(0xFFC8A253), Color(0xFF9B7938)],
   );
 
   static const LinearGradient obsidianCard = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFF222225), Color(0xFF161618)],
+    colors: [Color(0xFF1B1916), Color(0xFF141210)],
   );
 }

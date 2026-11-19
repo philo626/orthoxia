@@ -98,13 +98,13 @@ class OrthodoxApp extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1A1416),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: Colors.redAccent, width: 1.4),
+                        color: AppColors.cardNavy,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.sacredBurgundy, width: 1.2),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.7),
-                            blurRadius: 16,
+                            color: Colors.black.withValues(alpha: 0.55),
+                            blurRadius: 14,
                             offset: const Offset(0, 4),
                           ),
                         ],
@@ -123,7 +123,7 @@ class OrthodoxApp extends StatelessWidget {
                                 style: GoogleFonts.cairo(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                                  color: AppColors.textLight,
                                 ),
                               ),
                             ),
@@ -132,13 +132,14 @@ class OrthodoxApp extends StatelessWidget {
                           ElevatedButton.icon(
                             onPressed: () => speech.stop(),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.redAccent,
+                              backgroundColor: AppColors.sacredBurgundy,
                               foregroundColor: Colors.white,
+                              elevation: 0,
                               visualDensity: VisualDensity.compact,
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
-                            icon: const Icon(Icons.stop_circle_rounded, size: 16),
+                            icon: const Icon(Icons.stop_rounded, size: 16),
                             label: Text(
                               'إيقاف الصوت',
                               style: GoogleFonts.cairo(

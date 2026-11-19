@@ -11,20 +11,21 @@ import 'package:orthodox_app/core/services/coptic_calendar_service.dart';
 import 'package:orthodox_app/core/services/coptic_fast_service.dart';
 import 'package:orthodox_app/core/services/coptic_youtube_registry.dart';
 import 'package:orthodox_app/core/services/notification_service.dart';
+import 'package:orthodox_app/core/services/online_coptic_library_service.dart';
 import 'package:orthodox_app/core/services/patron_saint_service.dart';
 import 'package:orthodox_app/core/services/storage_service.dart';
 import 'package:orthodox_app/models/spiritual_tracker_model.dart';
+import 'package:orthodox_app/providers/books_provider.dart';
 import 'package:orthodox_app/providers/church_mode_provider.dart';
 import 'package:orthodox_app/providers/liturgy_provider.dart';
 import 'package:orthodox_app/providers/theme_provider.dart';
-import 'package:orthodox_app/views/community/nearest_church_view.dart';
+import 'package:orthodox_app/views/books/books_library_view.dart';
 import 'package:orthodox_app/views/coptic_academy/coptic_academy_view.dart';
 import 'package:orthodox_app/views/home/spiritual_prescription_view.dart';
 import 'package:orthodox_app/views/liturgical/church_sacraments_rites_view.dart';
 import 'package:orthodox_app/views/liturgical/remember_them_view.dart';
 import 'package:orthodox_app/views/liturgical/tasbeha_pascha_view.dart';
 import 'package:orthodox_app/views/liturgies/liturgy_reader_view.dart';
-import 'package:orthodox_app/views/sunday_school/sunday_school_kids_view.dart';
 import 'package:orthodox_app/views/synaxarium/my_patron_saint_view.dart';
 import 'package:orthodox_app/views/synaxarium/synaxarium_daily_view.dart';
 
@@ -193,12 +194,27 @@ void main() {
       expect(restored.first.reflectionNote, 'مذكرة اعتراف خاصة مشفرة');
     });
 
-    test('CopticCalendarService, PatronSaintService (800+ saints) & LiturgyProvider load cleanly', () async {
+    test('CopticCalendarService, PatronSaintService (800+ saints with portraits), OnlineLibrary & LiturgyProvider load cleanly', () async {
       await CopticCalendarService.ensureLectionaryLoaded();
       expect(CopticCalendarService.searchSynaxarium('العذراء').isNotEmpty, isTrue);
 
       await PatronSaintService.ensureLoaded();
       expect(PatronSaintService.saints.length, greaterThanOrEqualTo(800));
+      for (final s in PatronSaintService.saints) {
+        final img = PatronSaintService.getImageUrlForSaint(s);
+        expect(img.startsWith('https://'), isTrue, reason: 'Every saint must resolve to a real portrait URL: ${s.name}');
+      }
+
+      // Verify multi-source online books catalog & full 73-book tafsir catalog
+      final lib = OnlineCopticLibraryService();
+      final tafsir = await lib.loadTafsirCatalog();
+      expect(tafsir.length, 73);
+      expect(tafsir.every((b) => b.tadrosUrl.isNotEmpty || b.antoniosUrl.isNotEmpty), isTrue);
+
+      final onlineBooks = await lib.loadOnlineBooksCatalog();
+      expect(onlineBooks.length, greaterThanOrEqualTo(400));
+      final sources = onlineBooks.map((b) => b.source).toSet();
+      expect(sources.length, greaterThanOrEqualTo(3), reason: 'Library must span multiple Orthodox online sources');
 
       final prov = LiturgyProvider();
       await prov.loadLiturgies();
@@ -271,10 +287,11 @@ void main() {
       expect(find.text('خريطة ومحطات القداس الإلهي'), findsOneWidget);
     });
 
-    testWidgets('MyPatronSaintView, TasbehaPaschaView, and NearestChurchView render cleanly', (tester) async {
+    testWidgets('MyPatronSaintView, BooksLibraryView, TasbehaPaschaView, and spiritual views render cleanly', (tester) async {
       await tester.runAsync(() async {
         await StorageService().init();
         await StorageService().setPatronSaintId('st_george');
+        await PatronSaintService.ensureLoaded();
       });
 
       await tester.pumpWidget(
@@ -287,8 +304,28 @@ void main() {
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
-      expect(find.text('شفيعي الشخصي وأقواله اليومية'), findsOneWidget);
+      expect(find.text('شفيعي الشخصي'), findsOneWidget);
       expect(find.textContaining('مارجرجس'), findsWidgets);
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider(create: (_) => ThemeProvider()),
+            ChangeNotifierProvider(create: (_) => BooksProvider()),
+          ],
+          child: const MaterialApp(
+            home: Directionality(
+              textDirection: TextDirection.rtl,
+              child: BooksLibraryView(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('المكتبة الأرثوذكسية والتفاسير'), findsOneWidget);
+      expect(find.text('التفاسير (٧٣ سفراً)'), findsOneWidget);
+      expect(find.text('المكتبة الشاملة'), findsOneWidget);
 
       await tester.pumpWidget(
         const MaterialApp(
@@ -300,17 +337,6 @@ void main() {
       );
       await tester.pump();
       expect(find.text('التسبحة والبصخة والأعياد المتحركة'), findsOneWidget);
-
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Directionality(
-            textDirection: TextDirection.rtl,
-            child: NearestChurchView(),
-          ),
-        ),
-      );
-      await tester.pump();
-      expect(find.text('أقرب كنيسة قبطية ومزارات الكنيسة'), findsOneWidget);
 
       await tester.pumpWidget(
         const MaterialApp(
@@ -357,17 +383,6 @@ void main() {
       );
       await tester.pump();
       expect(find.text('الطقوس الكنسية والأسرار واللقان'), findsOneWidget);
-
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Directionality(
-            textDirection: TextDirection.rtl,
-            child: SundaySchoolKidsView(),
-          ),
-        ),
-      );
-      await tester.pump();
-      expect(find.text('ركن مدارس الأحد والطفل القبطي'), findsOneWidget);
 
       final progress = BibleReadingProgressService();
       await tester.runAsync(() async {

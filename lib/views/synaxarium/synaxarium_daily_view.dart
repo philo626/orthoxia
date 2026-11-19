@@ -535,7 +535,7 @@ class _SynaxariumDailyViewState extends State<SynaxariumDailyView> {
                                               SpeechPlayStopButton(
                                                 textToSpeak: '$title. $text',
                                                 label: title,
-                                                playText: 'استماع 🔊',
+                                                playText: 'استماع',
                                                 stopText: 'إيقاف الصوت ⏹️',
                                                 compact: true,
                                               ),

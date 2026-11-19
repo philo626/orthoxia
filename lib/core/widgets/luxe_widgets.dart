@@ -102,7 +102,7 @@ class LuxeCircleButton extends StatelessWidget {
   }
 }
 
-/// Rounded-square gold-rimmed icon tile with a label (home grid).
+/// Editorial matte-basalt icon tile with delicate antique-gold hairline border.
 class GoldIconTile extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -117,38 +117,33 @@ class GoldIconTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 62,
-            height: 62,
-            padding: const EdgeInsets.all(1.6),
+            width: 58,
+            height: 58,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              gradient: AppColors.champagne,
-              boxShadow: [
-                BoxShadow(color: AppColors.primaryGold.withValues(alpha: 0.18), blurRadius: 14, offset: const Offset(0, 4)),
-              ],
+              borderRadius: BorderRadius.circular(16),
+              color: AppColors.cardNavy,
+              border: Border.all(
+                color: AppColors.primaryGold.withValues(alpha: 0.24),
+                width: 0.9,
+              ),
             ),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16.5),
-                gradient: const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFF2E2A24), Color(0xFF17150F)],
-                ),
-              ),
-              child: ShaderMask(
-                shaderCallback: (r) => AppColors.champagne.createShader(r),
-                child: Icon(icon, size: 30, color: Colors.white),
-              ),
+            child: Icon(
+              icon,
+              size: 26,
+              color: AppColors.primaryGoldLight,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 7),
           Text(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textLight),
+            style: GoogleFonts.cairo(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textLight,
+            ),
           ),
         ],
       ),
@@ -156,7 +151,7 @@ class GoldIconTile extends StatelessWidget {
   }
 }
 
-/// Horizontal card with an illustrated thumbnail (like the reference list screen).
+/// Editorial horizontal list card with subtle hairline frame and clean typography.
 class ThumbListCard extends StatelessWidget {
   final String image;
   final String title;
@@ -175,16 +170,15 @@ class ThumbListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PressScale(
-      scale: 0.97,
+      scale: 0.98,
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
+        margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          gradient: AppColors.obsidianCard,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 14, offset: const Offset(0, 6))],
+          color: AppColors.cardNavy,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.hairline, width: 0.9),
         ),
         child: Row(
           children: [
@@ -200,20 +194,20 @@ class ThumbListCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.amiri(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textLight),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
                       subtitle,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.textMuted, height: 1.4),
+                      style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.textMuted, height: 1.45),
                     ),
                   ],
                 ),
               ),
             ),
             ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: SizedBox(width: 78, height: 70, child: SafeAssetImage(image, fallbackIcon: fallbackIcon)),
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(width: 72, height: 64, child: SafeAssetImage(image, fallbackIcon: fallbackIcon)),
             ),
           ],
         ),

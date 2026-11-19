@@ -49,7 +49,7 @@ class _KatamerosViewState extends State<KatamerosView> {
   void initState() {
     super.initState();
     _activeEngine = widget.initialTabIndex.clamp(0, 2);
-    final today = CopticCalendarService.fromGregorian(DateTime.now());
+    final today = CopticCalendarService.todayLiturgical();
     _selectedMonth = today.month.clamp(1, 13);
     _selectedDay = today.day.clamp(1, 30);
     _selectedSundayMonthIdx = (_selectedMonth - 1).clamp(0, 12);
@@ -492,7 +492,7 @@ class _KatamerosViewState extends State<KatamerosView> {
   // ENGINE 3: القطمارس والسنكسار اليومي التلقائي المُقسّم فئات (Categories)
   // ===========================================================================
   Widget _buildAnnualAndCategorizedSynaxariumView(double fontScale) {
-    final copticToday = CopticCalendarService.fromGregorian(DateTime.now());
+    final copticToday = CopticCalendarService.todayLiturgical();
     final monthName = CopticCalendarService.copticMonths[(_selectedMonth - 1).clamp(0, 12)];
     final seasonName = copticToday.seasonName;
     final readingsBlueprint =

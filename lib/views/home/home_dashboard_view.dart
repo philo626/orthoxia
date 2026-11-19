@@ -393,7 +393,7 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
       );
     }
 
-    final copticToday = CopticCalendarService.fromGregorian(DateTime.now());
+    final copticToday = CopticCalendarService.todayLiturgical();
     final fast = CopticFastService.getTodayFastStatus();
     final currentVerse = _dailyVerses[_verseIndex % _dailyVerses.length];
     final saint = PatronSaintService.getSaintById(StorageService().getPatronSaintId());

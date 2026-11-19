@@ -41,6 +41,17 @@ void main() {
       expect(nayrouz.monthName, 'توت');
       expect(nayrouz.year, 1742);
 
+      // Verify 5:00 PM (17:00) Coptic Vespers rollover to next liturgical day!
+      final beforeVespers = CopticCalendarService.todayLiturgical(DateTime(2025, 9, 11, 16, 59));
+      expect(beforeVespers.day, 1);
+      expect(beforeVespers.month, 1);
+      expect(CopticCalendarService.isAfterVespers(DateTime(2025, 9, 11, 16, 59)), isFalse);
+
+      final atVespers = CopticCalendarService.todayLiturgical(DateTime(2025, 9, 11, 17, 0));
+      expect(atVespers.day, 2);
+      expect(atVespers.month, 1);
+      expect(CopticCalendarService.isAfterVespers(DateTime(2025, 9, 11, 17, 0)), isTrue);
+
       final nativity = CopticCalendarService.fromGregorian(DateTime(2026, 1, 7));
       expect(nativity.day, 29);
       expect(nativity.month, 4);
@@ -119,7 +130,15 @@ void main() {
         }
       }
       expect(hasTrueCopticUnicode, isTrue, reason: 'Must contain true Bohairic Coptic Unicode characters');
-      expect(rolesFound, containsAll(['priest', 'priest_silent', 'deacon', 'people', 'rubric']));
+      expect(rolesFound, containsAll(['priest', 'priest_silent', 'deacon', 'people', 'rubric', 'reading_slot']));
+      // Verify canonical Coptic Reader / Orsozoxi order with embedded Synaxarium milestone
+      for (final lit in list) {
+        final titles = (lit['sections'] as List).map((s) => '${s['title']}').toList();
+        expect(titles.any((t) => t.contains('السنكسار')), isTrue);
+        expect(titles.last, contains('التناول'));
+      }
+      final fracs = jsonDecode(File('assets/data/seasonal_fractions.json').readAsStringSync()) as List;
+      expect(fracs.length, greaterThanOrEqualTo(35));
 
       // Verify Bible is the authentic Smith & Van Dyck translation with concise book names
       final bibleBooks = jsonDecode(File('assets/data/bible.json').readAsStringSync()) as List;
@@ -216,6 +235,13 @@ void main() {
       final sources = onlineBooks.map((b) => b.source).toSet();
       expect(sources.length, greaterThanOrEqualTo(3), reason: 'Library must span multiple Orthodox online sources');
 
+      final readings = await CopticCalendarService.getResolvedLiturgyReadings(DateTime(2025, 9, 11, 10, 0));
+      expect(readings['pauline']?['text']?.isNotEmpty, isTrue);
+      expect(readings['catholic']?['text']?.isNotEmpty, isTrue);
+      expect(readings['acts']?['text']?.isNotEmpty, isTrue);
+      expect(readings['psalm']?['text']?.isNotEmpty, isTrue);
+      expect(readings['gospel']?['text']?.isNotEmpty, isTrue);
+
       final prov = LiturgyProvider();
       await prov.loadLiturgies();
       expect(prov.liturgies.length, 3);
@@ -248,7 +274,7 @@ void main() {
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
-      expect(find.text('السنكسار القبطي اليومي والجامع'), findsOneWidget);
+      expect(find.text('السنكسار القبطي اليومي'), findsOneWidget);
       expect(find.textContaining('النيروز'), findsWidgets);
     });
 

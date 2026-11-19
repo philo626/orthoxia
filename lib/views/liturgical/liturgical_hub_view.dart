@@ -62,7 +62,7 @@ class _LiturgicalHubViewState extends State<LiturgicalHubView> {
 
   @override
   Widget build(BuildContext context) {
-    final copticToday = CopticCalendarService.fromGregorian(DateTime.now());
+    final copticToday = CopticCalendarService.todayLiturgical();
 
     final cards = <Map<String, dynamic>>[
       {
@@ -132,8 +132,8 @@ class _LiturgicalHubViewState extends State<LiturgicalHubView> {
       },
       {
         'image': 'assets/images/thumb_synaxarium.jpg',
-        'title': 'السنكسار القبطي اليومي والجامع (٣٦٦ يوماً)',
-        'subtitle': 'تذكارات وسير قديسي وشهداء وأعياد الكنيسة القبطية بحسب التقويم السكندري لـ ١٣ شهراً',
+        'title': 'السنكسار القبطي اليومي',
+        'subtitle': 'سير وتذكارات قديسي اليوم القبطي تلقائياً (ينتقل لليوم التالي الساعة ٥ مساءً حسب توقيت عشية)',
         'onTap': () => Navigator.push(
               context,
               luxeRoute(const SynaxariumDailyView()),

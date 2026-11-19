@@ -40,6 +40,22 @@ class CopticCalendarService {
 
   static Map<String, dynamic>? _lectionaryData;
   static Map<String, dynamic>? _synaxariumArabicData;
+  static List<dynamic>? _bibleRawCache;
+
+  /// In the Coptic Orthodox Church, the new liturgical day begins at Vespers (5:00 PM / 17:00).
+  /// When the current local time reaches 5:00 PM, both the Synaxarium and Liturgy readings
+  /// automatically advance to the next liturgical day.
+  static bool isAfterVespers([DateTime? now]) => (now ?? DateTime.now()).hour >= 17;
+
+  static DateTime effectiveLiturgicalDate([DateTime? now]) {
+    final dt = now ?? DateTime.now();
+    final base = DateTime(dt.year, dt.month, dt.day);
+    return dt.hour >= 17 ? base.add(const Duration(days: 1)) : base;
+  }
+
+  /// Returns today's active Coptic liturgical date (automatically advances at 5:00 PM Vespers).
+  static CopticDate todayLiturgical([DateTime? now]) =>
+      fromGregorian(effectiveLiturgicalDate(now));
 
   /// Preload both the authentic Coptic lectionary & the complete 366-day Arabic Synaxarium
   static Future<void> ensureLectionaryLoaded() async {
@@ -57,6 +73,99 @@ class CopticCalendarService {
         _synaxariumArabicData = jsonDecode(rawSyn) as Map<String, dynamic>;
       }
     } catch (_) {}
+  }
+
+  /// Resolves the FULL vocalized Smith & Van Dyck Arabic text for today's Liturgy of the Word
+  /// readings (Pauline, Catholic, Acts, Psalm, Gospel) using the 5:00 PM Vespers liturgical clock.
+  static Future<Map<String, Map<String, String>>> getResolvedLiturgyReadings([DateTime? now]) async {
+    await ensureLectionaryLoaded();
+    if (_bibleRawCache == null) {
+      try {
+        final rawBible = await rootBundle.loadString('assets/data/bible.json');
+        _bibleRawCache = jsonDecode(rawBible) as List<dynamic>;
+      } catch (_) {
+        _bibleRawCache = [];
+      }
+    }
+
+    final cDate = todayLiturgical(now);
+    final blueprint = getDailyReadingsBlueprint(cDate.month, cDate.day);
+    final result = <String, Map<String, String>>{};
+
+    for (final item in blueprint) {
+      final type = item['type'] ?? '';
+      final bookName = item['book'] ?? '';
+      final chNum = int.tryParse(item['chapter'] ?? '1') ?? 1;
+      final verseSpec = item['verses'] ?? '1-10';
+      final refLabel = (item['full_ref'] != null && item['full_ref']!.isNotEmpty)
+          ? item['full_ref']!
+          : '$bookName ($chNum: $verseSpec)';
+
+      final versesText = _extractBiblePassage(bookName, chNum, verseSpec);
+      final key = switch (type) {
+        'البولس' => 'pauline',
+        'الكاثوليكون' => 'catholic',
+        'الإبركسيس' => 'acts',
+        'المزمور' => 'psalm',
+        'الإنجيل' => 'gospel',
+        _ => '',
+      };
+      if (key.isNotEmpty) {
+        result[key] = {
+          'type': type,
+          'book': bookName,
+          'ref': refLabel,
+          'text': versesText,
+        };
+      }
+    }
+    return result;
+  }
+
+  static String _extractBiblePassage(String bookName, int chapterNum, String verseSpec) {
+    final books = _bibleRawCache;
+    if (books == null || books.isEmpty) return '';
+
+    Map<String, dynamic>? matchedBook;
+    for (final raw in books) {
+      final b = raw as Map<String, dynamic>;
+      final name = (b['name'] ?? '').toString();
+      if (name == bookName || name.contains(bookName) || bookName.contains(name)) {
+        matchedBook = b;
+        break;
+      }
+    }
+    if (matchedBook == null) return '';
+
+    final chapters = matchedBook['chapters'] as List<dynamic>? ?? [];
+    if (chapters.isEmpty) return '';
+    final chIdx = (chapterNum - 1).clamp(0, chapters.length - 1);
+    final verses = chapters[chIdx] as List<dynamic>? ?? [];
+    if (verses.isEmpty) return '';
+
+    final rangeMatch = RegExp(r'(\d+)\s*-\s*(\d+)').firstMatch(verseSpec);
+    int startV = 1;
+    int endV = verses.length;
+    if (rangeMatch != null) {
+      startV = int.tryParse(rangeMatch.group(1)!) ?? 1;
+      endV = int.tryParse(rangeMatch.group(2)!) ?? verses.length;
+    } else {
+      final single = int.tryParse(verseSpec.replaceAll(RegExp(r'[^0-9]'), ''));
+      if (single != null && single > 0) {
+        startV = single;
+        endV = single;
+      }
+    }
+
+    final safeStart = (startV - 1).clamp(0, verses.length - 1);
+    final safeEnd = (endV - 1).clamp(safeStart, verses.length - 1);
+    final buf = StringBuffer();
+    for (int i = safeStart; i <= safeEnd; i++) {
+      final vText = verses[i].toString().trim();
+      if (vText.isEmpty) continue;
+      buf.write('$vText (${i + 1}) ');
+    }
+    return buf.toString().trim();
   }
 
   static CopticDate fromGregorian(DateTime date) {

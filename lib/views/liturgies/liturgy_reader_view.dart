@@ -15,8 +15,16 @@ import '../../providers/church_mode_provider.dart';
 import '../../providers/liturgy_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../hymns/hymn_detail_view.dart';
-import '../synaxarium/synaxarium_daily_view.dart';
 
+/// Authentic Continuous Coptic Orthodox Divine Liturgy Reader modeled directly on
+/// Coptic Reader & Orsozoxi (أرثوذكسي):
+/// - Continuous uninterrupted flow from Offering of the Lamb to Final Blessing
+/// - Instant Quick-Jump Index Drawer for all 11 canonical liturgical milestones
+/// - Authentic side-by-side Coptic Reader 2-column mode OR clean Orsozoxi stacked mode
+/// - Live embedded TODAY'S Readings (Pauline, Catholic, Acts, Psalm & Gospel) from Smith & Van Dyck Bible
+/// - Live embedded FULL TODAY'S SYNAXARIUM right in its canonical place (after Acts, before Agios),
+///   automatically advancing at 5:00 PM (Vespers / عشية)
+/// - 1-tap Seasonal Fractions Picker (39 fractions) right at the Fraction milestone.
 class LiturgyReaderView extends StatefulWidget {
   final int initialSectionIndex;
 
@@ -30,33 +38,82 @@ class LiturgyReaderView extends StatefulWidget {
 }
 
 class _LiturgyReaderViewState extends State<LiturgyReaderView> {
-  double _fontSize = 18.0;
-  int _selectedSectionIndex = 0;
-  String _activeRoleFilter = 'all'; // 'all', 'priest', 'priest_silent', 'deacon', 'people'
-  String _activeDisplayMode = 'arabized'; // Default: Clear Arabic + Arabized (like Orsozoxi + Katamars)
+  double _fontSize = 18.5;
+  String _activeRoleFilter = 'all'; // 'all' | 'people' | 'priest' | 'deacon'
+  String _layoutMode = 'orsozoxi'; // 'orsozoxi' (Ar+Arabized) | 'coptic_reader' (2-col) | 'arabic' | 'tri'
   bool _showSilentPrayers = false;
-  bool _showRubrics = false;
-  String _searchQuery = '';
-  bool _showSearchBar = false;
+  bool _showRubrics = true;
+  bool _synaxariumExpanded = true;
 
-  // Auto-scroll (وضع المتابعة التلقائي أثناء القداس)
+  // Auto-scroll
   bool _isAutoScrolling = false;
-  double _autoScrollSpeed = 1.0; // 1.0, 1.5, 2.0
+  double _autoScrollSpeed = 1.0;
   Timer? _autoScrollTimer;
+  Timer? _clockWatcher;
 
-  // Cached hymns for 1-tap liturgical chant playback inside the liturgy
+  // Live liturgical date (5:00 PM Vespers rollover), readings, synaxarium, hymns, seasonal fractions
+  late CopticDate _copticToday;
+  bool _isAfterVespers = false;
+  Map<String, Map<String, String>> _dailyReadings = {};
+  List<Map<String, dynamic>> _seasonalFractions = [];
+  Map<String, dynamic>? _selectedSeasonalFraction;
   List<Hymn> _cachedHymns = [];
 
   final ScrollController _scrollController = ScrollController();
+  final Map<int, GlobalKey> _sectionKeys = {};
+  bool _didInitialJump = false;
 
   @override
   void initState() {
     super.initState();
-    _selectedSectionIndex = widget.initialSectionIndex;
+    _copticToday = CopticCalendarService.todayLiturgical();
+    _isAfterVespers = CopticCalendarService.isAfterVespers();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<LiturgyProvider>().loadLiturgies();
-      _loadLiturgicalHymns();
+      _loadAllLiturgicalData();
     });
+    _clockWatcher = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!mounted) return;
+      final latest = CopticCalendarService.todayLiturgical();
+      if (latest.month != _copticToday.month || latest.day != _copticToday.day) {
+        setState(() {
+          _copticToday = latest;
+          _isAfterVespers = CopticCalendarService.isAfterVespers();
+        });
+        _reloadDailyReadings();
+      }
+    });
+  }
+
+  Future<void> _loadAllLiturgicalData() async {
+    final prov = context.read<LiturgyProvider>();
+    await Future.wait([
+      prov.loadLiturgies(),
+      _reloadDailyReadings(),
+      _loadSeasonalFractions(),
+      _loadLiturgicalHymns(),
+    ]);
+    if (!mounted) return;
+    if (widget.initialSectionIndex > 0 && !_didInitialJump) {
+      _didInitialJump = true;
+      Future.delayed(const Duration(milliseconds: 220), () {
+        if (mounted) _jumpToSection(widget.initialSectionIndex);
+      });
+    }
+  }
+
+  Future<void> _reloadDailyReadings() async {
+    final readings = await CopticCalendarService.getResolvedLiturgyReadings();
+    if (mounted) {
+      setState(() => _dailyReadings = readings);
+    }
+  }
+
+  Future<void> _loadSeasonalFractions() async {
+    try {
+      final raw = await rootBundle.loadString('assets/data/seasonal_fractions.json');
+      final list = (jsonDecode(raw) as List).map((e) => Map<String, dynamic>.from(e)).toList();
+      if (mounted) setState(() => _seasonalFractions = list);
+    } catch (_) {}
   }
 
   Future<void> _loadLiturgicalHymns() async {
@@ -70,6 +127,8 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
   @override
   void dispose() {
     _autoScrollTimer?.cancel();
+    _clockWatcher?.cancel();
+    SpeechPronunciationService().stop();
     _scrollController.dispose();
     super.dispose();
   }
@@ -87,74 +146,46 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
           setState(() => _isAutoScrolling = false);
           _autoScrollTimer?.cancel();
         } else {
-          _scrollController.jumpTo((current + (1.2 * _autoScrollSpeed)).clamp(0.0, maxExtent));
+          _scrollController.jumpTo((current + (1.1 * _autoScrollSpeed)).clamp(0.0, maxExtent));
         }
       });
     }
   }
 
-  void _cycleAutoScrollSpeed() {
-    HapticFeedback.selectionClick();
-    setState(() {
-      if (_autoScrollSpeed == 1.0) {
-        _autoScrollSpeed = 1.5;
-      } else if (_autoScrollSpeed == 1.5) {
-        _autoScrollSpeed = 2.2;
-      } else {
-        _autoScrollSpeed = 1.0;
-      }
-    });
-  }
-
-  void _scrollToSection(int secIdx) {
-    setState(() => _selectedSectionIndex = secIdx);
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        0,
-        duration: const Duration(milliseconds: 350),
-        curve: Curves.easeInOut,
+  void _jumpToSection(int idx) {
+    final key = _sectionKeys[idx];
+    final ctx = key?.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
+        alignment: 0.02,
       );
     }
   }
 
-  IconData _stationIconForTitle(String title) {
-    if (title.contains('الحمل') || title.contains('تقدمة')) return Icons.bakery_dining_rounded;
-    if (title.contains('الكلمة') || title.contains('الإنجيل') || title.contains('تحليل')) return Icons.menu_book_rounded;
-    if (title.contains('الصلح')) return Icons.handshake_rounded;
-    if (title.contains('الأنافورا') || title.contains('التقديس') || title.contains('الشاروبيم')) return Icons.local_fire_department_rounded;
-    if (title.contains('أواشي') || title.contains('المجمع')) return Icons.people_alt_rounded;
-    if (title.contains('القسمة')) return Icons.wine_bar_rounded;
-    if (title.contains('الخضوع') || title.contains('الاعتراف')) return Icons.self_improvement_rounded;
-    if (title.contains('التناول') || title.contains('١٥٠')) return Icons.auto_awesome_rounded;
-    return Icons.church_rounded;
-  }
-
-  /// Matches a liturgical people response to a runnable Hymn from our library
   Hymn? _matchLiturgicalHymn(LiturgyVerse verse) {
     if (_cachedHymns.isEmpty || verse.role != 'people') return null;
     final ar = verse.arabic;
-    final arabized = verse.arabized;
-
-    String? targetKeyword;
-    if (ar.contains('قدوس الله') || arabized.contains('أجيوس')) {
-      targetKeyword = 'أجيوس';
-    } else if (ar.contains('بشفاعات والدة الإله') || arabized.contains('هيتين')) {
-      targetKeyword = 'هيتني';
-    } else if (ar.contains('الشاروبيم يسجدون') || ar.contains('بي شيروبيم')) {
-      targetKeyword = 'الشاروبيم';
-    } else if (ar.contains('بموتك يا رب نبشر') || arabized.contains('آمين آمين')) {
-      targetKeyword = 'بموتك';
-    } else if (ar.contains('سبحوا الله في جميع قديسيه') || ar.contains('المزمور المئة والخمسون')) {
-      targetKeyword = '150';
-    } else if (ar.contains('نعظمك يا أم النور') || ar.contains('نؤمن بإله واحد')) {
-      targetKeyword = 'قانون الايمان';
-    } else if (ar.contains('نسجد لآب النور') || arabized.contains('تين أو أوشت')) {
-      targetKeyword = 'تين أوأوشت';
+    final ab = verse.arabized;
+    String? kw;
+    if (ar.contains('قدوس الله قدوس القوي') || ab.contains('أجيوس')) {
+      kw = 'أجيوس';
+    } else if (ar.contains('بشفاعات والدة الإله') || ab.contains('هيتين')) {
+      kw = 'هيتني';
+    } else if (ar.contains('الشاروبيم يسجدون')) {
+      kw = 'الشاروبيم';
+    } else if (ar.contains('بموتك يا رب نبشر')) {
+      kw = 'بموتك';
+    } else if (ar.contains('سبحوا الله في جميع قديسيه')) {
+      kw = '150';
+    } else if (ar.contains('نسجد لآب النور')) {
+      kw = 'تين أوأوشت';
     }
-
-    if (targetKeyword == null) return null;
+    if (kw == null) return null;
     for (final h in _cachedHymns) {
-      if (h.title.contains(targetKeyword)) return h;
+      if (h.title.contains(kw)) return h;
     }
     return null;
   }
@@ -166,740 +197,442 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) {
-        return Container(
-          height: MediaQuery.of(ctx).size.height * 0.78,
-          decoration: const BoxDecoration(
-            color: Color(0xFF13151D),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border(
-              top: BorderSide(color: AppColors.primaryGold, width: 1.5),
-            ),
-          ),
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Color(0xFF232532))),
-                ),
-                child: Row(
-                  children: [
-                    const CopticCross(size: 22),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'خريطة ومحطات القداس الإلهي',
-                            style: GoogleFonts.cairo(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primaryGoldLight,
-                            ),
-                          ),
-                          Text(
-                            liturgy.title,
-                            style: GoogleFonts.cairo(
-                              fontSize: 12,
-                              color: AppColors.textMuted,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded, color: AppColors.textLight),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  itemCount: liturgy.sections.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (context, idx) {
-                    final sec = liturgy.sections[idx];
-                    final isCurrent = idx == _selectedSectionIndex;
-                    return Material(
-                      type: MaterialType.transparency,
-                      child: ListTile(
-                        dense: true,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          side: BorderSide(
-                            color: isCurrent
-                                ? AppColors.primaryGold
-                                : AppColors.primaryGold.withValues(alpha: 0.15),
-                            width: isCurrent ? 1.5 : 0.8,
-                          ),
-                        ),
-                        tileColor: isCurrent
-                            ? AppColors.primaryGold.withValues(alpha: 0.12)
-                            : const Color(0xFF1A1C27),
-                        leading: Container(
-                          width: 34,
-                          height: 34,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: isCurrent ? AppColors.primaryGold : Colors.transparent,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AppColors.primaryGold, width: 1),
-                          ),
-                          child: Text(
-                            '${idx + 1}',
-                            style: GoogleFonts.cairo(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: isCurrent ? Colors.black : AppColors.primaryGoldLight,
-                            ),
-                          ),
-                        ),
-                        title: Text(
-                          sec.title,
-                          style: GoogleFonts.cairo(
-                            fontSize: 13.5,
-                            fontWeight: isCurrent ? FontWeight.bold : FontWeight.w600,
-                            color: isCurrent ? AppColors.primaryGoldLight : Colors.white,
-                          ),
-                        ),
-                        subtitle: Text(
-                          '${sec.verses.length} صلاة ومرداً وطقساً',
-                          style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textMuted),
-                        ),
-                        trailing: isCurrent
-                            ? const Icon(Icons.check_circle_rounded, color: AppColors.primaryGold, size: 20)
-                            : const Icon(Icons.arrow_forward_ios_rounded, color: AppColors.textMuted, size: 14),
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          _scrollToSection(idx);
-                        },
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _showLiturgyPicker(LiturgyProvider prov) {
-    HapticFeedback.selectionClick();
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: const BoxDecoration(
-            color: Color(0xFF13151D),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border(top: BorderSide(color: AppColors.primaryGold, width: 1.5)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  const CopticCross(size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'اختر القداس الإلهي (الخولاجي المقدس):',
-                    style: GoogleFonts.cairo(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primaryGoldLight,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              ...prov.liturgies.map((lit) {
-                final isSel = prov.selectedLiturgy?.id == lit.id;
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  decoration: BoxDecoration(
-                    color: isSel
-                        ? AppColors.primaryGold.withValues(alpha: 0.15)
-                        : const Color(0xFF1A1C27),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: isSel ? AppColors.primaryGold : Colors.white10,
-                      width: 1.2,
-                    ),
-                  ),
-                  child: Material(
-                    type: MaterialType.transparency,
-                    child: ListTile(
-                      leading: const CopticCross(size: 22),
-                      title: Text(
-                        lit.title,
-                        style: GoogleFonts.cairo(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: isSel ? AppColors.primaryGoldLight : Colors.white,
-                        ),
-                      ),
-                      subtitle: Text(
-                        lit.description,
-                        style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.textMuted),
-                      ),
-                      trailing: isSel
-                          ? const Icon(Icons.check_circle_rounded, color: AppColors.primaryGold)
-                          : null,
-                      onTap: () {
-                        prov.selectLiturgy(lit);
-                        Navigator.pop(ctx);
-                        setState(() => _selectedSectionIndex = 0);
-                      },
-                    ),
-                  ),
-                );
-              }),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final liturgyProvider = context.watch<LiturgyProvider>();
-    final churchMode = context.watch<ChurchModeProvider>();
-    final fontScale = context.watch<ThemeProvider>().fontScale;
-    final currentLiturgy = liturgyProvider.selectedLiturgy;
-
-    if (liturgyProvider.isLoading || currentLiturgy == null) {
-      return const Scaffold(
-        backgroundColor: AppColors.deepNavy,
-        body: Center(
-          child: CircularProgressIndicator(color: AppColors.primaryGold),
-        ),
-      );
-    }
-
-    final sections = currentLiturgy.sections;
-    final safeSecIdx = _selectedSectionIndex.clamp(0, sections.length - 1);
-    final activeSection = sections[safeSecIdx];
-    final progressValue = sections.isEmpty ? 0.0 : (safeSecIdx + 1) / sections.length;
-
-    // Filter verses by selected role, silent toggle, rubrics toggle, and search query
-    final filteredVerses = activeSection.verses.where((v) {
-      if (!_showSilentPrayers && v.role == 'priest_silent') return false;
-      if (!_showRubrics && v.role == 'rubric') return false;
-      if (_activeRoleFilter != 'all') {
-        if (_activeRoleFilter == 'priest' && v.role != 'priest' && v.role != 'priest_silent') {
-          return false;
-        } else if (_activeRoleFilter != 'priest' && v.role != _activeRoleFilter) {
-          return false;
-        }
-      }
-      if (_searchQuery.trim().isNotEmpty) {
-        final q = _searchQuery.trim();
-        return v.arabic.contains(q) || v.arabized.contains(q) || v.roleArabic.contains(q);
-      }
-      return true;
-    }).toList();
-
-    return Scaffold(
-      backgroundColor: churchMode.isChurchMode ? Colors.black : AppColors.deepNavy,
-      appBar: AppBar(
-        backgroundColor: churchMode.isChurchMode ? Colors.black : const Color(0xFF10121A),
-        elevation: 0,
-        title: InkWell(
-          onTap: () => _showLiturgyPicker(liturgyProvider),
-          borderRadius: BorderRadius.circular(10),
+        return ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: AppColors.primaryGold.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.35)),
+            height: MediaQuery.of(ctx).size.height * 0.78,
+            decoration: const BoxDecoration(
+              color: AppColors.deepNavy,
+              border: Border(top: BorderSide(color: AppColors.hairline)),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+            child: Column(
               children: [
-                const CopticCross(size: 16),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    currentLiturgy.title.split('(').first.trim(),
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.cairo(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13.5,
-                      color: AppColors.primaryGoldLight,
-                    ),
-                  ),
-                ),
-                const Icon(Icons.arrow_drop_down_rounded, color: AppColors.primaryGold, size: 20),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          // Search toggle
-          IconButton(
-            tooltip: 'بحث في القداس',
-            icon: Icon(
-              _showSearchBar ? Icons.search_off_rounded : Icons.search_rounded,
-              color: _showSearchBar ? AppColors.primaryGold : AppColors.textLight,
-              size: 21,
-            ),
-            onPressed: () {
-              setState(() {
-                _showSearchBar = !_showSearchBar;
-                if (!_showSearchBar) _searchQuery = '';
-              });
-            },
-          ),
-          // Auto-scroll toggle
-          IconButton(
-            tooltip: _isAutoScrolling ? 'إيقاف التمرير التلقائي' : 'تمرير تلقائي مع القداس',
-            icon: Icon(
-              _isAutoScrolling ? Icons.pause_circle_filled_rounded : Icons.play_circle_outline_rounded,
-              color: _isAutoScrolling ? Colors.greenAccent : AppColors.primaryGold,
-              size: 22,
-            ),
-            onPressed: _toggleAutoScroll,
-          ),
-          if (_isAutoScrolling)
-            GestureDetector(
-              onTap: _cycleAutoScrollSpeed,
-              child: Container(
-                alignment: Alignment.center,
-                margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 2),
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryGold,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '${_autoScrollSpeed}x',
-                  style: GoogleFonts.roboto(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-              ),
-            ),
-          // Font size controls
-          IconButton(
-            tooltip: 'حجم الخط',
-            icon: const Icon(Icons.text_fields_rounded, color: AppColors.primaryGold, size: 20),
-            onPressed: () {
-              setState(() {
-                _fontSize = _fontSize >= 24.0 ? 16.0 : _fontSize + 2.0;
-              });
-            },
-          ),
-          // Smart Church Mode toggle
-          IconButton(
-            tooltip: 'وضع الكنيسة الذكي',
-            icon: Icon(
-              churchMode.isChurchMode ? Icons.church_rounded : Icons.church_outlined,
-              color: churchMode.isChurchMode ? AppColors.primaryGold : AppColors.textLight,
-              size: 20,
-            ),
-            onPressed: () => churchMode.toggleChurchMode(),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Optional Live Search Bar
-            if (_showSearchBar)
-              Container(
-                padding: const EdgeInsets.fromLTRB(14, 6, 14, 8),
-                color: const Color(0xFF13151E),
-                child: TextField(
-                  autofocus: true,
-                  onChanged: (v) => setState(() => _searchQuery = v),
-                  style: GoogleFonts.cairo(color: Colors.white, fontSize: 13),
-                  decoration: InputDecoration(
-                    hintText: 'ابحث عن صلاة أو أوشية أو مرد في هذه المحطة...',
-                    hintStyle: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 12),
-                    prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primaryGold, size: 18),
-                    filled: true,
-                    fillColor: const Color(0xFF1C1F2B),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-              ),
-
-            // 1. Visual Liturgical Timeline & Station Stepper
-            Container(
-              padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-              decoration: const BoxDecoration(
-                color: Color(0xFF13151E),
-                border: Border(bottom: BorderSide(color: Color(0xFF222533))),
-              ),
-              child: Column(
-                children: [
-                  Row(
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
+                  child: Row(
                     children: [
-                      Text(
-                        'المحطة ${safeSecIdx + 1} من ${sections.length}',
-                        style: GoogleFonts.cairo(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primaryGold,
-                        ),
-                      ),
+                      const CopticCross(size: 18),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: LinearProgressIndicator(
-                            value: progressValue,
-                            minHeight: 5,
-                            backgroundColor: Colors.white10,
-                            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryGold),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      InkWell(
-                        onTap: () => _showLiturgicalIndexSheet(currentLiturgy),
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(Icons.map_rounded, size: 14, color: AppColors.primaryGoldLight),
-                            const SizedBox(width: 4),
                             Text(
-                              'خريطة القداس',
-                              style: GoogleFonts.cairo(
-                                fontSize: 11,
+                              'خريطة ومحطات القداس الإلهي',
+                              style: GoogleFonts.amiri(
+                                fontSize: 20,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.primaryGoldLight,
                               ),
                             ),
+                            Text(
+                              '${liturgy.title} • ${_copticToday.formatted}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textMuted),
+                            ),
                           ],
                         ),
                       ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: AppColors.textMuted),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 36,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: sections.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 8),
-                      itemBuilder: (context, idx) {
-                        final isSel = idx == safeSecIdx;
-                        final secTitle = sections[idx].title;
-                        final shortTitle = secTitle.split('(').first.trim();
-                        return ChoiceChip(
-                          visualDensity: VisualDensity.compact,
-                          label: Text(
-                            shortTitle,
-                            style: GoogleFonts.cairo(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.bold,
-                              color: isSel ? Colors.black : AppColors.textLight,
+                ),
+                const Divider(color: AppColors.hairline, height: 1),
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                    itemCount: liturgy.sections.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 7),
+                    itemBuilder: (_, idx) {
+                      final sec = liturgy.sections[idx];
+                      final isSynax = sec.title.contains('السنكسار');
+                      return Material(
+                        type: MaterialType.transparency,
+                        child: ListTile(
+                          dense: true,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: isSynax
+                                  ? AppColors.primaryGold.withValues(alpha: 0.45)
+                                  : AppColors.hairline,
                             ),
                           ),
-                          selected: isSel,
-                          selectedColor: AppColors.primaryGold,
-                          backgroundColor: const Color(0xFF1E212D),
-                          showCheckmark: false,
-                          onSelected: (_) {
-                            HapticFeedback.selectionClick();
-                            _scrollToSection(idx);
+                          tileColor: AppColors.cardNavy,
+                          leading: Container(
+                            width: 28,
+                            height: 28,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.surfaceNavy,
+                              border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.4)),
+                            ),
+                            child: Text(
+                              '${idx + 1}',
+                              style: GoogleFonts.cairo(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primaryGoldLight,
+                              ),
+                            ),
+                          ),
+                          title: Text(
+                            sec.title,
+                            style: GoogleFonts.cairo(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textLight,
+                            ),
+                          ),
+                          subtitle: sec.tafseer.isNotEmpty
+                              ? Text(
+                                  sec.tafseer,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.cairo(fontSize: 10.5, color: AppColors.textMuted),
+                                )
+                              : null,
+                          trailing: const Icon(Icons.chevron_left_rounded,
+                              color: AppColors.primaryGold, size: 18),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _jumpToSection(idx);
                           },
-                        );
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showLiturgySwitcher(LiturgyProvider prov) {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.deepNavy,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        side: BorderSide(color: AppColors.hairline),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(18, 14, 18, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 38,
+                height: 3.5,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryGold.withValues(alpha: 0.45),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'اختر القداس الإلهي (الخولاجي المقدس)',
+              style: GoogleFonts.amiri(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primaryGoldLight,
+              ),
+            ),
+            const SizedBox(height: 12),
+            for (final lit in prov.liturgies) ...[
+              ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(
+                    color: prov.selectedLiturgy?.id == lit.id
+                        ? AppColors.primaryGold
+                        : AppColors.hairline,
+                  ),
+                ),
+                tileColor: prov.selectedLiturgy?.id == lit.id
+                    ? AppColors.primaryGold.withValues(alpha: 0.12)
+                    : AppColors.cardNavy,
+                leading: const CopticCross(size: 18),
+                title: Text(
+                  lit.title,
+                  style: GoogleFonts.cairo(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textLight,
+                  ),
+                ),
+                trailing: prov.selectedLiturgy?.id == lit.id
+                    ? const Icon(Icons.check_circle_rounded, color: AppColors.primaryGold)
+                    : null,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  prov.selectLiturgy(lit);
+                  setState(() => _selectedSeasonalFraction = null);
+                  if (_scrollController.hasClients) _scrollController.jumpTo(0);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDisplaySettingsSheet() {
+    HapticFeedback.selectionClick();
+    final churchMode = context.read<ChurchModeProvider>();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.deepNavy,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        side: BorderSide(color: AppColors.hairline),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Padding(
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 3.5,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryGold.withValues(alpha: 0.45),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'إعدادات العرض واللغة (Coptic Reader / أرثوذكسي)',
+                style: GoogleFonts.amiri(
+                  fontSize: 19,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primaryGoldLight,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text('نمط العرض واللغة:', style: GoogleFonts.cairo(fontSize: 12, color: AppColors.textMuted)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _settingChip('أرثوذكسي (عربي + معرب)', _layoutMode == 'orsozoxi', () {
+                    setState(() => _layoutMode = 'orsozoxi');
+                    setSheet(() {});
+                  }),
+                  _settingChip('Coptic Reader (عمودان)', _layoutMode == 'coptic_reader', () {
+                    setState(() => _layoutMode = 'coptic_reader');
+                    setSheet(() {});
+                  }),
+                  _settingChip('عربي فقط', _layoutMode == 'arabic', () {
+                    setState(() => _layoutMode = 'arabic');
+                    setSheet(() {});
+                  }),
+                  _settingChip('ثلاثي (عربي + معرب + قبطي)', _layoutMode == 'tri', () {
+                    setState(() => _layoutMode = 'tri');
+                    setSheet(() {});
+                  }),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text('تصفية المتكلم:', style: GoogleFonts.cairo(fontSize: 12, color: AppColors.textMuted)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _settingChip('الكل', _activeRoleFilter == 'all', () {
+                    setState(() => _activeRoleFilter = 'all');
+                    setSheet(() {});
+                  }),
+                  _settingChip('الشعب فقط', _activeRoleFilter == 'people', () {
+                    setState(() => _activeRoleFilter = 'people');
+                    setSheet(() {});
+                  }),
+                  _settingChip('الكاهن', _activeRoleFilter == 'priest', () {
+                    setState(() => _activeRoleFilter = 'priest');
+                    setSheet(() {});
+                  }),
+                  _settingChip('الشماس', _activeRoleFilter == 'deacon', () {
+                    setState(() => _activeRoleFilter = 'deacon');
+                    setSheet(() {});
+                  }),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                activeThumbColor: AppColors.primaryGold,
+                title: Text('إظهار الصلوات السرية للكاهن',
+                    style: GoogleFonts.cairo(fontSize: 13, color: AppColors.textLight)),
+                value: _showSilentPrayers,
+                onChanged: (v) {
+                  setState(() => _showSilentPrayers = v);
+                  setSheet(() {});
+                },
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                activeThumbColor: AppColors.primaryGold,
+                title: Text('إظهار الإرشادات الطقسية (الخولاجي)',
+                    style: GoogleFonts.cairo(fontSize: 13, color: AppColors.textLight)),
+                value: _showRubrics,
+                onChanged: (v) {
+                  setState(() => _showRubrics = v);
+                  setSheet(() {});
+                },
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                activeThumbColor: AppColors.primaryGold,
+                title: Text('وضع الكنيسة المعتم (خفوت الشاشة)',
+                    style: GoogleFonts.cairo(fontSize: 13, color: AppColors.textLight)),
+                value: churchMode.isChurchMode,
+                onChanged: (_) {
+                  churchMode.toggleChurchMode();
+                  setSheet(() {});
+                },
+              ),
+              Row(
+                children: [
+                  Text('حجم الخط:', style: GoogleFonts.cairo(fontSize: 12.5, color: AppColors.textMuted)),
+                  Expanded(
+                    child: Slider(
+                      value: _fontSize,
+                      min: 14.0,
+                      max: 26.0,
+                      activeColor: AppColors.primaryGold,
+                      onChanged: (v) {
+                        setState(() => _fontSize = v);
+                        setSheet(() {});
                       },
                     ),
                   ),
+                  Text('${_fontSize.round()}',
+                      style: GoogleFonts.cairo(fontSize: 12, color: AppColors.primaryGoldLight)),
                 ],
               ),
-            ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-            // 2. Control Bar: Role Filter, Silent Prayers Toggle & Language Mode
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: const BoxDecoration(
-                color: Color(0xFF0F1118),
-                border: Border(bottom: BorderSide(color: Color(0xFF1E212D))),
-              ),
+  Widget _settingChip(String label, bool active, VoidCallback onTap) {
+    return ChoiceChip(
+      showCheckmark: false,
+      label: Text(
+        label,
+        style: GoogleFonts.cairo(
+          fontSize: 11.5,
+          fontWeight: active ? FontWeight.bold : FontWeight.w500,
+          color: active ? Colors.black : AppColors.textLight,
+        ),
+      ),
+      selected: active,
+      selectedColor: AppColors.primaryGold,
+      backgroundColor: AppColors.cardNavy,
+      side: BorderSide(color: active ? AppColors.primaryGold : AppColors.hairline),
+      onSelected: (_) => onTap(),
+    );
+  }
+
+  void _showSeasonalFractionPicker() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.deepNavy,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        side: BorderSide(color: AppColors.hairline),
+      ),
+      builder: (ctx) => SizedBox(
+        height: MediaQuery.of(ctx).size.height * 0.76,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
               child: Row(
                 children: [
+                  const CopticCross(size: 16),
+                  const SizedBox(width: 8),
                   Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          _buildRoleChip('all', 'الكل', null),
-                          const SizedBox(width: 6),
-                          _buildRoleChip('priest', 'الكاهن', const Color(0xFF7A1C1C)),
-                          const SizedBox(width: 6),
-                          _buildRoleChip('deacon', 'الشماس', const Color(0xFF163E6C)),
-                          const SizedBox(width: 6),
-                          _buildRoleChip('people', 'الشعب', const Color(0xFF5A4618)),
-                          const SizedBox(width: 6),
-                          FilterChip(
-                            visualDensity: VisualDensity.compact,
-                            selected: _showSilentPrayers,
-                            selectedColor: const Color(0xFF3E2452),
-                            backgroundColor: AppColors.cardNavy,
-                            checkmarkColor: Colors.white,
-                            avatar: Icon(
-                              Icons.visibility_off_outlined,
-                              size: 14,
-                              color: _showSilentPrayers ? Colors.white : AppColors.textMuted,
-                            ),
-                            label: Text(
-                              'الصلوات السرية',
-                              style: GoogleFonts.cairo(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                            onSelected: (val) {
-                              HapticFeedback.selectionClick();
-                              setState(() => _showSilentPrayers = val);
-                            },
-                          ),
-                          const SizedBox(width: 6),
-                          FilterChip(
-                            visualDensity: VisualDensity.compact,
-                            selected: _showRubrics,
-                            selectedColor: const Color(0xFF3A301A),
-                            backgroundColor: AppColors.cardNavy,
-                            checkmarkColor: AppColors.primaryGoldLight,
-                            avatar: Icon(
-                              Icons.menu_book_outlined,
-                              size: 14,
-                              color: _showRubrics ? AppColors.primaryGoldLight : AppColors.textMuted,
-                            ),
-                            label: Text(
-                              'شرح الطقس',
-                              style: GoogleFonts.cairo(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                            onSelected: (val) {
-                              HapticFeedback.selectionClick();
-                              setState(() => _showRubrics = val);
-                            },
-                          ),
-                        ],
+                    child: Text(
+                      'صلوات القسمة السنوية والموسمية (${_seasonalFractions.length})',
+                      style: GoogleFonts.amiri(
+                        fontSize: 19,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryGoldLight,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  PopupMenuButton<String>(
-                    initialValue: _activeDisplayMode,
-                    tooltip: 'لغة العرض',
-                    onSelected: (mode) => setState(() => _activeDisplayMode = mode),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryGold.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.5)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.translate_rounded, color: AppColors.primaryGold, size: 14),
-                          const SizedBox(width: 4),
-                          Text(
-                            _getDisplayModeLabel(_activeDisplayMode),
-                            style: GoogleFonts.cairo(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primaryGoldLight,
-                            ),
-                          ),
-                        ],
-                      ),
+                  if (_selectedSeasonalFraction != null)
+                    TextButton(
+                      onPressed: () {
+                        setState(() => _selectedSeasonalFraction = null);
+                        Navigator.pop(ctx);
+                      },
+                      child: Text('القسمة الأصلية',
+                          style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.primaryGold)),
                     ),
-                    itemBuilder: (context) => [
-                      _buildMenuItem('all', 'عرض ثلاثي (عربي • معرب • قبطي)'),
-                      _buildMenuItem('arabic', 'عربي فقط (قراءة سريعة)'),
-                      _buildMenuItem('arabized', 'عربي + قبطي معرب'),
-                      _buildMenuItem('coptic', 'قبطي أصلي فقط (Ⲧⲉⲛⲟⲩⲱϣⲧ)'),
-                    ],
-                  ),
                 ],
               ),
             ),
-
-            // 3. Liturgical Verses Flow
+            const Divider(color: AppColors.hairline, height: 1),
             Expanded(
-              child: Builder(
-                builder: (context) {
-                  final showSynaxarium = activeSection.id.contains('2_word') ||
-                      activeSection.title.contains('الكلمة');
-                  int synaxInsertAfterIdx = -1;
-                  if (showSynaxarium) {
-                    for (int i = 0; i < filteredVerses.length; i++) {
-                      final ar = filteredVerses[i].arabic;
-                      if (ar.contains('الإبركسيس') || ar.contains('أعمال آبائنا الرسل') || ar.contains('السنكسار')) {
-                        synaxInsertAfterIdx = i;
-                        break;
-                      }
-                    }
-                  }
-
-                  final totalItems = filteredVerses.length + 2;
-                  return ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
-                    itemCount: totalItems,
-                    itemBuilder: (context, index) {
-                      if (index == 0) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // Creative Station Hero Card
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [Color(0xFF2B2113), Color(0xFF14151D)],
-                                  begin: Alignment.topRight,
-                                  end: Alignment.bottomLeft,
-                                ),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: AppColors.primaryGold, width: 1.3),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppColors.primaryGold.withValues(alpha: 0.14),
-                                    blurRadius: 14,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 46,
-                                    height: 46,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: AppColors.primaryGold.withValues(alpha: 0.18),
-                                      border: Border.all(color: AppColors.primaryGold),
-                                    ),
-                                    child: Center(
-                                      child: Icon(
-                                        _stationIconForTitle(activeSection.title),
-                                        color: AppColors.primaryGoldLight,
-                                        size: 22,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 14),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          activeSection.title,
-                                          style: GoogleFonts.cairo(
-                                            fontSize: 15.5 * fontScale,
-                                            fontWeight: FontWeight.bold,
-                                            color: AppColors.primaryGoldLight,
-                                          ),
-                                        ),
-                                        if (activeSection.tafseer.isNotEmpty) ...[
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            activeSection.tafseer,
-                                            style: GoogleFonts.cairo(
-                                              fontSize: 12 * fontScale,
-                                              color: Colors.white70,
-                                              height: 1.45,
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            if (showSynaxarium && synaxInsertAfterIdx == -1)
-                              _buildEmbeddedSynaxariumCard(fontScale),
-                          ],
-                        );
-                      }
-
-                      if (index == totalItems - 1) {
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 24),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              if (safeSecIdx > 0)
-                                ElevatedButton.icon(
-                                  onPressed: () => _scrollToSection(safeSecIdx - 1),
-                                  icon: const Icon(Icons.arrow_back_rounded, size: 16),
-                                  label: Text(
-                                    'المحطة السابقة',
-                                    style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 12.5),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF1E212D),
-                                    foregroundColor: AppColors.primaryGoldLight,
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                  ),
-                                )
-                              else
-                                const SizedBox.shrink(),
-                              if (safeSecIdx < sections.length - 1)
-                                ElevatedButton.icon(
-                                  onPressed: () => _scrollToSection(safeSecIdx + 1),
-                                  icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                                  label: Text(
-                                    'المحطة التالية',
-                                    style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 12.5),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.primaryGold,
-                                    foregroundColor: Colors.black,
-                                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                  ),
-                                )
-                              else
-                                const SizedBox.shrink(),
-                            ],
-                          ),
-                        );
-                      }
-
-                      final verseIdx = index - 1;
-                      final verseWidget = _buildVerseItem(filteredVerses[verseIdx], fontScale);
-                      if (showSynaxarium && verseIdx == synaxInsertAfterIdx) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            verseWidget,
-                            _buildEmbeddedSynaxariumCard(fontScale),
-                          ],
-                        );
-                      }
-                      return verseWidget;
+              child: ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: _seasonalFractions.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (_, idx) {
+                  final frac = _seasonalFractions[idx];
+                  final isSel = _selectedSeasonalFraction?['title'] == frac['title'];
+                  return ListTile(
+                    dense: true,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: isSel ? AppColors.primaryGold : AppColors.hairline),
+                    ),
+                    tileColor: isSel
+                        ? AppColors.primaryGold.withValues(alpha: 0.14)
+                        : AppColors.cardNavy,
+                    title: Text(
+                      '${frac['title']}',
+                      style: GoogleFonts.cairo(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: isSel ? AppColors.primaryGoldLight : AppColors.textLight,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${frac['text']}'.replaceAll('\n', ' '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textMuted),
+                    ),
+                    onTap: () {
+                      setState(() => _selectedSeasonalFraction = frac);
+                      Navigator.pop(ctx);
                     },
                   );
                 },
@@ -908,173 +641,532 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
           ],
         ),
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final prov = context.watch<LiturgyProvider>();
+    final fontScale = context.watch<ThemeProvider>().fontScale;
+
+    if (prov.isLoading || prov.selectedLiturgy == null) {
+      return const Scaffold(
+        backgroundColor: AppColors.deepNavy,
+        body: Center(child: CircularProgressIndicator(color: AppColors.primaryGold, strokeWidth: 2)),
+      );
+    }
+
+    final liturgy = prov.selectedLiturgy!;
+    final shortTitle = liturgy.id == 'liturgy_basil'
+        ? 'القداس الباسيلي'
+        : (liturgy.id == 'liturgy_gregory' ? 'القداس الغريغوري' : 'القداس الكيرلسي');
+
+    for (int i = 0; i < liturgy.sections.length; i++) {
+      _sectionKeys.putIfAbsent(i, () => GlobalKey());
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.deepNavy,
+      appBar: AppBar(
+        backgroundColor: AppColors.deepNavy,
+        elevation: 0,
+        titleSpacing: 0,
+        title: GestureDetector(
+          onTap: () => _showLiturgySwitcher(prov),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    shortTitle,
+                    style: GoogleFonts.amiri(
+                      fontSize: 21,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryGoldLight,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.primaryGold, size: 19),
+                ],
+              ),
+              Text(
+                '${_copticToday.formatted}${_isAfterVespers ? ' • توقيت عشية' : ''}',
+                style: GoogleFonts.cairo(fontSize: 10.5, color: AppColors.textMuted),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          IconButton(
+            tooltip: _isAutoScrolling ? 'إيقاف التمرير التلقائي' : 'تمرير تلقائي أثناء القداس',
+            icon: Icon(
+              _isAutoScrolling ? Icons.pause_circle_filled_rounded : Icons.play_circle_outline_rounded,
+              color: _isAutoScrolling ? AppColors.primaryGold : AppColors.textMuted,
+              size: 22,
+            ),
+            onPressed: _toggleAutoScroll,
+          ),
+          IconButton(
+            tooltip: 'إعدادات العرض واللغة',
+            icon: const Icon(Icons.tune_rounded, color: AppColors.primaryGoldLight, size: 21),
+            onPressed: _showDisplaySettingsSheet,
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Slim Quick-Jump Milestone Ribbon (like Orsozoxi / Coptic Reader top tabs)
+          Container(
+            height: 40,
+            decoration: const BoxDecoration(
+              color: AppColors.surfaceNavy,
+              border: Border(
+                top: BorderSide(color: AppColors.hairline, width: 0.7),
+                bottom: BorderSide(color: AppColors.hairline, width: 0.7),
+              ),
+            ),
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              itemCount: liturgy.sections.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (_, idx) {
+                final raw = liturgy.sections[idx].title;
+                final compact = _compactMilestoneLabel(raw);
+                return GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    _jumpToSection(idx);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.cardNavy,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: compact.contains('السنكسار')
+                            ? AppColors.primaryGold.withValues(alpha: 0.45)
+                            : AppColors.hairline,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        compact,
+                        style: GoogleFonts.cairo(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: compact.contains('السنكسار')
+                              ? AppColors.primaryGoldLight
+                              : AppColors.textLight,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // Continuous Flowing Kholagy Book (Coptic Reader + Orsozoxi Experience!)
+          Expanded(
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (int sIdx = 0; sIdx < liturgy.sections.length; sIdx++) ...[
+                    _buildSectionBlock(liturgy.sections[sIdx], sIdx, fontScale),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.primaryGold,
-        foregroundColor: Colors.black,
-        elevation: 6,
-        icon: const Icon(Icons.menu_book_rounded, size: 20),
+        backgroundColor: AppColors.cardNavy,
+        foregroundColor: AppColors.primaryGoldLight,
+        elevation: 4,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.55)),
+        ),
+        icon: const Icon(Icons.format_list_numbered_rtl_rounded,
+            size: 19, color: AppColors.primaryGold),
         label: Text(
           'فهرس القداس',
-          style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 13),
+          style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 12.5),
         ),
-        onPressed: () => _showLiturgicalIndexSheet(currentLiturgy),
+        onPressed: () => _showLiturgicalIndexSheet(liturgy),
       ),
     );
   }
 
-  Widget _buildRoleChip(String roleId, String label, Color? bgColor) {
-    final isSel = _activeRoleFilter == roleId;
-    return ChoiceChip(
-      visualDensity: VisualDensity.compact,
-      label: Text(
-        label,
-        style: GoogleFonts.cairo(
-          fontSize: 11.5,
-          fontWeight: FontWeight.bold,
-          color: isSel ? (bgColor == null ? Colors.black : Colors.white) : AppColors.textLight,
+  String _compactMilestoneLabel(String fullTitle) {
+    if (fullTitle.contains('تقدمة الحمل')) return 'تقدمة الحمل';
+    if (fullTitle.contains('تحليل الخدام')) return 'تحليل الخدام';
+    if (fullTitle.contains('البولس')) return 'القراءات';
+    if (fullTitle.contains('السنكسار')) return 'السنكسار';
+    if (fullTitle.contains('أجيوس')) return 'الإنجيل والإيمان';
+    if (fullTitle.contains('الصلح')) return 'الصلح';
+    if (fullTitle.contains('الأنافورا') || fullTitle.contains('التسبحة الشاروبيمية')) {
+      return fullTitle.contains('التسبحة') ? 'التقديس' : 'الأنافورا';
+    }
+    if (fullTitle.contains('أواشي') || fullTitle.contains('المجمع')) return 'الأواشي والمجمع';
+    if (fullTitle.contains('القسمة')) return 'القسمة';
+    if (fullTitle.contains('الخضوع') || fullTitle.contains('الاعتراف')) return 'الاعتراف';
+    if (fullTitle.contains('التناول')) return 'التناول والبركة';
+    return fullTitle.length > 18 ? fullTitle.substring(0, 18) : fullTitle;
+  }
+
+  Widget _buildSectionBlock(LiturgySection sec, int sIdx, double fontScale) {
+    return Column(
+      key: _sectionKeys[sIdx],
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Editorial Liturgical Section Divider Banner (Coptic Reader Style)
+        Padding(
+          padding: EdgeInsets.only(top: sIdx == 0 ? 4 : 24, bottom: 12),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              decoration: const BoxDecoration(
+                color: AppColors.cardNavy,
+                border: Border(
+                  right: BorderSide(color: AppColors.primaryGold, width: 3),
+                  top: BorderSide(color: AppColors.hairline),
+                  left: BorderSide(color: AppColors.hairline),
+                  bottom: BorderSide(color: AppColors.hairline),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    sec.title,
+                    style: GoogleFonts.amiri(
+                      fontSize: 20 * fontScale,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryGoldLight,
+                      height: 1.3,
+                    ),
+                  ),
+                  if (sec.tafseer.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      sec.tafseer,
+                      style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textMuted),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
         ),
-      ),
-      selected: isSel,
-      selectedColor: bgColor ?? AppColors.primaryGold,
-      backgroundColor: const Color(0xFF1A1C27),
-      showCheckmark: false,
-      onSelected: (_) {
-        HapticFeedback.selectionClick();
-        setState(() => _activeRoleFilter = roleId);
-      },
+
+        // Verses & Live Embedded Readings / Synaxarium
+        for (final v in sec.verses) ...[
+          if (v.role == 'reading_slot')
+            _buildDynamicLiturgicalSlot(v.arabic, fontScale)
+          else if (_shouldShowVerse(v))
+            _buildFlowingLiturgicalLine(v, fontScale),
+        ],
+      ],
     );
   }
 
-  PopupMenuItem<String> _buildMenuItem(String val, String text) {
-    return PopupMenuItem<String>(
-      value: val,
-      child: Text(
-        text,
-        style: GoogleFonts.cairo(
-          fontSize: 12.5,
-          fontWeight: _activeDisplayMode == val ? FontWeight.bold : FontWeight.normal,
-          color: _activeDisplayMode == val ? AppColors.primaryGold : Colors.white,
-        ),
-      ),
-    );
+  bool _shouldShowVerse(LiturgyVerse v) {
+    if (v.role == 'priest_silent' && !_showSilentPrayers) return false;
+    if (v.role == 'rubric' && !_showRubrics) return false;
+    if (_activeRoleFilter == 'all') return true;
+    if (v.role == 'rubric') return _showRubrics;
+    if (_activeRoleFilter == 'priest') {
+      return v.role == 'priest' || v.role == 'priest_silent';
+    }
+    return v.role == _activeRoleFilter;
   }
 
-  String _getDisplayModeLabel(String mode) {
-    switch (mode) {
-      case 'arabic':
-        return 'عربي فقط';
-      case 'arabized':
-        return 'عربي + معرب';
-      case 'coptic':
-        return 'قبطي';
+  // ===========================================================================
+  // LIVE EMBEDDED DAILY READINGS + LIVE FULL SYNAXARIUM + SEASONAL FRACTIONS
+  // ===========================================================================
+  Widget _buildDynamicLiturgicalSlot(String slotKey, double fontScale) {
+    switch (slotKey) {
+      case 'LITURGY_PAULINE_SLOT':
+        return _buildEmbeddedScriptureBlock(
+          title: 'قراءة البولس (رسالة معلمنا بولس الرسول)',
+          reading: _dailyReadings['pauline'],
+          opening: 'بُولُسُ عَبْدُ يَسُوعَ الْمَسِيحِ، الْمَدْعُوُّ رَسُولاً، الْمُفْرَزُ لإِنْجِيلِ اللهِ:',
+          closing: 'نِعْمَةُ اللهِ الآبِ تَحِلُّ عَلَى أَرْوَاحِنَا يَا آبَائِي وَإِخْوَتِي. آمِينَ.',
+          fontScale: fontScale,
+        );
+      case 'LITURGY_CATHOLIC_SLOT':
+        return _buildEmbeddedScriptureBlock(
+          title: 'قراءة الكاثوليكون (رسالة الجامعة)',
+          reading: _dailyReadings['catholic'],
+          opening: 'الكاثوليكون، فَصْلٌ مِنْ رِسَالَةِ مُعَلِّمِنَا الرَّسُولِ بَرَكَتُهُ عَلَيْنَا آمِينَ:',
+          closing: 'لاَ تُحِبُّوا الْعَالَمَ وَلاَ الأَشْيَاءَ الَّتِي فِي الْعَالَمِ، لأَنَّ الْعَالَمَ يَمْضِي وَشَهْوَتَهُ، وَأَمَّا الَّذِي يَصْنَعُ مَشِيئَةَ اللهِ فَيَثْبُتُ إِلَى الأَبَدِ. آمِينَ.',
+          fontScale: fontScale,
+        );
+      case 'LITURGY_ACTS_SLOT':
+        return _buildEmbeddedScriptureBlock(
+          title: 'قراءة الإبركسيس (أعمال آبائنا الرسل)',
+          reading: _dailyReadings['acts'],
+          opening: 'فَصْلٌ مِنْ أَعْمَالِ آبَائِنَا الرُّسُلِ الأَطْهَارِ الْمَشْمُولِينَ بِنِعْمَةِ الرُّوحِ الْقُدُسِ، بَرَكَتُهُمْ تَكُونُ مَعَنَا آمِينَ:',
+          closing: 'لَمْ تَزَلْ كَلِمَةُ الرَّبِّ تَنْمُو وَتَزْدَادُ وَتَعْتَزُّ وَتَثْبُتُ فِي هذِهِ الْكَنِيسَةِ وَكُلِّ كَنِيسَةٍ. آمِينَ.',
+          fontScale: fontScale,
+        );
+      case 'LITURGY_SYNAXARIUM_SLOT':
+        return _buildInlineFullSynaxariumBlock(fontScale);
+      case 'LITURGY_GOSPEL_SLOT':
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildEmbeddedScriptureBlock(
+              title: 'مزمور القداس الإلهي لليوم',
+              reading: _dailyReadings['psalm'],
+              opening: 'مِنْ مَزَامِيرِ وَتَرَاتِيلِ أَبِينَا دَاوُدَ النَّبِيِّ، بَرَكَتُهُ عَلَيْنَا آمِينَ:',
+              closing: 'هَلِّلُويَا.',
+              fontScale: fontScale,
+            ),
+            _buildEmbeddedScriptureBlock(
+              title: 'الإنجيل المقدس لليوم',
+              reading: _dailyReadings['gospel'],
+              opening: 'مُبَارَكٌ الآتِي بِاسْمِ الرَّبِّ. فَصْلٌ شَرِيفٌ مِنْ بِشَارَةِ الإِنْجِيلِ الْمُقَدَّسِ:',
+              closing: 'وَالْمَجْدُ للهِ دَائِماً أَبَدِيّاً. آمِينَ.',
+              fontScale: fontScale,
+              isGospel: true,
+            ),
+          ],
+        );
+      case 'LITURGY_FRACTION_PICKER_SLOT':
+        return _buildFractionPickerInline(fontScale);
       default:
-        return 'ثلاثي';
+        return const SizedBox.shrink();
     }
   }
 
-  Widget _buildEmbeddedSynaxariumCard(double fontScale) {
-    final today = CopticCalendarService.fromGregorian(DateTime.now());
-    final synEvents = CopticCalendarService.getSynaxariumEventsForDate(today.month, today.day);
-    final topEvent = synEvents.isNotEmpty ? synEvents.first : null;
+  Widget _buildEmbeddedScriptureBlock({
+    required String title,
+    required Map<String, String>? reading,
+    required String opening,
+    required String closing,
+    required double fontScale,
+    bool isGospel = false,
+  }) {
+    final ref = reading?['ref'] ?? 'قراءة اليوم (${_copticToday.formatted})';
+    final body = reading?['text'] ?? '';
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 12),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1712),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.primaryGold, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primaryGold.withValues(alpha: 0.15),
-            blurRadius: 10,
-            spreadRadius: 1,
-          ),
-        ],
+        color: AppColors.surfaceNavy,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isGospel
+              ? AppColors.primaryGold.withValues(alpha: 0.45)
+              : AppColors.hairline,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              const CopticCross(size: 22),
+              Icon(
+                isGospel ? Icons.auto_stories_rounded : Icons.menu_book_outlined,
+                color: AppColors.primaryGold,
+                size: 17,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.cairo(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryGoldLight,
+                      ),
+                    ),
+                    Text(
+                      ref,
+                      style: GoogleFonts.cairo(fontSize: 11, color: AppColors.primaryGold),
+                    ),
+                  ],
+                ),
+              ),
+              if (body.isNotEmpty)
+                SpeechPlayStopButton(
+                  textToSpeak: '$opening $body $closing',
+                  label: title,
+                  playText: 'استماع',
+                  stopText: 'إيقاف',
+                  compact: true,
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            opening,
+            style: GoogleFonts.amiri(
+              fontSize: (_fontSize - 1.5) * fontScale,
+              color: AppColors.rubricRed,
+              height: 1.55,
+            ),
+          ),
+          if (body.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            SelectableText(
+              body,
+              style: GoogleFonts.amiri(
+                fontSize: (_fontSize + 1) * fontScale,
+                height: 1.85,
+                color: AppColors.textLight,
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            closing,
+            style: GoogleFonts.amiri(
+              fontSize: (_fontSize - 1) * fontScale,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryGoldLight,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Renders TODAY'S FULL SYNAXARIUM inline inside the Divine Liturgy (exact Orsozoxi / Coptic Reader placement!)
+  Widget _buildInlineFullSynaxariumBlock(double fontScale) {
+    final events = CopticCalendarService.getSynaxariumEventsForDate(
+      _copticToday.month,
+      _copticToday.day,
+    );
+    final fullText = CopticCalendarService.getSynaxariumForDate(
+      _copticToday.month,
+      _copticToday.day,
+    );
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardNavy,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const CopticCross(size: 18),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'السنكسار القبطي المقدس (تذكار اليوم)',
-                      style: GoogleFonts.cairo(
-                        fontSize: 14.5 * fontScale,
+                      'سنكسار اليوم: ${_copticToday.day} ${_copticToday.monthName} ${_copticToday.year} ش',
+                      style: GoogleFonts.amiri(
+                        fontSize: 19 * fontScale,
                         fontWeight: FontWeight.bold,
                         color: AppColors.primaryGoldLight,
                       ),
                     ),
                     Text(
-                      'يُقرأ بعد الإبركسيس وقبل الثلاث تقديسات والإنجيل',
-                      style: GoogleFonts.cairo(
-                        fontSize: 11 * fontScale,
-                        color: AppColors.primaryGold,
-                      ),
+                      _isAfterVespers
+                          ? 'تذكار اليوم التالي تلقائياً (توقيت عشية بعد ٥ مساءً)'
+                          : 'يُقرأ عقب الإبركسيس وقبل أجيوس والإنجيل',
+                      style: GoogleFonts.cairo(fontSize: 10.5, color: AppColors.textMuted),
                     ),
                   ],
                 ),
               ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    luxeRoute(SynaxariumDailyView(
-                      initialMonth: today.month,
-                      initialDay: today.day,
-                    )),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryGold,
-                  foregroundColor: Colors.black,
-                  visualDensity: VisualDensity.compact,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              IconButton(
+                tooltip: _synaxariumExpanded ? 'طي السنكسار' : 'عرض السنكسار كاملاً',
+                icon: Icon(
+                  _synaxariumExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                  color: AppColors.primaryGold,
                 ),
-                child: Text(
-                  'فتح السنكسار',
-                  style: GoogleFonts.cairo(fontSize: 11.5, fontWeight: FontWeight.bold),
-                ),
+                onPressed: () => setState(() => _synaxariumExpanded = !_synaxariumExpanded),
               ),
             ],
           ),
-          if (topEvent != null) ...[
+          if (_synaxariumExpanded) ...[
             const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(10),
+            Row(
+              children: [
+                SpeechPlayStopButton(
+                  textToSpeak: fullText,
+                  label: 'سنكسار اليوم',
+                  playText: 'استماع للسنكسار',
+                  stopText: 'إيقاف الصوت',
+                  compact: true,
+                ),
+                const Spacer(),
+                Text(
+                  '${events.length} تذكار اليوم',
+                  style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textMuted),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'باسم الآب والابن والروح القدس الإله الواحد آمين. اليوم ${_copticToday.day} من شهر ${_copticToday.monthName} المبارك:',
+              style: GoogleFonts.amiri(
+                fontSize: (_fontSize - 1) * fontScale,
+                fontWeight: FontWeight.bold,
+                color: AppColors.rubricRed,
+                height: 1.6,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '✝ ${topEvent['title']}',
-                    style: GoogleFonts.cairo(
-                      fontSize: 13 * fontScale,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${topEvent['text']}'.replaceAll('\n', ' ').trim(),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.cairo(
-                      fontSize: 11.5 * fontScale,
-                      color: AppColors.textMuted,
-                      height: 1.45,
-                    ),
-                  ),
-                ],
+            ),
+            const SizedBox(height: 10),
+            for (int i = 0; i < events.length; i++) ...[
+              if (i > 0)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 10),
+                  child: Divider(color: AppColors.hairline, height: 1),
+                ),
+              Text(
+                '${i + 1}. ${events[i]['title']}',
+                style: GoogleFonts.amiri(
+                  fontSize: (_fontSize + 1) * fontScale,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primaryGoldLight,
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: 6),
+              SelectableText(
+                '${events[i]['text']}'.trim(),
+                style: GoogleFonts.amiri(
+                  fontSize: _fontSize * fontScale,
+                  height: 1.85,
+                  color: AppColors.textLight,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Text(
+              'بركة صلواتهم وشفاعتهم فلتكن معنا جميعاً، ولربنا المجد دائماً أبدياً. آمين.',
+              style: GoogleFonts.amiri(
+                fontSize: (_fontSize - 0.5) * fontScale,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primaryGoldLight,
               ),
             ),
           ],
@@ -1083,276 +1175,288 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
     );
   }
 
-  Widget _buildVerseItem(LiturgyVerse verse, double fontScale) {
-    final isRubric = verse.role == 'rubric';
-
-    // 1. Ritual Rubric Ribbon Card (الطقس والحركة الليتورجية)
-    if (isRubric) {
-      return Container(
-        margin: const EdgeInsets.symmetric(vertical: 7),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF1D1A14), Color(0xFF14161F)],
-          ),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppColors.primaryGold.withValues(alpha: 0.38),
-            width: 0.9,
-          ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.only(top: 2),
-              child: Icon(Icons.auto_awesome_rounded, color: AppColors.primaryGold, size: 16),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                verse.arabic,
-                style: GoogleFonts.cairo(
-                  fontSize: 13 * fontScale,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primaryGoldLight,
-                  height: 1.55,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // 2. Role Colors, Icons & Badges for Spoken Prayers
-    Color roleBadgeBg;
-    Color roleBorder;
-    IconData roleIcon;
-    String roleLabel = verse.roleArabic.isNotEmpty ? verse.roleArabic : 'الشعب / الخورس';
-
-    if (verse.role == 'priest_silent') {
-      roleBadgeBg = const Color(0xFF421C5E);
-      roleBorder = const Color(0xFFAB47BC);
-      roleIcon = Icons.lock_clock_rounded;
-    } else if (verse.role == 'priest' || roleLabel.contains('الكاهن')) {
-      roleBadgeBg = const Color(0xFF6E1818);
-      roleBorder = const Color(0xFFEF5350);
-      roleIcon = Icons.auto_awesome_rounded;
-    } else if (verse.role == 'deacon' || roleLabel.contains('الشماس')) {
-      roleBadgeBg = const Color(0xFF123B68);
-      roleBorder = const Color(0xFF42A5F5);
-      roleIcon = Icons.campaign_rounded;
-    } else {
-      roleBadgeBg = const Color(0xFF3E3115);
-      roleBorder = AppColors.primaryGold;
-      roleIcon = Icons.groups_rounded;
-    }
-
-    final matchedHymn = _matchLiturgicalHymn(verse);
-
+  Widget _buildFractionPickerInline(double fontScale) {
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 7),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: verse.role == 'priest_silent' ? const Color(0xFF191524) : const Color(0xFF171923),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: roleBorder.withValues(alpha: 0.35),
-          width: 1.0,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        color: AppColors.surfaceNavy,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.hairline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header Banner
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-            decoration: BoxDecoration(
-              color: roleBadgeBg.withValues(alpha: 0.88),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(17)),
-              border: Border(bottom: BorderSide(color: roleBorder.withValues(alpha: 0.45))),
-            ),
-            child: Row(
-              children: [
-                Icon(roleIcon, color: Colors.white, size: 15),
-                const SizedBox(width: 8),
-                Text(
-                  roleLabel,
+          Row(
+            children: [
+              const Icon(Icons.auto_stories_outlined, color: AppColors.primaryGold, size: 17),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _selectedSeasonalFraction != null
+                      ? 'القسمة المختارة: ${_selectedSeasonalFraction!['title']}'
+                      : 'يمكنك اختيار قسمة الموسم أو العيد حسب طقس اليوم',
                   style: GoogleFonts.cairo(
                     fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primaryGoldLight,
                   ),
                 ),
-                const Spacer(),
-                if (matchedHymn != null)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 6),
-                    child: InkWell(
-                      onTap: () {
-                        HapticFeedback.mediumImpact();
-                        Navigator.push(
-                          context,
-                          luxeRoute(HymnDetailView(hymn: matchedHymn, playlist: _cachedHymns)),
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryGold,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.music_note_rounded, size: 13, color: Colors.black),
-                            const SizedBox(width: 4),
-                            Text(
-                              'استمع للحن',
-                              style: GoogleFonts.cairo(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                InkWell(
-                  onTap: () {
-                    final speech = SpeechPronunciationService();
-                    if (speech.isSpeaking) {
-                      speech.stop();
-                    } else {
-                      speech.speakText(verse.arabic, label: roleLabel);
-                    }
-                  },
-                  child: ValueListenableBuilder<bool>(
-                    valueListenable: SpeechPronunciationService().isSpeakingNotifier,
-                    builder: (_, speaking, __) => Padding(
-                      padding: const EdgeInsets.only(left: 10),
-                      child: Icon(
-                        speaking ? Icons.stop_circle_rounded : Icons.volume_up_rounded,
-                        size: 16,
-                        color: speaking ? Colors.redAccent : Colors.white70,
-                      ),
-                    ),
-                  ),
+              ),
+              OutlinedButton(
+                onPressed: _seasonalFractions.isEmpty ? null : _showSeasonalFractionPicker,
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  side: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.45)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                InkWell(
+                child: Text(
+                  'تبديل القسمة',
+                  style: GoogleFonts.cairo(fontSize: 11, color: AppColors.primaryGoldLight),
+                ),
+              ),
+            ],
+          ),
+          if (_selectedSeasonalFraction != null) ...[
+            const SizedBox(height: 12),
+            const Divider(color: AppColors.hairline, height: 1),
+            const SizedBox(height: 10),
+            Text(
+              'الكاهن • ${_selectedSeasonalFraction!['title']}',
+              style: GoogleFonts.cairo(
+                fontSize: 11.5,
+                fontWeight: FontWeight.bold,
+                color: AppColors.rubricRed,
+              ),
+            ),
+            const SizedBox(height: 6),
+            SelectableText(
+              '${_selectedSeasonalFraction!['text']}',
+              style: GoogleFonts.amiri(
+                fontSize: _fontSize * fontScale,
+                height: 1.85,
+                color: AppColors.textLight,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // CONTINUOUS FLOWING LITURGICAL LINE (NO BLOATED CARDS PER VERSE!)
+  // ===========================================================================
+  Widget _buildFlowingLiturgicalLine(LiturgyVerse verse, double fontScale) {
+    // 1. Rubric line (subtle italic vermilion — traditional Kholagy style)
+    if (verse.role == 'rubric') {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+        child: Text(
+          verse.arabic,
+          style: GoogleFonts.cairo(
+            fontSize: (_fontSize - 5.5).clamp(11.5, 16.0) * fontScale,
+            fontStyle: FontStyle.italic,
+            color: AppColors.rubricRed,
+            height: 1.55,
+          ),
+        ),
+      );
+    }
+
+    // 2. Role colors (restrained, reverent, high legibility in church)
+    final bool isSilent = verse.role == 'priest_silent';
+    final bool isPriest = verse.role == 'priest' || isSilent;
+    final bool isDeacon = verse.role == 'deacon';
+    final bool isPeople = verse.role == 'people';
+
+    final Color roleColor = isSilent
+        ? const Color(0xFFA78BC7)
+        : (isPriest
+            ? const Color(0xFFD9786C)
+            : (isDeacon ? const Color(0xFF7DA8CF) : AppColors.primaryGold));
+
+    final String roleLabel = verse.roleArabic.isNotEmpty
+        ? verse.roleArabic
+        : (isPriest ? 'الكاهن' : (isDeacon ? 'الشماس' : 'الشعب'));
+
+    final matchedHymn = _matchLiturgicalHymn(verse);
+    final hasArabized = verse.arabized.isNotEmpty;
+    final hasCoptic = verse.coptic.isNotEmpty && verse.coptic != verse.arabized;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        isSilent ? 12 : 4,
+        10,
+        isPeople ? 10 : (isSilent ? 12 : 4),
+        12,
+      ),
+      margin: EdgeInsets.symmetric(vertical: isSilent ? 5 : 1),
+      decoration: BoxDecoration(
+        color: isSilent ? const Color(0xFF1A1622) : Colors.transparent,
+        borderRadius: isSilent ? BorderRadius.circular(10) : null,
+        border: isSilent
+            ? Border.all(color: const Color(0xFF3E3052), width: 0.8)
+            : Border(
+                right: isPeople
+                    ? BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.6), width: 2.2)
+                    : BorderSide.none,
+                bottom: BorderSide(color: AppColors.hairline.withValues(alpha: 0.65), width: 0.6),
+              ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Minimalist Speaker Tag Row (like Coptic Reader & Orsozoxi)
+          Row(
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: roleColor),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                roleLabel,
+                style: GoogleFonts.cairo(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.bold,
+                  color: roleColor,
+                ),
+              ),
+              const Spacer(),
+              if (matchedHymn != null)
+                GestureDetector(
                   onTap: () {
-                    Clipboard.setData(ClipboardData(text: verse.arabic));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('تم نسخ النص', style: GoogleFonts.cairo(fontSize: 12)),
-                        duration: const Duration(seconds: 1),
-                      ),
+                    HapticFeedback.selectionClick();
+                    Navigator.push(
+                      context,
+                      luxeRoute(HymnDetailView(hymn: matchedHymn, playlist: _cachedHymns)),
                     );
                   },
-                  child: const Icon(Icons.copy_rounded, size: 14, color: Colors.white70),
-                ),
-              ],
-            ),
-          ),
-
-          Padding(
-            padding: const EdgeInsets.all(15),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 1. Modern Clear Arabic Liturgical Text
-                if (_activeDisplayMode != 'coptic')
-                  SelectableText(
-                    verse.arabic,
-                    style: GoogleFonts.amiri(
-                      fontSize: (_fontSize + 2.0) * fontScale,
-                      fontWeight: FontWeight.w600,
-                      height: 1.75,
-                      color: const Color(0xFFF9F6F0),
-                    ),
-                  ),
-
-                // 2. Coptic Arabized (القبطي المعرب لمنطق اللحن)
-                if ((_activeDisplayMode == 'all' || _activeDisplayMode == 'arabized') &&
-                    verse.arabized.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.all(11),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    margin: const EdgeInsets.only(left: 8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1F222F),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppColors.primaryGold.withValues(alpha: 0.32),
-                      ),
+                      color: AppColors.surfaceNavy,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.4)),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.record_voice_over_rounded, size: 13, color: AppColors.primaryGold),
-                            const SizedBox(width: 5),
-                            Text(
-                              'النطق القبطي المعرب:',
-                              style: GoogleFonts.cairo(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.primaryGold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 5),
-                        SelectableText(
-                          verse.arabized,
+                        const Icon(Icons.music_note_rounded, size: 12, color: AppColors.primaryGold),
+                        const SizedBox(width: 3),
+                        Text(
+                          'اللحن',
                           style: GoogleFonts.cairo(
-                            fontSize: (_fontSize - 2.0) * fontScale,
-                            height: 1.65,
+                            fontSize: 10.5,
                             color: AppColors.primaryGoldLight,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
+                ),
+            ],
+          ),
+          const SizedBox(height: 5),
 
-                // 3. Authentic Bohairic Coptic Unicode Script
-                if ((_activeDisplayMode == 'all' || _activeDisplayMode == 'coptic') &&
-                    verse.coptic.isNotEmpty &&
-                    verse.coptic != verse.arabized) ...[
-                  if (_activeDisplayMode == 'all') const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+          // Layout Mode A: COPTIC READER 2-COLUMN SIDE-BY-SIDE (Arabic Right | Coptic/Arabized Left)
+          if (_layoutMode == 'coptic_reader' && (hasArabized || hasCoptic))
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 11,
                     child: SelectableText(
-                      verse.coptic,
-                      textDirection: TextDirection.ltr,
-                      textAlign: TextAlign.left,
-                      style: TextStyle(
-                        fontFamily: 'Coptic',
-                        fontSize: (_fontSize - 1.5) * fontScale,
-                        height: 1.55,
-                        color: const Color(0xFFCFD8DC),
+                      verse.arabic,
+                      style: GoogleFonts.amiri(
+                        fontSize: (_fontSize + 0.5) * fontScale,
+                        height: 1.75,
+                        color: isPeople ? const Color(0xFFFAF5EA) : AppColors.textLight,
+                        fontWeight: isPeople ? FontWeight.w600 : FontWeight.normal,
                       ),
                     ),
                   ),
+                  Container(
+                    width: 0.8,
+                    margin: const EdgeInsets.symmetric(horizontal: 10),
+                    color: AppColors.hairline,
+                  ),
+                  Expanded(
+                    flex: 9,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (hasArabized)
+                          SelectableText(
+                            verse.arabized,
+                            style: GoogleFonts.cairo(
+                              fontSize: (_fontSize - 3.5).clamp(12.0, 20.0) * fontScale,
+                              height: 1.65,
+                              color: AppColors.textArabized,
+                            ),
+                          ),
+                        if (hasCoptic) ...[
+                          if (hasArabized) const SizedBox(height: 6),
+                          SelectableText(
+                            verse.coptic,
+                            textDirection: TextDirection.ltr,
+                            textAlign: TextAlign.left,
+                            style: TextStyle(
+                              fontFamily: 'Coptic',
+                              fontSize: (_fontSize - 3.0).clamp(12.0, 20.0) * fontScale,
+                              height: 1.55,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ],
-              ],
+              ),
+            )
+          else ...[
+            // Layout Mode B: ORSOZOXI CLEAN FLOWING ARABIC (+ OPTIONAL ARABIZED / COPTIC)
+            SelectableText(
+              verse.arabic,
+              style: GoogleFonts.amiri(
+                fontSize: (_fontSize + 1.5) * fontScale,
+                height: 1.8,
+                color: isPeople ? const Color(0xFFFAF5EA) : AppColors.textLight,
+                fontWeight: isPeople ? FontWeight.w600 : FontWeight.normal,
+              ),
             ),
-          ),
+            if ((_layoutMode == 'orsozoxi' || _layoutMode == 'tri') && hasArabized) ...[
+              const SizedBox(height: 5),
+              SelectableText(
+                verse.arabized,
+                style: GoogleFonts.cairo(
+                  fontSize: (_fontSize - 3.0).clamp(12.5, 20.0) * fontScale,
+                  height: 1.65,
+                  color: AppColors.textArabized,
+                ),
+              ),
+            ],
+            if (_layoutMode == 'tri' && hasCoptic) ...[
+              const SizedBox(height: 5),
+              SelectableText(
+                verse.coptic,
+                textDirection: TextDirection.ltr,
+                textAlign: TextAlign.left,
+                style: TextStyle(
+                  fontFamily: 'Coptic',
+                  fontSize: (_fontSize - 2.5).clamp(12.5, 20.0) * fontScale,
+                  height: 1.55,
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ],
+          ],
         ],
       ),
     );

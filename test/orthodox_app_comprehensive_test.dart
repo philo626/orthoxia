@@ -10,9 +10,11 @@ import 'package:orthodox_app/core/services/bible_reading_progress_service.dart';
 import 'package:orthodox_app/core/services/coptic_calendar_service.dart';
 import 'package:orthodox_app/core/services/coptic_fast_service.dart';
 import 'package:orthodox_app/core/services/coptic_youtube_registry.dart';
+import 'package:orthodox_app/core/services/encryption_service.dart';
 import 'package:orthodox_app/core/services/notification_service.dart';
 import 'package:orthodox_app/core/services/online_coptic_library_service.dart';
 import 'package:orthodox_app/core/services/patron_saint_service.dart';
+import 'package:orthodox_app/core/services/security_guard_service.dart';
 import 'package:orthodox_app/core/services/storage_service.dart';
 import 'package:orthodox_app/models/spiritual_tracker_model.dart';
 import 'package:orthodox_app/providers/books_provider.dart';
@@ -174,8 +176,8 @@ void main() {
     });
   });
 
-  group('3. AES-256 Encryption, User Name, Patron Saint & Notifications', () {
-    test('StorageService uses AES-256-CBC for confession & spiritual logs, saves user name & patron saint', () async {
+  group('3. AES-256-GCM AEAD Security, Guards, User Name & Notifications', () {
+    test('StorageService uses authenticated AES-256-GCM V3 with tamper detection & encrypted Diptych', () async {
       SharedPreferences.setMockInitialValues({});
       final storage = StorageService();
       await storage.init();
@@ -205,12 +207,74 @@ void main() {
 
       final prefs = await SharedPreferences.getInstance();
       final rawStored = prefs.getString('spiritual_logs_encrypted') ?? '';
-      expect(rawStored.startsWith('AES256_V2:'), isTrue, reason: 'Must use AES-256-CBC V2');
+      expect(rawStored.startsWith('AES256_GCM_V3:'), isTrue, reason: 'Must use authenticated AES-256-GCM V3');
       expect(rawStored.contains('مذكرة اعتراف'), isFalse, reason: 'Plaintext must never be stored');
 
       final restored = storage.getSpiritualLogs();
       expect(restored.length, 1);
       expect(restored.first.reflectionNote, 'مذكرة اعتراف خاصة مشفرة');
+
+      // Verify AES-256-GCM cryptographic tamper detection (bit flip MUST throw!)
+      final parts = rawStored.split(':');
+      expect(parts.length, 3);
+      final cipherBytes = base64Decode(parts[2]);
+      cipherBytes[0] ^= 0xFF;
+      final tampered = '${parts[0]}:${parts[1]}:${base64Encode(cipherBytes)}';
+      expect(() => EncryptionService().decryptAes256(tampered), throwsA(anything));
+
+      // Verify Diptych ("دفتر اذكرهم يا رب") is stored encrypted at rest
+      await storage.saveEncryptedDiptychJson('{"family":["مارينا","كيرلس"]}');
+      final rawDiptych = prefs.getString('remember_them_diptych_v1') ?? '';
+      expect(rawDiptych.startsWith('AES256_GCM_V3:'), isTrue);
+      expect(rawDiptych.contains('مارينا'), isFalse);
+      expect(storage.getEncryptedDiptychJson(), '{"family":["مارينا","كيرلس"]}');
+    });
+
+    test('SecurityGuardService enforces HTTPS/Anti-SSRF, host allowlist, sanitization, strong passwords, and rate limiting', () {
+      // 1. Safe external URL checks (HTTPS-only + Anti-SSRF)
+      expect(SecurityGuardService.isSafeExternalUrl('https://archive.org/details/coptic'), isTrue);
+      expect(SecurityGuardService.isSafeExternalUrl('http://archive.org/details/coptic'), isFalse);
+      expect(SecurityGuardService.isSafeExternalUrl('javascript:alert(1)'), isFalse);
+      expect(SecurityGuardService.isSafeExternalUrl('file:///etc/passwd'), isFalse);
+      expect(SecurityGuardService.isSafeExternalUrl('https://127.0.0.1/admin'), isFalse);
+      expect(SecurityGuardService.isSafeExternalUrl('https://localhost/secret'), isFalse);
+      expect(SecurityGuardService.isSafeExternalUrl('https://192.168.1.1/router'), isFalse);
+      expect(SecurityGuardService.isSafeExternalUrl('https://10.0.0.5/internal'), isFalse);
+
+      // 2. Trusted Orthodox digital library allowlist
+      expect(SecurityGuardService.isTrustedLibraryUrl('https://st-takla.org/books.html'), isTrue);
+      expect(SecurityGuardService.isTrustedLibraryUrl('https://christianlib.com/book/1'), isTrue);
+      expect(SecurityGuardService.isTrustedLibraryUrl('https://evil.example.com/phish'), isFalse);
+
+      // 3. Text sanitization (anti-HTML/XSS & BiDi spoofing + max length)
+      final clean = SecurityGuardService.sanitizeText(
+        'صلاة \u202E<script>alert(1)</script>من أجل السلام',
+        maxLength: 25,
+        allowNewlines: false,
+      );
+      expect(clean.contains('<script>'), isFalse);
+      expect(clean.contains('\u202E'), isFalse);
+      expect(clean.length, lessThanOrEqualTo(25));
+
+      // 4. Strong password validation
+      expect(SecurityGuardService.validateNewPassword('123456'), isNotNull);
+      expect(SecurityGuardService.validateNewPassword('abcdefgh'), isNotNull);
+      expect(SecurityGuardService.validateNewPassword('12345678'), isNotNull);
+      expect(SecurityGuardService.validateNewPassword('Orthodox2026'), isNull);
+
+      // 5. Rate limiter blocks rapid spam
+      final guard = SecurityGuardService();
+      expect(guard.allowAction('test_bucket_sec', cooldown: const Duration(seconds: 5), maxPerWindow: 2), isTrue);
+      expect(guard.allowAction('test_bucket_sec', cooldown: const Duration(seconds: 5), maxPerWindow: 2), isFalse);
+
+      // 6. Verify Android & Firebase hardening config files exist and enforce invariants
+      final manifest = File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
+      expect(manifest.contains('android:allowBackup="false"'), isTrue);
+      expect(manifest.contains('android:usesCleartextTraffic="false"'), isTrue);
+      expect(manifest.contains('network_security_config'), isTrue);
+      expect(File('android/app/src/main/res/xml/network_security_config.xml').existsSync(), isTrue);
+      expect(File('android/app/proguard-rules.pro').existsSync(), isTrue);
+      expect(File('firestore.rules').existsSync(), isTrue);
     });
 
     test('CopticCalendarService, PatronSaintService (800+ saints with portraits), OnlineLibrary & LiturgyProvider load cleanly', () async {

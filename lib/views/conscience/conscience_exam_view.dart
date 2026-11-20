@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/encryption_service.dart';
+import '../../core/services/security_guard_service.dart';
 import '../../core/services/storage_service.dart';
 import '../../providers/spiritual_tracker_provider.dart';
 
@@ -17,11 +18,27 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
   String _selectedCategory = 'علاقتي بالله';
   bool _unlocked = false;
   bool _checkingLock = true;
+  DeviceIntegrityStatus _deviceIntegrity = const DeviceIntegrityStatus();
 
   @override
   void initState() {
     super.initState();
+    SecurityGuardService().setSecureScreen(true);
+    _checkDeviceIntegrity();
     _checkBiometricGate();
+  }
+
+  @override
+  void dispose() {
+    SecurityGuardService().setSecureScreen(false);
+    super.dispose();
+  }
+
+  Future<void> _checkDeviceIntegrity() async {
+    final status = await SecurityGuardService().checkDeviceIntegrity();
+    if (mounted) {
+      setState(() => _deviceIntegrity = status);
+    }
   }
 
   Future<void> _checkBiometricGate() async {
@@ -111,7 +128,7 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  'مذكرات الاعتراف محمية بتشفير AES-256 محلياً',
+                  'مذكرات الاعتراف محمية بتشفير AES-256-GCM محلياً',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.cairo(
                     fontSize: 16,
@@ -170,9 +187,9 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
           ),
           body: Column(
             children: [
-              // Notice banner: AES-256 Zero-server storage
+              // Notice banner: AES-256-GCM + FLAG_SECURE Zero-server storage
               Container(
-                margin: const EdgeInsets.all(16),
+                margin: const EdgeInsets.fromLTRB(16, 16, 16, 10),
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: AppColors.sacredBurgundy.withValues(alpha: 0.2),
@@ -185,13 +202,36 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'مشفرة محلياً بتقنية AES-256 داخل مفتاح أمان الهاتف (Keystore) ولا تُرفع لأي سيرفر. يمكنك محوها بضغطة زر بعد الاعتراف.',
+                        'مشفرة محلياً بتقنية AES-256-GCM داخل مفتاح أمان الهاتف (Keystore) مع منع التقاط أو تسجيل الشاشة (FLAG_SECURE)، ولا تُرفع لأي سيرفر.',
                         style: GoogleFonts.cairo(fontSize: 12, color: AppColors.primaryGoldLight),
                       ),
                     ),
                   ],
                 ),
               ),
+
+              if (_deviceIntegrity.hasRisk)
+                Container(
+                  margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4A1818).withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.5)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning_amber_rounded, color: Colors.amberAccent, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'تنبيه أمان: تم رصد صلاحيات Root أو بيئة غير محمية على هذا الجهاز. يُنصح بمحو ملاحظات الاعتراف فور إتمام السر.',
+                          style: GoogleFonts.cairo(fontSize: 11.5, color: Colors.amber.shade100),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
               // Category Selector
               Padding(

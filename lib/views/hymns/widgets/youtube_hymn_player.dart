@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/coptic_youtube_registry.dart';
+import '../../../core/services/security_guard_service.dart';
 import '../../../models/hymn_model.dart';
 
 class YouTubeHymnPlayer extends StatefulWidget {
@@ -129,14 +130,20 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
   }
 
   Future<void> _openExternalYouTube() async {
-    final uri = Uri.parse(CopticYouTubeRegistry.buildWatchUrl(_currentVideoId));
+    final url = SecurityGuardService.upgradeToHttps(
+      CopticYouTubeRegistry.buildWatchUrl(_currentVideoId),
+    );
+    if (!SecurityGuardService.isSafeExternalUrl(url)) return;
+    final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
 
   Future<void> _searchYouTubeMore() async {
-    final uri = Uri.parse(widget.hymn.youtubeSearchUrl);
+    final url = SecurityGuardService.upgradeToHttps(widget.hymn.youtubeSearchUrl);
+    if (!SecurityGuardService.isSafeExternalUrl(url)) return;
+    final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }

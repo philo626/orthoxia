@@ -2,13 +2,35 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/encryption_service.dart';
+import '../../core/services/security_guard_service.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/widgets/coptic_cross.dart';
 import '../../core/widgets/luxe_widgets.dart';
 import '../onboarding/auth_view.dart';
 
-class PrivacyPolicyView extends StatelessWidget {
+class PrivacyPolicyView extends StatefulWidget {
   const PrivacyPolicyView({super.key});
+
+  @override
+  State<PrivacyPolicyView> createState() => _PrivacyPolicyViewState();
+}
+
+class _PrivacyPolicyViewState extends State<PrivacyPolicyView> {
+  DeviceIntegrityStatus _integrity = const DeviceIntegrityStatus();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadIntegrity();
+  }
+
+  Future<void> _loadIntegrity() async {
+    final status = await SecurityGuardService().checkDeviceIntegrity();
+    if (mounted) {
+      setState(() => _integrity = status);
+    }
+  }
 
   void _confirmDeleteAccount(BuildContext context) {
     showDialog(
@@ -106,6 +128,104 @@ class PrivacyPolicyView extends StatelessWidget {
     );
   }
 
+  Widget _securityStatusCard() {
+    final keystoreActive = EncryptionService().isHardwareKeystoreActive;
+    final deviceSafe = !_integrity.hasRisk;
+
+    Widget rowItem(IconData icon, String label, String badge, Color badgeColor) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: AppColors.primaryGold),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                style: GoogleFonts.cairo(fontSize: 12.5, color: AppColors.textLight),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: badgeColor.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: badgeColor.withValues(alpha: 0.45)),
+              ),
+              child: Text(
+                badge,
+                style: GoogleFonts.cairo(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: badgeColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1A2218), Color(0xFF13151B)],
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.verified_user_rounded, color: AppColors.primaryGold, size: 22),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'حالة درع الأمان على جهازك الآن',
+                  style: GoogleFonts.cairo(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryGoldLight,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          rowItem(
+            Icons.enhanced_encryption_rounded,
+            'تشفير الأسرار والاعتراف (AES-256-GCM)',
+            keystoreActive ? 'Keystore نشط' : 'مُشفّر محلياً',
+            AppColors.successGreen,
+          ),
+          rowItem(
+            Icons.screenshot_monitor_rounded,
+            'حجب لقطات وتسجيل الشاشة (FLAG_SECURE)',
+            'مُفعّل',
+            AppColors.successGreen,
+          ),
+          rowItem(
+            Icons.https_rounded,
+            'تشفير الاتصالات ومنع النسخ الاحتياطي السحابي',
+            'HTTPS-Only',
+            AppColors.successGreen,
+          ),
+          rowItem(
+            Icons.security_rounded,
+            'فحص سلامة نظام التشغيل (Root / Integrity)',
+            deviceSafe ? 'الجهاز سليم' : 'تنبيه Root',
+            deviceSafe ? AppColors.successGreen : Colors.amberAccent,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -138,6 +258,7 @@ class PrivacyPolicyView extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
                 children: [
+                  _securityStatusCard(),
                   _policySection(
                     icon: Icons.shield_outlined,
                     title: '١. التزامنا الكامل بخصوصيتك (Google Play Data Safety)',
@@ -146,9 +267,9 @@ class PrivacyPolicyView extends StatelessWidget {
                   ),
                   _policySection(
                     icon: Icons.lock_outline_rounded,
-                    title: '٢. التشفير المحلي التام لمذكرة الاعتراف ومتتبع الجهاد الروحي',
+                    title: '٢. التشفير الموثّق AES-256-GCM لمذكرة الاعتراف ودفتر اذكرهم',
                     body:
-                        'جميع البيانات الحساسة مثل «مذكرة الاعتراف وفحص الضمير» و«سجلات متتبع الجهاد الروحي» يتم تشفيرها محلياً (On-Device Symmetric Encryption ENC_V1) وحفظها داخل ذاكرة هاتفك فقط، ولا يتم رفعها إطلاقاً إلى أي خادم سحابي (Zero-Cloud Leakage).',
+                        'جميع البيانات الحساسة مثل «مذكرة الاعتراف وفحص الضمير» و«سجلات متتبع الجهاد الروحي» و«دفتر اذكرهم يا رب» يتم تشفيرها محلياً بتشفير AES-256-GCM الموثّق بمفتاح مخزن داخل شريحة أمان الهاتف (Android Keystore) مع منع النسخ الاحتياطي السحابي ومنع التقاط أو تسجيل الشاشة (FLAG_SECURE)، ولا تُرفع إطلاقاً لأي سيرفر سحابي.',
                   ),
                   _policySection(
                     icon: Icons.person_outline_rounded,

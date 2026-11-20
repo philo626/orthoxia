@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'security_guard_service.dart';
 
 class AiMessage {
   final String text;
@@ -206,7 +207,26 @@ class AiTheologyService {
   }
 
   Future<AiMessage> askQuestion(String query, {String? apiKey}) async {
-    final cleanQuery = query.trim();
+    final cleanQuery = SecurityGuardService.sanitizeText(query, maxLength: 600, allowNewlines: false);
+    if (cleanQuery.isEmpty) {
+      return AiMessage(
+        text: 'من فضلك اكتب سؤالك الروحي أو الطقسي بوضوح.',
+        isUser: false,
+        timestamp: DateTime.now(),
+      );
+    }
+    if (!SecurityGuardService().allowAction(
+      'ai_theology',
+      cooldown: const Duration(seconds: 2),
+      maxPerWindow: 12,
+      window: const Duration(minutes: 3),
+    )) {
+      return AiMessage(
+        text: 'تمهل قليلاً بين الأسئلة المتتالية لكي نتمكن من خدمتك بأفضل إجابة آبائية دقيقة.',
+        isUser: false,
+        timestamp: DateTime.now(),
+      );
+    }
     final lower = cleanQuery.toLowerCase();
 
     // 1. Guardrail check for personal canonical/marital disputes

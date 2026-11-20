@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../firebase_options.dart';
 import '../../models/prayer_request_model.dart';
+import 'security_guard_service.dart';
 
 class FirebaseAuthResult {
   final bool success;
@@ -46,15 +47,19 @@ class FirebaseService {
         options: DefaultFirebaseOptions.currentPlatform,
       );
       _isInitialized = true;
-      debugPrint('✅ Firebase initialized successfully (project: coptic-companion-e08f0)!');
+      if (kDebugMode) {
+        debugPrint('Firebase initialized successfully.');
+      }
     } catch (e) {
       _isInitialized = false;
-      debugPrint('ℹ️ Firebase running in local offline-first mode: $e');
+      if (kDebugMode) {
+        debugPrint('Firebase running in local offline-first mode: $e');
+      }
     }
   }
 
-  /// Syncs ONLY non-sensitive public profile fields (display name + patron saint) to Firestore.
-  /// NEVER syncs confession notes or conscience exam data.
+  /// Syncs ONLY sanitized non-sensitive public profile fields (display name + patron saint).
+  /// Strictly matches Firestore zero-trust schema; NEVER syncs confession notes.
   Future<void> syncPublicProfile({
     required String displayName,
     String? patronSaintId,
@@ -62,25 +67,52 @@ class FirebaseService {
     if (!_isInitialized) return;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+    final safeName = SecurityGuardService.sanitizeText(displayName, maxLength: 60, allowNewlines: false);
+    final safeSaint = SecurityGuardService.sanitizeText(patronSaintId ?? 'virgin_mary', maxLength: 60, allowNewlines: false);
+    if (safeName.isEmpty) return;
     try {
-      await user.updateDisplayName(displayName);
+      await user.updateDisplayName(safeName);
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'displayName': displayName,
-        'patronSaintId': patronSaintId ?? 'virgin_mary',
+        'displayName': safeName,
+        'patronSaintId': safeSaint.isEmpty ? 'virgin_mary' : safeSaint,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e) {
-      debugPrint('Firestore profile sync skipped: $e');
+      if (kDebugMode) debugPrint('Firestore profile sync skipped: $e');
     }
   }
 
-  /// Email & Password Login or Registration via Firebase Auth
+  /// Email & Password Login or Registration via Firebase Auth (with brute-force rate limiting)
   Future<FirebaseAuthResult> signInOrRegisterWithEmail({
     required String email,
     required String password,
     required String displayName,
     required bool isLogin,
   }) async {
+    if (!SecurityGuardService().allowAction(
+      'auth_email',
+      cooldown: const Duration(seconds: 2),
+      maxPerWindow: 8,
+      window: const Duration(minutes: 5),
+    )) {
+      return const FirebaseAuthResult(
+        success: false,
+        isCloudBacked: true,
+        message: 'عدد محاولات الدخول متكرر جداً. يُرجى الانتظار قليلاً ثم المحاولة مرة أخرى.',
+      );
+    }
+
+    if (!isLogin) {
+      final pwdErr = SecurityGuardService.validateNewPassword(password);
+      if (pwdErr != null) {
+        return FirebaseAuthResult(
+          success: false,
+          isCloudBacked: _isInitialized,
+          message: pwdErr,
+        );
+      }
+    }
+
     if (!_isInitialized) {
       return FirebaseAuthResult(
         success: true,
@@ -311,47 +343,72 @@ class FirebaseService {
     required String authorName,
   }) async {
     if (!_isInitialized) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return; // Zero-trust: Firestore requires signed-in authorUid
+
+    if (!SecurityGuardService().allowAction(
+      'prayer_wall_post',
+      cooldown: const Duration(seconds: 15),
+      maxPerWindow: 4,
+      window: const Duration(minutes: 10),
+    )) {
+      return;
+    }
+
+    final safeTitle = SecurityGuardService.sanitizeText(title, maxLength: 120, allowNewlines: false);
+    final safeContent = SecurityGuardService.sanitizeText(content, maxLength: 800, allowNewlines: true);
+    final safeAuthor = isAnonymous
+        ? ''
+        : SecurityGuardService.sanitizeText(authorName, maxLength: 60, allowNewlines: false);
+    if (safeTitle.length < 3 || safeContent.length < 5) return;
+
     try {
       await FirebaseFirestore.instance.collection('prayer_requests').add({
-        'title': title,
-        'content': content,
+        'title': safeTitle,
+        'content': safeContent,
         'isAnonymous': isAnonymous,
-        'authorName': isAnonymous ? '' : authorName,
+        'authorName': safeAuthor,
+        'authorUid': user.uid,
         'prayedCount': 1,
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      debugPrint('Firestore addPrayerRequest skipped: $e');
+      if (kDebugMode) debugPrint('Firestore addPrayerRequest skipped: $e');
     }
   }
 
   Future<void> incrementPrayedCountInCloud(String docId, int delta) async {
     if (!_isInitialized || docId.startsWith('req_')) return;
+    if (FirebaseAuth.instance.currentUser == null) return;
+    // Strictly clamp delta to +1 or -1 to match server-side Firestore Rules
+    final safeDelta = delta >= 0 ? 1 : -1;
     try {
       await FirebaseFirestore.instance
           .collection('prayer_requests')
           .doc(docId)
-          .update({'prayedCount': FieldValue.increment(delta)});
+          .update({'prayedCount': FieldValue.increment(safeDelta)});
     } catch (_) {}
   }
 
   String _arabicAuthError(String code) {
     switch (code) {
       case 'user-not-found':
-        return 'لا يوجد حساب مسجل بهذا البريد الإلكتروني.';
       case 'wrong-password':
       case 'invalid-credential':
+        // Generic message prevents account enumeration attacks
         return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
       case 'email-already-in-use':
         return 'هذا البريد الإلكتروني مسجل بالفعل.';
       case 'weak-password':
-        return 'كلمة المرور ضعيفة، يُرجى اختيار 6 أحرف على الأقل.';
+        return 'كلمة المرور ضعيفة، يُرجى اختيار ٨ أحرف على الأقل تتضمن حروفاً وأرقاماً.';
       case 'invalid-email':
         return 'صيغة البريد الإلكتروني غير صحيحة.';
+      case 'too-many-requests':
+        return 'تم تقييد المحاولات مؤقتاً لحماية حسابك. حاول بعد قليل.';
       case 'invalid-verification-code':
         return 'رمز التحقق (OTP) غير صحيح.';
       default:
-        return 'تعذر إتمام العملية ($code). تأكد من اتصالك بالإنترنت.';
+        return 'تعذر إتمام العملية حالياً. تأكد من اتصالك بالإنترنت وحاول مرة أخرى.';
     }
   }
 }

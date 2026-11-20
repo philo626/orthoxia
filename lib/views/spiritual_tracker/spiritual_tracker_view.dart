@@ -3,10 +3,28 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/security_guard_service.dart';
 import '../../providers/spiritual_tracker_provider.dart';
 
-class SpiritualTrackerView extends StatelessWidget {
+class SpiritualTrackerView extends StatefulWidget {
   const SpiritualTrackerView({super.key});
+
+  @override
+  State<SpiritualTrackerView> createState() => _SpiritualTrackerViewState();
+}
+
+class _SpiritualTrackerViewState extends State<SpiritualTrackerView> {
+  @override
+  void initState() {
+    super.initState();
+    SecurityGuardService().setSecureScreen(true);
+  }
+
+  @override
+  void dispose() {
+    SecurityGuardService().setSecureScreen(false);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

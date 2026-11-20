@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'security_guard_service.dart';
 
 class TafsirBookEntry {
   final String id;
@@ -141,8 +142,12 @@ class OnlineCopticLibraryService {
       'olib_${prefix}_${url.hashCode.abs()}';
 
   Future<String> _httpGetUtf8(String url, {int timeoutSec = 16}) async {
+    final safeUrl = SecurityGuardService.upgradeToHttps(url);
+    if (!SecurityGuardService.isTrustedLibraryUrl(safeUrl)) {
+      throw const FormatException('Blocked untrusted or non-HTTPS library URL');
+    }
     final res = await http
-        .get(Uri.parse(url), headers: _headers)
+        .get(Uri.parse(safeUrl), headers: _headers)
         .timeout(Duration(seconds: timeoutSec));
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw Exception('HTTP ${res.statusCode}');

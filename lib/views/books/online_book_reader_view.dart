@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/online_coptic_library_service.dart';
+import '../../core/services/security_guard_service.dart';
 import '../../core/services/speech_pronunciation_service.dart';
 import '../../providers/theme_provider.dart';
 import '../liturgical/widgets/floating_church_bar.dart';
@@ -137,7 +138,21 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
   }
 
   Future<void> _openExternal(String url) async {
-    final uri = Uri.tryParse(url);
+    final safeUrl = SecurityGuardService.upgradeToHttps(url);
+    if (!SecurityGuardService.isSafeExternalUrl(safeUrl)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'تم حجب هذا الرابط تلقائياً لأمانك (يجب أن يكون رابطاً مشفراً HTTPS).',
+              style: GoogleFonts.cairo(fontSize: 12),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    final uri = Uri.tryParse(safeUrl);
     if (uri != null) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }

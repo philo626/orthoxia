@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import '../../models/hymn_model.dart';
+import 'security_guard_service.dart';
 
 class AudioPlayerService {
   static final AudioPlayerService _instance = AudioPlayerService._internal();
@@ -89,16 +90,11 @@ class AudioPlayerService {
   }
 
   String _normalizeUrl(String url) {
-    return url
-        .trim()
-        .replaceFirst(
-          'https://media.stgeorgesaman.com/uploads/',
-          'https://stgeorgesaman.com/wp-content/uploads/',
-        )
-        .replaceFirst(
-          'http://media.stgeorgesaman.com/uploads/',
-          'https://stgeorgesaman.com/wp-content/uploads/',
-        );
+    final upgraded = SecurityGuardService.upgradeToHttps(url);
+    return upgraded.replaceFirst(
+      'https://media.stgeorgesaman.com/uploads/',
+      'https://stgeorgesaman.com/wp-content/uploads/',
+    );
   }
 
   Future<bool> _tryPlaySource(String rawSource) async {
@@ -112,7 +108,7 @@ class AudioPlayerService {
         await _player.play(AssetSource(assetPath));
         await _player.setPlaybackRate(_playbackSpeed);
         return true;
-      } else if (source.startsWith('http')) {
+      } else if (SecurityGuardService.isSafeExternalUrl(source)) {
         final mime = source.toLowerCase().endsWith('.wav') ? 'audio/wav' : 'audio/mpeg';
         await _player
             .play(UrlSource(source, mimeType: mime))

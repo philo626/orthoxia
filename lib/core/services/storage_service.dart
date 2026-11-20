@@ -149,6 +149,26 @@ class StorageService {
 
   Future<void> deleteAllUserData() async {
     await _prefs?.clear();
+    await _encryption.wipeMasterKey();
+    await _encryption.init();
+  }
+
+  /// Encrypted storage for Remember Them Diptych ("دفتر اذكرهم يا رب")
+  String? getEncryptedDiptychJson() {
+    final raw = _prefs?.getString('remember_them_diptych_v1');
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return _encryption.decryptAes256(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> saveEncryptedDiptychJson(String plainJson) async {
+    await _prefs?.setString(
+      'remember_them_diptych_v1',
+      _encryption.encryptAes256(plainJson),
+    );
   }
 
   // Onboarding Done

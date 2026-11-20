@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/firebase_service.dart';
 import '../../core/services/patron_saint_service.dart';
+import '../../core/services/security_guard_service.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/widgets/coptic_cross.dart';
 import '../../core/widgets/saint_icon_avatar.dart';
@@ -99,8 +100,14 @@ class _AuthViewState extends State<AuthView> {
       setState(() => _errorMsg = 'من فضلك أدخل بريدك الإلكتروني بشكل صحيح.');
       return;
     }
-    if (pass.length < 6) {
-      setState(() => _errorMsg = 'كلمة المرور يجب أن تكون ٦ أحرف على الأقل.');
+    if (!_isLogin) {
+      final passErr = SecurityGuardService.validateNewPassword(pass);
+      if (passErr != null) {
+        setState(() => _errorMsg = passErr);
+        return;
+      }
+    } else if (pass.length < 6) {
+      setState(() => _errorMsg = 'من فضلك أدخل كلمة المرور بشكل صحيح.');
       return;
     }
 
@@ -536,7 +543,7 @@ class _AuthViewState extends State<AuthView> {
               const SizedBox(height: 10),
               _pillField(
                 ctrl: _passCtrl,
-                hint: 'كلمة المرور (٦ أحرف على الأقل)',
+                hint: _isLogin ? 'كلمة المرور' : 'كلمة المرور (٨ أحرف + أرقام)',
                 icon: Icons.lock_outline_rounded,
                 obscure: _obscure,
                 suffix: IconButton(
@@ -636,7 +643,7 @@ class _AuthViewState extends State<AuthView> {
                     MaterialPageRoute(builder: (_) => const PrivacyPolicyView()),
                   ),
                   child: Text(
-                    'سياسة الخصوصية وأمان مذكرات الاعتراف (AES-256 محلياً)',
+                    'سياسة الخصوصية وأمان مذكرات الاعتراف (AES-256-GCM محلياً)',
                     style: GoogleFonts.cairo(
                       fontSize: 11,
                       color: AppColors.textMuted,

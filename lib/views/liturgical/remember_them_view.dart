@@ -2,13 +2,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/security_guard_service.dart';
 import '../../core/services/speech_pronunciation_service.dart';
+import '../../core/services/storage_service.dart';
 import '../../core/widgets/coptic_cross.dart';
 
 /// Personal Liturgical Diptych ("دفتر اذكرهم يا رب على مذبح صلاتي")
-/// Saves names of family, sick, travelers, and departed in SharedPreferences
+/// Saves names of family, sick, travelers, and departed encrypted locally via AES-256-GCM
 /// and generates a live personalized Orthodox intercession prayer with audio reading.
 class RememberThemView extends StatefulWidget {
   const RememberThemView({super.key});
@@ -18,7 +19,6 @@ class RememberThemView extends StatefulWidget {
 }
 
 class _RememberThemViewState extends State<RememberThemView> {
-  static const String _prefsKey = 'remember_them_diptych_v1';
   final SpeechPronunciationService _speech = SpeechPronunciationService();
   final TextEditingController _nameCtrl = TextEditingController();
   int _activeCatIndex = 0;
@@ -71,11 +71,13 @@ class _RememberThemViewState extends State<RememberThemView> {
   }
 
   Future<void> _loadNames() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_prefsKey);
+    final storage = StorageService();
+    await storage.init();
+    final raw = storage.getEncryptedDiptychJson();
     if (raw != null && raw.isNotEmpty) {
       try {
         final decoded = jsonDecode(raw) as Map<String, dynamic>;
+        if (!mounted) return;
         setState(() {
           for (final k in _namesByCat.keys) {
             _namesByCat[k] = List<String>.from(decoded[k] ?? []);
@@ -86,12 +88,17 @@ class _RememberThemViewState extends State<RememberThemView> {
   }
 
   Future<void> _saveNames() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefsKey, jsonEncode(_namesByCat));
+    final storage = StorageService();
+    await storage.init();
+    await storage.saveEncryptedDiptychJson(jsonEncode(_namesByCat));
   }
 
   void _addName() {
-    final txt = _nameCtrl.text.trim();
+    final txt = SecurityGuardService.sanitizeText(
+      _nameCtrl.text,
+      maxLength: 50,
+      allowNewlines: false,
+    );
     if (txt.isEmpty) return;
     HapticFeedback.lightImpact();
     final catId = _categories[_activeCatIndex]['id']!;
@@ -246,13 +253,21 @@ class _RememberThemViewState extends State<RememberThemView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  '${activeCat['icon']} ${activeCat['subtitle']}',
-                  style: GoogleFonts.cairo(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryGoldLight,
-                  ),
+                Row(
+                  children: [
+                    Icon(activeCat['iconData'] as IconData, color: AppColors.primaryGold, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${activeCat['subtitle']}',
+                        style: GoogleFonts.cairo(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primaryGoldLight,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 10),
                 Row(

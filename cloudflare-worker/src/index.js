@@ -71,31 +71,43 @@ async function callGemini(apiKey, userMessages) {
 
   if (contents.length === 0) return null;
 
+  const payload = JSON.stringify({
+    system_instruction: { parts: [{ text: SYSTEM_GUARDRAIL }] },
+    contents,
+    generationConfig: {
+      temperature: 0.25,
+      maxOutputTokens: 1024,
+    },
+  });
+
+  // Supports both classic AIza... keys (AI Studio) and modern 2026 AQ.... keys (AI Studio + Vertex Express)
   for (const model of models) {
-    const url =
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const endpoints = [
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      `https://aiplatform.googleapis.com/v1/publishers/google/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    ];
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM_GUARDRAIL }] },
-        contents,
-        generationConfig: {
-          temperature: 0.25,
-          maxOutputTokens: 1024,
-        },
-      }),
-    });
+    for (const url of endpoints) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
+          body: payload,
+        });
 
-    if (res.ok) {
-      const data = await res.json();
-      const parts = data?.candidates?.[0]?.content?.parts || [];
-      const text = parts
-        .map((p) => (typeof p?.text === 'string' ? p.text : ''))
-        .join('\n')
-        .trim();
-      if (text) return { text, model };
+        if (res.ok) {
+          const data = await res.json();
+          const parts = data?.candidates?.[0]?.content?.parts || [];
+          const text = parts
+            .map((p) => (typeof p?.text === 'string' ? p.text : ''))
+            .join('\n')
+            .trim();
+          if (text) return { text, model };
+        }
+      } catch (_) {}
     }
   }
   return null;

@@ -85,10 +85,11 @@ class AiTheologyService {
   static const _cfgEndpointKey = 'ai_provider_endpoint_v1';
   static const _cfgModelKey = 'ai_provider_model_v1';
 
-  /// Built-in Cloudflare Worker Proxy URL (keeps Gemini/Groq API keys 100% hidden on Cloudflare).
-  /// Once deployed at `https://orthoxia-ai.<your-subdomain>.workers.dev`, paste it here so ALL users
-  /// get live Coptic Orthodox AI automatically with zero API key setup.
-  static const String builtInCloudflareWorkerUrl = '';
+  /// Built-in Serverless AI Proxy URL (keeps Gemini/Groq API keys 100% hidden server-side).
+  /// Hosted on Vercel (100% free & unblocked across Egypt ISPs) so ALL app users get
+  /// live Coptic Orthodox AI out-of-the-box with zero API key setup.
+  static const String builtInCloudflareWorkerUrl =
+      'https://orthoxia-vercel-api.vercel.app/v1/chat/completions';
   static const String builtInClientHeaderToken = '';
 
   static AiApiConfig _builtInDefaultConfig() {
@@ -476,10 +477,15 @@ class AiTheologyService {
         history.length > 6 ? history.sublist(history.length - 6) : history;
 
     if (cfg.provider == AiProviderType.gemini) {
-      // Try official Google Gemini 2.5 Flash, fallback to Gemini 2.0 Flash
-      for (final model in const ['gemini-2.5-flash', 'gemini-2.0-flash']) {
+      // Try latest official Google Gemini Flash models (supports both AIza... and AQ.... keys)
+      for (final model in const [
+        'gemini-3.5-flash-lite',
+        'gemini-3.8-flash',
+        'gemini-2.5-flash',
+        'gemini-2.0-flash',
+      ]) {
         final uri = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=${Uri.encodeQueryComponent(cfg.apiKey)}',
+          'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent',
         );
         final contents = <Map<String, dynamic>>[];
         for (final turn in recentTurns) {
@@ -505,7 +511,10 @@ class AiTheologyService {
         final res = await http
             .post(
               uri,
-              headers: const {'Content-Type': 'application/json'},
+              headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': cfg.apiKey,
+              },
               body: jsonEncode({
                 'systemInstruction': {
                   'parts': [

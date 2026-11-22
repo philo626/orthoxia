@@ -577,7 +577,9 @@ class _AiCompanionViewState extends State<AiCompanionView> {
                   color: aiProv.apiConfig.isConfigured ? p.success : p.accent,
                 ),
                 label: Text(
-                  aiProv.apiConfig.isConfigured ? 'API متصل' : 'ربط API',
+                  aiProv.apiConfig.customModel == 'orthoxia-cloud'
+                      ? 'متصل'
+                      : (aiProv.apiConfig.isConfigured ? 'API متصل' : 'ربط API'),
                   style: GoogleFonts.cairo(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w700,

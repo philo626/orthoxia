@@ -1,6 +1,7 @@
 class PrayerRequest {
   final String id;
   final String authorName;
+  final String authorUid;
   final bool isAnonymous;
   final String title;
   final String content;
@@ -11,6 +12,7 @@ class PrayerRequest {
   PrayerRequest({
     required this.id,
     required this.authorName,
+    this.authorUid = '',
     required this.isAnonymous,
     required this.title,
     required this.content,
@@ -22,24 +24,30 @@ class PrayerRequest {
   factory PrayerRequest.fromJson(Map<String, dynamic> json) {
     return PrayerRequest(
       id: json['id'] ?? '',
-      authorName: json['isAnonymous'] == true ? 'ابن للكنيسة (فاعل خير)' : (json['authorName'] ?? 'فاعل خير'),
+      authorName: json['isAnonymous'] == true
+          ? 'ابن للكنيسة'
+          : (json['authorName'] ?? 'ابن للكنيسة'),
+      authorUid: json['authorUid'] ?? '',
       isAnonymous: json['isAnonymous'] ?? true,
       title: json['title'] ?? '',
       content: json['content'] ?? '',
-      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : DateTime.now(),
       prayedCount: json['prayedCount'] ?? 0,
       hasPrayed: json['hasPrayed'] ?? false,
     );
   }
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'authorName': authorName,
-    'isAnonymous': isAnonymous,
-    'title': title,
-    'content': content,
-    'createdAt': createdAt.toIso8601String(),
-    'prayedCount': prayedCount,
-    'hasPrayed': hasPrayed,
-  };
+        'id': id,
+        'authorName': authorName,
+        'authorUid': authorUid,
+        'isAnonymous': isAnonymous,
+        'title': title,
+        'content': content,
+        'createdAt': createdAt.toIso8601String(),
+        'prayedCount': prayedCount,
+        'hasPrayed': hasPrayed,
+      };
 }

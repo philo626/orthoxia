@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../../core/constants/app_colors.dart';
+import '../../core/theme/app_palette.dart';
 import '../../providers/bible_provider.dart';
 import '../../providers/books_provider.dart';
 import '../../providers/liturgy_provider.dart';
 import '../bible/bible_reader_view.dart';
-import '../liturgies/liturgy_reader_view.dart';
 import '../books/book_reader_view.dart';
+import '../liturgies/liturgy_reader_view.dart';
 
 class _SearchItem {
-  final String category; // 'bible', 'liturgy', 'books', 'commentary'
+  final String category;
   final String categoryLabel;
   final String title;
   final String snippet;
@@ -36,7 +35,7 @@ class GlobalSearchView extends StatefulWidget {
 
 class _GlobalSearchViewState extends State<GlobalSearchView> {
   final TextEditingController _searchCtrl = TextEditingController();
-  String _activeFilter = 'all'; // 'all', 'bible', 'liturgy', 'books'
+  String _activeFilter = 'all';
   List<_SearchItem> _results = [];
 
   @override
@@ -67,7 +66,6 @@ class _GlobalSearchViewState extends State<GlobalSearchView> {
 
     final List<_SearchItem> items = [];
 
-    // 1. Liturgies Search
     if (_activeFilter == 'all' || _activeFilter == 'liturgy') {
       for (final lit in liturgyProv.liturgies) {
         for (final sec in lit.sections) {
@@ -85,7 +83,8 @@ class _GlobalSearchViewState extends State<GlobalSearchView> {
                     liturgyProv.selectLiturgy(lit);
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const LiturgyReaderView()),
+                      MaterialPageRoute(
+                          builder: (_) => const LiturgyReaderView()),
                     );
                   },
                 ),
@@ -97,7 +96,6 @@ class _GlobalSearchViewState extends State<GlobalSearchView> {
       }
     }
 
-    // 2. Books & Commentaries Search
     if (_activeFilter == 'all' || _activeFilter == 'books') {
       for (final book in booksProv.books) {
         if (book.title.toLowerCase().contains(q) ||
@@ -121,7 +119,6 @@ class _GlobalSearchViewState extends State<GlobalSearchView> {
       }
     }
 
-    // 3. Full Bible Search (66 Books)
     if (_activeFilter == 'all' || _activeFilter == 'bible') {
       bible.searchVerses(q);
       for (final r in bible.searchResults.take(40)) {
@@ -148,12 +145,20 @@ class _GlobalSearchViewState extends State<GlobalSearchView> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
+
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: p.background,
       appBar: AppBar(
+        backgroundColor: p.background,
+        elevation: 0,
         title: Text(
-          'محرك البحث الشامل',
-          style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 18),
+          'البحث الشامل',
+          style: GoogleFonts.amiri(
+            fontWeight: FontWeight.w700,
+            fontSize: 22,
+            color: p.ink,
+          ),
         ),
         centerTitle: true,
       ),
@@ -162,21 +167,22 @@ class _GlobalSearchViewState extends State<GlobalSearchView> {
           constraints: const BoxConstraints(maxWidth: 860),
           child: Column(
             children: [
-              // Animated Search Input
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 child: TextField(
                   controller: _searchCtrl,
                   autofocus: true,
                   onChanged: _runSearch,
-                  style: GoogleFonts.cairo(color: Colors.white, fontSize: 14),
+                  style: GoogleFonts.cairo(color: p.ink, fontSize: 14),
                   decoration: InputDecoration(
-                    hintText: 'ابحث في القداسات، الكتاب المقدس، أو كتب الآباء...',
-                    hintStyle: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 13),
-                    prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primaryGold),
+                    hintText:
+                        'ابحث في القداسات، الكتاب المقدس، أو كتب الآباء...',
+                    hintStyle:
+                        GoogleFonts.cairo(color: p.inkSubtle, fontSize: 13),
+                    prefixIcon: Icon(Icons.search_rounded, color: p.accent),
                     suffixIcon: _searchCtrl.text.isNotEmpty
                         ? IconButton(
-                            icon: const Icon(Icons.clear_rounded, color: Colors.grey),
+                            icon: Icon(Icons.clear_rounded, color: p.inkMuted),
                             onPressed: () {
                               _searchCtrl.clear();
                               _runSearch('');
@@ -184,40 +190,39 @@ class _GlobalSearchViewState extends State<GlobalSearchView> {
                           )
                         : null,
                     filled: true,
-                    fillColor: AppColors.cardNavy,
+                    fillColor: p.surfaceElevated,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.4)),
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(color: p.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(color: p.border),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: const BorderSide(color: AppColors.primaryGold, width: 1.5),
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(color: p.accent, width: 1.3),
                     ),
                   ),
                 ),
-              ).animate().fadeIn(duration: 250.ms).slideY(begin: -0.05, end: 0),
-
-              // Expandable Filter Chips
+              ),
               SizedBox(
-                height: 44,
+                height: 42,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   children: [
-                    _filterChip('all', 'الكل'),
+                    _filterChip(p, 'all', 'الكل'),
                     const SizedBox(width: 8),
-                    _filterChip('liturgy', 'القداسات'),
+                    _filterChip(p, 'liturgy', 'القداسات'),
                     const SizedBox(width: 8),
-                    _filterChip('bible', 'الكتاب المقدس'),
+                    _filterChip(p, 'bible', 'الكتاب المقدس'),
                     const SizedBox(width: 8),
-                    _filterChip('books', 'الكتب والتفاسير'),
+                    _filterChip(p, 'books', 'الكتب والتفاسير'),
                   ],
                 ),
               ),
-
               const SizedBox(height: 8),
-
-              // Results
               Expanded(
                 child: _searchCtrl.text.trim().length < 2
                     ? Center(
@@ -225,11 +230,13 @@ class _GlobalSearchViewState extends State<GlobalSearchView> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.manage_search_rounded,
-                                size: 64, color: AppColors.primaryGold.withValues(alpha: 0.4)),
-                            const SizedBox(height: 12),
+                                size: 58,
+                                color: p.accent.withValues(alpha: 0.45)),
+                            const SizedBox(height: 10),
                             Text(
                               'اكتب كلمة أو آية للبحث الفوري في كل المصادر',
-                              style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 14),
+                              style: GoogleFonts.cairo(
+                                  color: p.inkMuted, fontSize: 13.5),
                             ),
                           ],
                         ),
@@ -238,7 +245,8 @@ class _GlobalSearchViewState extends State<GlobalSearchView> {
                         ? Center(
                             child: Text(
                               'لا توجد نتائج مطابقة لـ "${_searchCtrl.text}"',
-                              style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 14),
+                              style: GoogleFonts.cairo(
+                                  color: p.inkMuted, fontSize: 14),
                             ),
                           )
                         : ListView.builder(
@@ -246,29 +254,33 @@ class _GlobalSearchViewState extends State<GlobalSearchView> {
                             itemCount: _results.length,
                             itemBuilder: (ctx, idx) {
                               final item = _results[idx];
-                              return Card(
-                                color: AppColors.cardNavy,
+                              return Container(
                                 margin: const EdgeInsets.only(bottom: 10),
-                                shape: RoundedRectangleBorder(
+                                decoration: BoxDecoration(
+                                  color: p.surfaceElevated,
                                   borderRadius: BorderRadius.circular(14),
-                                  side: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.2)),
+                                  border: Border.all(color: p.border),
                                 ),
-                                child: ListTile(
+                                child: Material(
+                                  type: MaterialType.transparency,
+                                  child: ListTile(
                                   contentPadding: const EdgeInsets.all(14),
                                   title: Row(
                                     children: [
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 2),
                                         decoration: BoxDecoration(
-                                          color: AppColors.primaryGold.withValues(alpha: 0.2),
-                                          borderRadius: BorderRadius.circular(6),
+                                          color: p.accentSoft,
+                                          borderRadius:
+                                              BorderRadius.circular(6),
                                         ),
                                         child: Text(
                                           item.categoryLabel,
                                           style: GoogleFonts.cairo(
                                             fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                            color: AppColors.primaryGoldLight,
+                                            fontWeight: FontWeight.w700,
+                                            color: p.accent,
                                           ),
                                         ),
                                       ),
@@ -280,8 +292,8 @@ class _GlobalSearchViewState extends State<GlobalSearchView> {
                                           overflow: TextOverflow.ellipsis,
                                           style: GoogleFonts.cairo(
                                             fontSize: 13,
-                                            fontWeight: FontWeight.bold,
-                                            color: AppColors.primaryGold,
+                                            fontWeight: FontWeight.w700,
+                                            color: p.ink,
                                           ),
                                         ),
                                       ),
@@ -294,8 +306,8 @@ class _GlobalSearchViewState extends State<GlobalSearchView> {
                                       maxLines: 3,
                                       overflow: TextOverflow.ellipsis,
                                       style: GoogleFonts.cairo(
-                                        fontSize: 13,
-                                        color: AppColors.cream,
+                                        fontSize: 12.5,
+                                        color: p.inkMuted,
                                         height: 1.5,
                                       ),
                                     ),
@@ -305,7 +317,8 @@ class _GlobalSearchViewState extends State<GlobalSearchView> {
                                     item.onTap();
                                   },
                                 ),
-                              ).animate().fadeIn(duration: 220.ms, delay: (idx * 25).ms);
+                                ),
+                              );
                             },
                           ),
               ),
@@ -316,21 +329,22 @@ class _GlobalSearchViewState extends State<GlobalSearchView> {
     );
   }
 
-  Widget _filterChip(String id, String label) {
+  Widget _filterChip(AppPalette p, String id, String label) {
     final selected = _activeFilter == id;
     return ChoiceChip(
       label: Text(
         label,
         style: GoogleFonts.cairo(
           fontSize: 12,
-          fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-          color: selected ? Colors.black : AppColors.primaryGoldLight,
+          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          color: selected ? p.onAccent : p.ink,
         ),
       ),
       selected: selected,
-      selectedColor: AppColors.primaryGold,
-      backgroundColor: AppColors.cardNavy,
-      side: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.35)),
+      selectedColor: p.accent,
+      backgroundColor: p.surfaceElevated,
+      showCheckmark: false,
+      side: BorderSide(color: selected ? p.accent : p.border),
       onSelected: (_) {
         HapticFeedback.selectionClick();
         setState(() => _activeFilter = id);

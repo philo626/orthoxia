@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/services/online_coptic_library_service.dart';
+import '../../core/theme/app_palette.dart';
+import '../../core/widgets/coptic_cross.dart';
+import '../../core/widgets/luxe_widgets.dart';
 import '../../models/book_model.dart';
 import '../../providers/books_provider.dart';
 import 'book_reader_view.dart';
 import 'online_book_reader_view.dart';
 import 'online_tafsir_reader_view.dart';
 
-/// Unified Multi-Source Coptic Orthodox Digital Library & Full 73-Book Tafsir Encyclopedia.
-/// Combines:
-/// 1) Full 73-book Patristic Bible Commentaries (Fr. Tadros Yacoub Malaty & Fr. Antonios Fekry + Fr. Matta El Meskeen)
-/// 2) 100+ Full-Chapter In-App Readable Orthodox Books (offline classics + live full-chapter books)
-/// 3) Multi-Source Comprehensive Internet Library (ChristianLib.com 6,000+ books, Father Matta El Meskeen,
-///    Patristic Studies Center, Bishop Gregorios, & Archive.org / Bibliotheca Alexandrina) with LIVE search.
+/// Unified Fine-Press Orthodox Digital Library & 73-Book Tafsir Encyclopedia:
+/// - Opens directly on rich clothbound readable Orthodox Books (13 rich offline classics + 98 full-chapter books)
+/// - Full 73-Book Patristic Bible Commentaries (Fr. Tadros Yacoub Malaty & Fr. Antonios Fekry)
+/// - Comprehensive Multi-Source Internet Library Search
 class BooksLibraryView extends StatefulWidget {
   final int initialTabIndex;
 
@@ -33,19 +33,25 @@ class _BooksLibraryViewState extends State<BooksLibraryView>
   List<OnlineBookEntry> _onlineBooks = [];
   bool _loadingCatalogs = true;
 
-  // Tab 1 (Tafsir) filters
-  String _tafsirQuery = '';
-  String _tafsirTestament = 'all'; // all | old | deuterocanon | new
-
-  // Tab 2 (In-App Readable Books) filters
   String _readableQuery = '';
   String _readableCategory = 'الكل';
 
-  // Tab 3 (Comprehensive Multi-Source Internet Library) filters + live search
+  String _tafsirQuery = '';
+  String _tafsirTestament = 'all';
+
   final TextEditingController _webSearchCtrl = TextEditingController();
   String _webCategory = 'الكل';
   List<OnlineBookEntry>? _liveSearchResults;
   bool _isSearchingWeb = false;
+
+  static const List<Color> _clothSpineColors = [
+    Color(0xFF72242D), // Monastic crimson
+    Color(0xFF213A52), // Cathedral slate indigo
+    Color(0xFF2B4C3C), // Monastery olive
+    Color(0xFF6B4C23), // Antique bronze
+    Color(0xFF472C4E), // Lenten plum
+    Color(0xFF39444B), // Basalt slate
+  ];
 
   static const List<String> _webCategories = [
     'الكل',
@@ -115,214 +121,68 @@ class _BooksLibraryViewState extends State<BooksLibraryView>
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     final booksProv = context.watch<BooksProvider>();
 
     return Scaffold(
-      backgroundColor: AppColors.deepNavy,
+      backgroundColor: p.canvas,
       appBar: AppBar(
-        backgroundColor: AppColors.deepNavy,
-        elevation: 0,
-        centerTitle: true,
+        backgroundColor: p.canvas,
+        foregroundColor: p.ink,
         title: Text(
           'المكتبة الأرثوذكسية والتفاسير',
           style: GoogleFonts.amiri(
             fontWeight: FontWeight.bold,
             fontSize: 22,
-            color: AppColors.primaryGoldLight,
+            color: p.ink,
           ),
         ),
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: AppColors.primaryGold,
-          indicatorWeight: 2,
-          labelColor: AppColors.primaryGoldLight,
-          unselectedLabelColor: AppColors.textMuted,
-          labelStyle: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold),
-          unselectedLabelStyle: GoogleFonts.cairo(fontSize: 11.5),
+          indicatorColor: p.accent,
+          indicatorWeight: 2.2,
+          labelColor: p.accent,
+          unselectedLabelColor: p.inkMuted,
+          labelStyle: GoogleFonts.cairo(fontSize: 12.5, fontWeight: FontWeight.bold),
+          unselectedLabelStyle: GoogleFonts.cairo(fontSize: 12),
           tabs: const [
-            Tab(text: 'التفاسير (٧٣ سفراً)'),
             Tab(text: 'الكتب المقروءة'),
+            Tab(text: 'التفاسير (٧٣ سفراً)'),
             Tab(text: 'المكتبة الشاملة'),
           ],
         ),
       ),
       body: _loadingCatalogs
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primaryGold, strokeWidth: 2),
-            )
+          ? Center(child: CircularProgressIndicator(color: p.accent, strokeWidth: 2))
           : TabBarView(
               controller: _tabController,
               children: [
-                _buildTafsirTab(),
-                _buildReadableBooksTab(booksProv),
-                _buildComprehensiveWebTab(),
+                _buildReadableBooksTab(p, booksProv),
+                _buildTafsirTab(p),
+                _buildComprehensiveWebTab(p),
               ],
             ),
     );
   }
 
   // ===========================================================================
-  // TAB 1: ALL 73 BIBLE BOOKS FULL PATRISTIC COMMENTARIES
+  // TAB 1: FULL READABLE BOOKS (OFFLINE CLASSICS SHELF FIRST + LIVE FULL CHAPTERS)
   // ===========================================================================
-  Widget _buildTafsirTab() {
-    final filtered = _tafsirBooks.where((b) {
-      final matchTest = _tafsirTestament == 'all' || b.testament == _tafsirTestament;
-      final q = _tafsirQuery.trim();
-      final matchQ = q.isEmpty || b.name.contains(q);
-      return matchTest && matchQ;
-    }).toList();
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: TextField(
-            onChanged: (v) => setState(() => _tafsirQuery = v),
-            style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 13),
-            decoration: _searchInputDecoration('ابحث باسم السفر (مثال: تكوين، مزامير، متى، رومية، رؤيا)...'),
-          ),
-        ),
-        SizedBox(
-          height: 36,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            children: [
-              _buildFilterPill('الكل (${_tafsirBooks.length})', _tafsirTestament == 'all',
-                  () => setState(() => _tafsirTestament = 'all')),
-              const SizedBox(width: 6),
-              _buildFilterPill('العهد القديم', _tafsirTestament == 'old',
-                  () => setState(() => _tafsirTestament = 'old')),
-              const SizedBox(width: 6),
-              _buildFilterPill('القانونية الثانية', _tafsirTestament == 'deuterocanon',
-                  () => setState(() => _tafsirTestament = 'deuterocanon')),
-              const SizedBox(width: 6),
-              _buildFilterPill('العهد الجديد', _tafsirTestament == 'new',
-                  () => setState(() => _tafsirTestament = 'new')),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: Row(
-            children: [
-              const Icon(Icons.auto_stories_outlined, size: 14, color: AppColors.primaryGold),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'تفسير القمص تادرس يعقوب ملطي • القمص أنطونيوس فكري • شروح الأب متى المسكين',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textMuted),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
-            itemCount: filtered.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemBuilder: (context, idx) {
-              final b = filtered[idx];
-              final testLabel = b.testament == 'new'
-                  ? 'العهد الجديد'
-                  : (b.testament == 'deuterocanon' ? 'قانونية ثانية' : 'العهد القديم');
-              return InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => OnlineTafsirReaderView(
-                        book: b,
-                        onSearchMatta: _jumpToWebSearch,
-                      ),
-                    ),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardNavy,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.hairline),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceNavy,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.25)),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '${b.chaptersCount}',
-                            style: GoogleFonts.cairo(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primaryGoldLight,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'تفسير ${b.name}',
-                              style: GoogleFonts.amiri(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textLight,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '$testLabel • ${b.chaptersCount} أصحاحاً${b.mattaQuery.isNotEmpty ? ' • متاح شرح الأب متى المسكين' : ''}',
-                              style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textMuted),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.chevron_left_rounded, color: AppColors.primaryGold, size: 20),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ===========================================================================
-  // TAB 2: FULL-CHAPTER IN-APP READABLE BOOKS (OFFLINE CLASSICS + LIVE FULL CHAPTERS)
-  // ===========================================================================
-  Widget _buildReadableBooksTab(BooksProvider booksProv) {
+  Widget _buildReadableBooksTab(AppPalette p, BooksProvider booksProv) {
     final inAppOnline = _onlineBooks.where((b) => b.readerType == 'in_app_chapters').toList();
-    final categories = <String>{'الكل', 'كلاسيكيات أوفلاين'};
+    final categories = <String>{'الكل', 'مكتبة أوفلاين'};
     for (final b in inAppOnline) {
       categories.add(b.category);
     }
 
     final q = _readableQuery.trim();
-    final offlineBooks = (_readableCategory == 'الكل' || _readableCategory == 'كلاسيكيات أوفلاين')
+    final offlineBooks = (_readableCategory == 'الكل' || _readableCategory == 'مكتبة أوفلاين')
         ? booksProv.books.where((b) {
-            return q.isEmpty || b.title.contains(q) || b.author.contains(q);
+            return q.isEmpty || b.title.contains(q) || b.author.contains(q) || b.description.contains(q);
           }).toList()
         : <Book>[];
 
-    final filteredOnline = _readableCategory == 'كلاسيكيات أوفلاين'
+    final filteredOnline = _readableCategory == 'مكتبة أوفلاين'
         ? <OnlineBookEntry>[]
         : inAppOnline.where((b) {
             final matchCat = _readableCategory == 'الكل' || b.category == _readableCategory;
@@ -330,77 +190,395 @@ class _BooksLibraryViewState extends State<BooksLibraryView>
             return matchCat && matchQ;
           }).toList();
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: TextField(
-            onChanged: (v) => setState(() => _readableQuery = v),
-            style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 13),
-            decoration: _searchInputDecoration('ابحث في الكتب المقروءة كاملة الفصول داخل التطبيق...'),
-          ),
-        ),
-        SizedBox(
-          height: 36,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            children: categories.map((cat) {
-              return Padding(
-                padding: const EdgeInsets.only(left: 6),
-                child: _buildFilterPill(
-                  cat,
-                  _readableCategory == cat,
-                  () => setState(() => _readableCategory = cat),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: TextField(
+                onChanged: (v) => setState(() => _readableQuery = v),
+                style: GoogleFonts.cairo(color: p.ink, fontSize: 13.5),
+                decoration: const InputDecoration(
+                  hintText: 'ابحث باسم الكتاب أو المؤلف (أثناسيوس، بستان الرهبان، الديداخي...)...',
+                  prefixIcon: Icon(Icons.search_rounded, size: 20),
                 ),
-              );
-            }).toList(),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
-            children: [
-              if (filteredOnline.isNotEmpty) ...[
-                _buildSectionLabel('كتب أرثوذكسية كاملة الفصول (${filteredOnline.length} كتاباً)'),
-                const SizedBox(height: 8),
-                for (final ob in filteredOnline) ...[
-                  _buildOnlineBookCard(ob),
-                  const SizedBox(height: 8),
-                ],
-                const SizedBox(height: 16),
-              ],
-              if (offlineBooks.isNotEmpty) ...[
-                _buildSectionLabel('مختارات روحية وآبائية بدون إنترنت (${offlineBooks.length})'),
-                const SizedBox(height: 8),
-                for (final book in offlineBooks) ...[
-                  _buildOfflineBookCard(book),
-                  const SizedBox(height: 8),
-                ],
-              ],
-              if (filteredOnline.isEmpty && offlineBooks.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 48),
-                  child: Center(
-                    child: Text(
-                      'لا توجد نتائج مطابقة؛ جرب البحث في تبويب «المكتبة الشاملة» للوصول لآلاف الكتب.',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 13),
+              ),
+            ),
+            SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: categories.map((cat) {
+                  return Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: _buildFilterPill(
+                      p,
+                      cat,
+                      _readableCategory == cat,
+                      () => setState(() => _readableCategory = cat),
                     ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
+                children: [
+                  // 1. Offline Classics Visual Hardcover Shelf (ALWAYS INSTANT & RICH!)
+                  if (offlineBooks.isNotEmpty) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'مكتبة الآباء والكلاسيكيات (${offlineBooks.length} كتاباً أوفلاين)',
+                          style: GoogleFonts.amiri(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: p.ink,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 0.78,
+                      ),
+                      itemCount: offlineBooks.length,
+                      itemBuilder: (ctx, idx) {
+                        final book = offlineBooks[idx];
+                        final coverColor = _clothSpineColors[idx % _clothSpineColors.length];
+                        return _buildHardcoverBookCard(p, book, coverColor);
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // 2. Full-Chapter Online Books
+                  if (filteredOnline.isNotEmpty) ...[
+                    Text(
+                      'كتب أرثوذكسية كاملة الفصول (${filteredOnline.length} كتاباً)',
+                      style: GoogleFonts.amiri(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: p.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    for (int i = 0; i < filteredOnline.length; i++) ...[
+                      _buildOnlineBookCard(
+                        p,
+                        filteredOnline[i],
+                        _clothSpineColors[(i + 2) % _clothSpineColors.length],
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                  ],
+
+                  if (filteredOnline.isEmpty && offlineBooks.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 48),
+                      child: Center(
+                        child: Text(
+                          'لا توجد نتائج مطابقة؛ جرب البحث في تبويب «المكتبة الشاملة».',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.cairo(color: p.inkMuted, fontSize: 13.5),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHardcoverBookCard(AppPalette p, Book book, Color clothColor) {
+    return PressScale(
+      scale: 0.97,
+      onTap: () {
+        Navigator.push(
+          context,
+          luxeRoute(BookReaderView(book: book)),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: p.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: p.border),
+          boxShadow: [
+            BoxShadow(
+              color: p.shadow,
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Printed Clothbound Cover Top
+            Expanded(
+              flex: 11,
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: clothColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFFD8B872).withValues(alpha: 0.45),
+                    width: 1,
                   ),
                 ),
-            ],
-          ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const CopticCross(size: 16, color: Color(0xFFEBD6A4)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '${book.chaptersCount} فصول',
+                            style: GoogleFonts.cairo(
+                              fontSize: 9.5,
+                              color: const Color(0xFFEBD6A4),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      book.title,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.amiri(
+                        fontSize: 16.5,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFFFFFAF0),
+                        height: 1.3,
+                      ),
+                    ),
+                    Container(
+                      width: 28,
+                      height: 1.5,
+                      color: const Color(0xFFD8B872).withValues(alpha: 0.7),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Author & Offline tag Footer
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    book.author,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.cairo(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: p.ink,
+                    ),
+                  ),
+                  Text(
+                    'متاح للقراءة بدون إنترنت',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.cairo(
+                      fontSize: 10,
+                      color: p.sage,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
   // ===========================================================================
-  // TAB 3: MULTI-SOURCE COMPREHENSIVE INTERNET ORTHODOX LIBRARY (+6,000 BOOKS)
+  // TAB 2: ALL 73 BIBLE BOOKS FULL PATRISTIC COMMENTARIES
   // ===========================================================================
-  Widget _buildComprehensiveWebTab() {
+  Widget _buildTafsirTab(AppPalette p) {
+    final filtered = _tafsirBooks.where((b) {
+      final matchTest = _tafsirTestament == 'all' || b.testament == _tafsirTestament;
+      final q = _tafsirQuery.trim();
+      final matchQ = q.isEmpty || b.name.contains(q);
+      return matchTest && matchQ;
+    }).toList();
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: TextField(
+                onChanged: (v) => setState(() => _tafsirQuery = v),
+                style: GoogleFonts.cairo(color: p.ink, fontSize: 13.5),
+                decoration: const InputDecoration(
+                  hintText: 'ابحث باسم السفر (مثال: تكوين، مزامير، متى، رومية، رؤيا)...',
+                  prefixIcon: Icon(Icons.search_rounded, size: 20),
+                ),
+              ),
+            ),
+            SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  _buildFilterPill(p, 'الكل (${_tafsirBooks.length})', _tafsirTestament == 'all',
+                      () => setState(() => _tafsirTestament = 'all')),
+                  const SizedBox(width: 6),
+                  _buildFilterPill(p, 'العهد القديم', _tafsirTestament == 'old',
+                      () => setState(() => _tafsirTestament = 'old')),
+                  const SizedBox(width: 6),
+                  _buildFilterPill(p, 'القانونية الثانية', _tafsirTestament == 'deuterocanon',
+                      () => setState(() => _tafsirTestament = 'deuterocanon')),
+                  const SizedBox(width: 6),
+                  _buildFilterPill(p, 'العهد الجديد', _tafsirTestament == 'new',
+                      () => setState(() => _tafsirTestament = 'new')),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Row(
+                children: [
+                  Icon(Icons.auto_stories_outlined, size: 15, color: p.gold),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'تفسير القمص تادرس يعقوب ملطي • القمص أنطونيوس فكري • شروح الأب متى المسكين',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkMuted),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
+                itemCount: filtered.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemBuilder: (context, idx) {
+                  final b = filtered[idx];
+                  final testLabel = b.testament == 'new'
+                      ? 'العهد الجديد'
+                      : (b.testament == 'deuterocanon' ? 'قانونية ثانية' : 'العهد القديم');
+                  return PressScale(
+                    scale: 0.985,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        luxeRoute(
+                          OnlineTafsirReaderView(
+                            book: b,
+                            onSearchMatta: _jumpToWebSearch,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: p.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: p.border),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: p.goldSoft,
+                              borderRadius: BorderRadius.circular(11),
+                              border: Border.all(color: p.goldBorder),
+                            ),
+                            child: Center(
+                              child: Text(
+                                '${b.chaptersCount}',
+                                style: GoogleFonts.cairo(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: p.isDark ? p.gold : p.accent,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'تفسير ${b.name}',
+                                  style: GoogleFonts.amiri(
+                                    fontSize: 19,
+                                    fontWeight: FontWeight.bold,
+                                    color: p.ink,
+                                  ),
+                                ),
+                                Text(
+                                  '$testLabel • ${b.chaptersCount} أصحاحاً',
+                                  style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkMuted),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.chevron_left_rounded, color: p.inkMuted, size: 20),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // TAB 3: MULTI-SOURCE COMPREHENSIVE INTERNET ORTHODOX LIBRARY
+  // ===========================================================================
+  Widget _buildComprehensiveWebTab(AppPalette p) {
     final curatedWebBooks = _onlineBooks
         .where((b) => b.readerType != 'in_app_chapters')
         .where((b) => _webCategory == 'الكل' || b.category == _webCategory)
@@ -408,159 +586,156 @@ class _BooksLibraryViewState extends State<BooksLibraryView>
 
     final displayList = _liveSearchResults ?? curatedWebBooks;
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _webSearchCtrl,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: _runLiveInternetSearch,
-                  style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 13),
-                  decoration: _searchInputDecoration(
-                    'ابحث في آلاف الكتب (متى المسكين، بستان الرهبان، أثناسيوس، حبيب جرجس...)',
-                    suffixIcon: _webSearchCtrl.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.close_rounded, color: AppColors.textMuted, size: 18),
-                            onPressed: () {
-                              _webSearchCtrl.clear();
-                              setState(() => _liveSearchResults = null);
-                            },
-                          )
-                        : null,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                onPressed: () => _runLiveInternetSearch(_webSearchCtrl.text),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryGold,
-                  foregroundColor: Colors.black,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: Text('بحث حي', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 12.5)),
-              ),
-            ],
-          ),
-        ),
-        if (_liveSearchResults == null)
-          SizedBox(
-            height: 36,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _webCategories.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 6),
-              itemBuilder: (_, idx) {
-                final cat = _webCategories[idx];
-                return _buildFilterPill(
-                  cat,
-                  _webCategory == cat,
-                  () => setState(() => _webCategory = cat),
-                );
-              },
-            ),
-          ),
-        const SizedBox(height: 8),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: Row(
-            children: [
-              const Icon(Icons.public_rounded, size: 14, color: AppColors.primaryGold),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  _liveSearchResults != null
-                      ? 'نتائج البحث الحي من المكتبات الأرثوذكسية (${_liveSearchResults!.length} كتاب)'
-                      : 'مكتبة الكتب المسيحية • دير الأنبا مقار • المركز الآبائي • أرشيف مكتبة الإسكندرية',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textMuted),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: _isSearchingWeb
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const CircularProgressIndicator(color: AppColors.primaryGold, strokeWidth: 2),
-                      const SizedBox(height: 12),
-                      Text(
-                        'جاري البحث الحي في المكتبات الأرثوذكسية وأرشيف التراث القبطي...',
-                        style: GoogleFonts.cairo(fontSize: 12.5, color: AppColors.textMuted),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _webSearchCtrl,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: _runLiveInternetSearch,
+                      style: GoogleFonts.cairo(color: p.ink, fontSize: 13.5),
+                      decoration: InputDecoration(
+                        hintText: 'ابحث في آلاف الكتب (متى المسكين، أثناسيوس، حبيب جرجس...)',
+                        prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                        suffixIcon: _webSearchCtrl.text.isNotEmpty
+                            ? IconButton(
+                                icon: Icon(Icons.close_rounded, color: p.inkMuted, size: 18),
+                                onPressed: () {
+                                  _webSearchCtrl.clear();
+                                  setState(() => _liveSearchResults = null);
+                                },
+                              )
+                            : null,
                       ),
-                    ],
+                    ),
                   ),
-                )
-              : displayList.isEmpty
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () => _runLiveInternetSearch(_webSearchCtrl.text),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(0, 48),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                    ),
+                    child: const Text('بحث'),
+                  ),
+                ],
+              ),
+            ),
+            if (_liveSearchResults == null)
+              SizedBox(
+                height: 36,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: _webCategories.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 6),
+                  itemBuilder: (_, idx) {
+                    final cat = _webCategories[idx];
+                    return _buildFilterPill(
+                      p,
+                      cat,
+                      _webCategory == cat,
+                      () => setState(() => _webCategory = cat),
+                    );
+                  },
+                ),
+              ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _isSearchingWeb
                   ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          'لا توجد نتائج مطابقة لهذا البحث؛ جرب كتابة كلمة أقصر أو اسم المؤلف.',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 13),
-                        ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(color: p.accent, strokeWidth: 2),
+                          const SizedBox(height: 12),
+                          Text(
+                            'جاري البحث في المكتبات الأرثوذكسية...',
+                            style: GoogleFonts.cairo(fontSize: 13, color: p.inkSecondary),
+                          ),
+                        ],
                       ),
                     )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
-                      itemCount: displayList.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (_, idx) => _buildOnlineBookCard(displayList[idx]),
-                    ),
+                  : displayList.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Text(
+                              'لا توجد نتائج مطابقة لهذا البحث.',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.cairo(color: p.inkMuted, fontSize: 13.5),
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
+                          itemCount: displayList.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 10),
+                          itemBuilder: (_, idx) => _buildOnlineBookCard(
+                            p,
+                            displayList[idx],
+                            _clothSpineColors[idx % _clothSpineColors.length],
+                          ),
+                        ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildOnlineBookCard(OnlineBookEntry book) {
+  Widget _buildOnlineBookCard(AppPalette p, OnlineBookEntry book, Color spineColor) {
     final isInApp = book.readerType == 'in_app_chapters';
-    final isArchive = book.readerType == 'archive_org';
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
+    return PressScale(
+      scale: 0.985,
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => OnlineBookReaderView(book: book)),
+          luxeRoute(OnlineBookReaderView(book: book)),
         );
       },
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppColors.cardNavy,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.hairline),
+          color: p.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: p.border),
+          boxShadow: p.isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: p.shadow,
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Miniature Clothbound Book Spine Emblem
             Container(
-              width: 42,
-              height: 52,
+              width: 44,
+              height: 58,
               decoration: BoxDecoration(
-                color: AppColors.surfaceNavy,
+                color: spineColor,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.28)),
+                border: Border.all(
+                  color: const Color(0xFFD8B872).withValues(alpha: 0.45),
+                ),
               ),
               child: Center(
                 child: Icon(
-                  isInApp
-                      ? Icons.menu_book_rounded
-                      : (isArchive ? Icons.account_balance_outlined : Icons.picture_as_pdf_outlined),
-                  color: AppColors.primaryGold,
+                  isInApp ? Icons.menu_book_rounded : Icons.picture_as_pdf_outlined,
+                  color: const Color(0xFFF6E7C1),
                   size: 20,
                 ),
               ),
@@ -575,20 +750,20 @@ class _BooksLibraryViewState extends State<BooksLibraryView>
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.amiri(
-                      fontSize: 17.5,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textLight,
+                      color: p.ink,
                       height: 1.3,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 2),
                   Text(
                     book.author,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.cairo(
-                      fontSize: 11.5,
-                      color: AppColors.primaryGoldLight,
+                      fontSize: 12,
+                      color: p.accent,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -598,32 +773,15 @@ class _BooksLibraryViewState extends State<BooksLibraryView>
                       book.description,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textMuted, height: 1.4),
+                      style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkSecondary, height: 1.4),
                     ),
                   ],
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceNavy,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: AppColors.hairline),
-                        ),
-                        child: Text(
-                          book.source,
-                          style: GoogleFonts.cairo(fontSize: 9.5, color: AppColors.textMuted),
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.only(top: 6),
-              child: Icon(Icons.chevron_left_rounded, color: AppColors.primaryGold, size: 20),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Icon(Icons.chevron_left_rounded, color: p.inkMuted, size: 20),
             ),
           ],
         ),
@@ -631,119 +789,22 @@ class _BooksLibraryViewState extends State<BooksLibraryView>
     );
   }
 
-  Widget _buildOfflineBookCard(Book book) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => BookReaderView(book: book)),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.cardNavy,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.hairline),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 50,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceNavy,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.28)),
-              ),
-              child: const Center(
-                child: Icon(Icons.auto_stories_outlined, color: AppColors.primaryGold, size: 20),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    book.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.amiri(
-                      fontSize: 17.5,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textLight,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${book.author} • ${book.chaptersCount} فصول أوفلاين',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.textMuted),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_left_rounded, color: AppColors.primaryGold, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionLabel(String title) {
-    return Text(
-      title,
-      style: GoogleFonts.cairo(
-        fontSize: 13,
-        fontWeight: FontWeight.bold,
-        color: AppColors.primaryGoldLight,
-      ),
-    );
-  }
-
-  Widget _buildFilterPill(String label, bool active, VoidCallback onTap) {
+  Widget _buildFilterPill(AppPalette p, String label, bool active, VoidCallback onTap) {
     return ChoiceChip(
       label: Text(
         label,
         style: GoogleFonts.cairo(
           fontSize: 11.5,
           fontWeight: active ? FontWeight.bold : FontWeight.w500,
-          color: active ? Colors.black : AppColors.textLight,
+          color: active ? p.onAccent : p.ink,
         ),
       ),
       selected: active,
-      selectedColor: AppColors.primaryGold,
-      backgroundColor: AppColors.cardNavy,
+      selectedColor: p.accent,
+      backgroundColor: p.surface,
       showCheckmark: false,
-      side: BorderSide(color: active ? AppColors.primaryGold : AppColors.hairline),
+      side: BorderSide(color: active ? p.accent : p.border),
       onSelected: (_) => onTap(),
-    );
-  }
-
-  InputDecoration _searchInputDecoration(String hint, {Widget? suffixIcon}) {
-    return InputDecoration(
-      prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primaryGold, size: 20),
-      suffixIcon: suffixIcon,
-      hintText: hint,
-      hintStyle: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 12),
-      filled: true,
-      fillColor: AppColors.cardNavy,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.hairline),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.hairline),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.6)),
-      ),
     );
   }
 }

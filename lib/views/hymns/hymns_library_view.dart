@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../../core/constants/app_colors.dart';
+import '../../core/services/coptic_calendar_service.dart';
+import '../../core/theme/app_palette.dart';
 import '../../core/widgets/luxe_widgets.dart';
 import '../../models/hymn_model.dart';
 import '../../providers/audio_provider.dart';
@@ -23,7 +24,8 @@ class _HymnsLibraryViewState extends State<HymnsLibraryView> {
   String _searchQuery = '';
   bool _isLoading = true;
 
-  final List<Map<String, String>> _categories = [
+  // Only real populated categories (removed empty dead `agpeya_coptic` chip!)
+  static const List<Map<String, String>> _categories = [
     {'id': 'all', 'name': 'جميع الألحان'},
     {'id': 'liturgical', 'name': 'القداس ورفع البخور'},
     {'id': 'resurrection', 'name': 'القيامة والخماسين'},
@@ -32,7 +34,6 @@ class _HymnsLibraryViewState extends State<HymnsLibraryView> {
     {'id': 'great_lent', 'name': 'الصوم الكبير ويونان'},
     {'id': 'praise', 'name': 'التسبحة والأبصلمودية'},
     {'id': 'feasts', 'name': 'الأعياد والمناسبات'},
-    {'id': 'agpeya_coptic', 'name': 'الأجبية بالقبطي'},
   ];
 
   @override
@@ -54,216 +55,243 @@ class _HymnsLibraryViewState extends State<HymnsLibraryView> {
     }
   }
 
+  /// Auto-matches today's Coptic liturgical season to curated hymns!
+  String _seasonalCategoryId(String seasonName) {
+    if (seasonName.contains('كيهك') ||
+        seasonName.contains('الميلاد') ||
+        seasonName.contains('الغطاس')) {
+      return 'kiahk_nativity';
+    }
+    if (seasonName.contains('الآلام') || seasonName.contains('البصخة')) {
+      return 'holy_week';
+    }
+    if (seasonName.contains('القيامة') ||
+        seasonName.contains('الخماسين') ||
+        seasonName.contains('العنصرة')) {
+      return 'resurrection';
+    }
+    if (seasonName.contains('الكبير') || seasonName.contains('نينوى')) {
+      return 'great_lent';
+    }
+    if (seasonName.contains('الرسل') ||
+        seasonName.contains('النيروز') ||
+        seasonName.contains('الصليب') ||
+        seasonName.contains('عيد')) {
+      return 'feasts';
+    }
+    return 'liturgical';
+  }
+
   List<Hymn> get _filteredHymns {
+    final q = _searchQuery.toLowerCase();
     return _allHymns.where((h) {
-      final matchCat = _selectedCategory == 'all' || h.categoryId == _selectedCategory;
-      final matchSearch = _searchQuery.isEmpty ||
-          h.title.contains(_searchQuery) ||
-          h.cantor.contains(_searchQuery) ||
-          h.categoryName.contains(_searchQuery);
+      final matchCat =
+          _selectedCategory == 'all' || h.categoryId == _selectedCategory;
+      final matchSearch = q.isEmpty ||
+          h.title.toLowerCase().contains(q) ||
+          h.cantor.toLowerCase().contains(q) ||
+          h.categoryName.toLowerCase().contains(q);
       return matchCat && matchSearch;
     }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
+
     if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: AppColors.deepNavy,
-        body: Center(child: CircularProgressIndicator(color: AppColors.primaryGold)),
+      return Scaffold(
+        backgroundColor: p.background,
+        body: Center(child: CircularProgressIndicator(color: p.accent)),
       );
     }
 
-    final featured = context.watch<AudioProvider>().currentHymn ??
-        (_allHymns.isNotEmpty ? _allHymns.first : null);
+    final todayLiturgical = CopticCalendarService.todayLiturgical();
+    final seasonCatId = _seasonalCategoryId(todayLiturgical.seasonName);
+    final seasonalHymns = _allHymns
+        .where((h) => h.categoryId == seasonCatId)
+        .take(8)
+        .toList();
+
+    final audioProv = context.watch<AudioProvider>();
+    final nowPlaying = audioProv.currentHymn;
 
     return Scaffold(
-      backgroundColor: AppColors.deepNavy,
+      backgroundColor: p.background,
       body: SafeArea(
         child: Column(
           children: [
-            // Top Header (matches Video Frames 08 & 09)
+            // Top Editorial Header
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 8, 18, 6),
+              padding: const EdgeInsets.fromLTRB(18, 10, 18, 6),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  LuxeCircleButton(
-                    icon: Icons.search_rounded,
-                    onTap: () => Navigator.push(context, luxeRoute(const GlobalSearchView())),
-                  ),
-                  Text(
-                    'الألحان والطقوس',
-                    style: GoogleFonts.cairo(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textLight,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'الألحان والطقوس',
+                          style: GoogleFonts.amiri(
+                            fontSize: 25,
+                            fontWeight: FontWeight.w700,
+                            color: p.ink,
+                            height: 1.15,
+                          ),
+                        ),
+                        Text(
+                          '${_allHymns.length} لحناً قبطياً بالنص الثلاثي والتسجيل الصوتي',
+                          style: GoogleFonts.cairo(
+                            fontSize: 11.5,
+                            color: p.inkMuted,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  if (featured != null)
-                    LuxeCircleButton(
-                      icon: Icons.fullscreen_rounded,
-                      onTap: () => Navigator.push(
-                        context,
-                        luxeRoute(HymnDetailView(hymn: featured, playlist: _filteredHymns)),
-                      ),
-                    )
-                  else
-                    const SizedBox(width: 40),
+                  LuxeCircleButton(
+                    icon: Icons.search_rounded,
+                    onTap: () => Navigator.push(
+                        context, luxeRoute(const GlobalSearchView())),
+                  ),
                 ],
               ),
             ),
 
-            // Featured Hymn Player Card (tapping opens the full Frame 08-09 player)
-            if (featured != null)
-              Consumer<AudioProvider>(
-                builder: (context, audioProv, _) {
-                  final isPlaying =
-                      audioProv.currentHymn?.id == featured.id && audioProv.isPlaying;
-                  return PressScale(
-                    scale: 0.98,
-                    onTap: () => Navigator.push(
-                      context,
-                      luxeRoute(HymnDetailView(hymn: featured, playlist: _filteredHymns)),
+            // Active Now Playing Strip (when a hymn is loaded)
+            if (nowPlaying != null)
+              PressScale(
+                scale: 0.985,
+                onTap: () => Navigator.push(
+                  context,
+                  luxeRoute(HymnDetailView(
+                      hymn: nowPlaying, playlist: _filteredHymns)),
+                ),
+                child: Container(
+                  margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: p.surfaceElevated,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: p.accent.withValues(alpha: 0.45),
+                      width: 1.2,
                     ),
-                    child: Container(
-                      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        gradient: AppColors.obsidianCard,
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(
-                          color: AppColors.primaryGold.withValues(alpha: 0.4),
-                          width: 1.2,
+                  ),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: const SizedBox(
+                          width: 52,
+                          height: 52,
+                          child: SafeAssetImage(
+                              'assets/images/hymn_album_art.jpg'),
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.55),
-                            blurRadius: 18,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
                       ),
-                      child: Row(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: const SizedBox(
-                              width: 78,
-                              height: 78,
-                              child: SafeAssetImage('assets/images/hymn_album_art.jpg'),
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  padding:
-                                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primaryGold.withValues(alpha: 0.16),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.play_circle_fill_rounded, size: 12, color: Colors.redAccent),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'بث مباشر يوتيوب أونلاين • اضغط للعرض والترتيل',
-                                        style: GoogleFonts.cairo(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.primaryGoldLight,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  featured.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.cairo(
-                                    fontSize: 15.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.textLight,
-                                  ),
-                                ),
-                                Text(
-                                  featured.cantor,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.cairo(
-                                    fontSize: 12,
-                                    color: AppColors.textMuted,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: () {
-                              HapticFeedback.mediumImpact();
-                              if (isPlaying) {
-                                audioProv.pause();
-                              } else {
-                                audioProv.play(featured);
-                              }
-                            },
-                            child: Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: AppColors.champagne,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppColors.primaryGold.withValues(alpha: 0.35),
-                                    blurRadius: 12,
-                                  ),
-                                ],
-                              ),
-                              child: Icon(
-                                isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                                color: Colors.black,
-                                size: 28,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              audioProv.isLoading
+                                  ? 'جارٍ تحميل الصوت...'
+                                  : (audioProv.isPlaying
+                                      ? 'قيد التشغيل الآن'
+                                      : 'متوقف مؤقتاً'),
+                              style: GoogleFonts.cairo(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: p.accent,
                               ),
                             ),
-                          ),
-                        ],
+                            Text(
+                              nowPlaying.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.cairo(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: p.ink,
+                              ),
+                            ),
+                            Text(
+                              audioProv.activeCantor,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.cairo(
+                                fontSize: 11,
+                                color: p.inkMuted,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                },
+                      GestureDetector(
+                        onTap: () {
+                          HapticFeedback.mediumImpact();
+                          if (audioProv.isPlaying) {
+                            audioProv.pause();
+                          } else {
+                            audioProv.resume();
+                          }
+                        },
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: p.accent,
+                          ),
+                          child: audioProv.isLoading
+                              ? Padding(
+                                  padding: const EdgeInsets.all(11),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: p.onAccent,
+                                  ),
+                                )
+                              : Icon(
+                                  audioProv.isPlaying
+                                      ? Icons.pause_rounded
+                                      : Icons.play_arrow_rounded,
+                                  color: p.onAccent,
+                                  size: 24,
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
 
             // Search Field
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
               child: TextField(
                 onChanged: (val) => setState(() => _searchQuery = val.trim()),
-                style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 13.5),
+                style: GoogleFonts.cairo(color: p.ink, fontSize: 13.5),
                 decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primaryGold),
-                  hintText: 'ابحث في ${_allHymns.length} لحناً قبطياً باسم اللحن أو المرتل...',
-                  hintStyle: GoogleFonts.cairo(
-                    color: AppColors.textMuted.withValues(alpha: 0.75),
-                    fontSize: 12.5,
-                  ),
+                  prefixIcon: Icon(Icons.search_rounded, color: p.accent),
+                  hintText:
+                      'ابحث في ${_allHymns.length} لحناً باسم اللحن أو المرتل...',
+                  hintStyle: GoogleFonts.cairo(color: p.inkSubtle, fontSize: 12.5),
                   filled: true,
-                  fillColor: AppColors.cardNavy,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                  fillColor: p.surfaceElevated,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: p.border),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: p.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: p.accent, width: 1.2),
                   ),
                 ),
               ),
@@ -271,7 +299,7 @@ class _HymnsLibraryViewState extends State<HymnsLibraryView> {
 
             // Categories Chips
             SizedBox(
-              height: 42,
+              height: 40,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -285,173 +313,316 @@ class _HymnsLibraryViewState extends State<HymnsLibraryView> {
                       cat['name']!,
                       style: GoogleFonts.cairo(
                         fontSize: 11.5,
-                        fontWeight: FontWeight.bold,
-                        color: isSelected ? Colors.black : AppColors.textLight,
+                        fontWeight: FontWeight.w700,
+                        color: isSelected ? p.onAccent : p.ink,
                       ),
                     ),
                     selected: isSelected,
-                    selectedColor: AppColors.primaryGold,
-                    backgroundColor: AppColors.cardNavy,
+                    selectedColor: p.accent,
+                    backgroundColor: p.surfaceElevated,
                     side: BorderSide(
-                      color: isSelected
-                          ? AppColors.primaryGold
-                          : Colors.white.withValues(alpha: 0.08),
+                      color: isSelected ? p.accent : p.border,
                     ),
-                    onSelected: (_) => setState(() => _selectedCategory = cat['id']!),
+                    showCheckmark: false,
+                    onSelected: (_) =>
+                        setState(() => _selectedCategory = cat['id']!),
                   );
                 },
               ),
             ),
 
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
 
-            // Hymns List (Obsidian cards with square thumbnail)
+            // Main scrollable body (Seasonal Strip + Filtered Hymns List)
             Expanded(
               child: _filteredHymns.isEmpty
                   ? Center(
-                      child: Text(
-                        'لا توجد ألحان مطابقة للبحث',
-                        style: GoogleFonts.cairo(color: AppColors.textMuted),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.music_off_rounded,
+                              size: 40, color: p.inkSubtle),
+                          const SizedBox(height: 8),
+                          Text(
+                            'لا توجد ألحان مطابقة للبحث',
+                            style: GoogleFonts.cairo(color: p.inkMuted),
+                          ),
+                        ],
                       ),
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 95),
-                      itemCount: _filteredHymns.length,
-                      itemBuilder: (context, index) {
+                      padding: const EdgeInsets.fromLTRB(16, 2, 16, 100),
+                      itemCount: _filteredHymns.length +
+                          (_selectedCategory == 'all' &&
+                                  _searchQuery.isEmpty &&
+                                  seasonalHymns.isNotEmpty
+                              ? 1
+                              : 0),
+                      itemBuilder: (context, rawIdx) {
+                        final hasSeasonHeader = _selectedCategory == 'all' &&
+                            _searchQuery.isEmpty &&
+                            seasonalHymns.isNotEmpty;
+                        if (hasSeasonHeader && rawIdx == 0) {
+                          return _buildSeasonalRibbon(
+                            p,
+                            todayLiturgical.seasonName,
+                            seasonCatId,
+                            seasonalHymns,
+                          );
+                        }
+                        final index = hasSeasonHeader ? rawIdx - 1 : rawIdx;
                         final hymn = _filteredHymns[index];
-                        return Consumer<AudioProvider>(
-                          builder: (context, audioProv, _) {
-                            final isCurrentPlaying =
-                                audioProv.currentHymn?.id == hymn.id && audioProv.isPlaying;
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 10),
-                              decoration: BoxDecoration(
-                                gradient: AppColors.obsidianCard,
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                  color: isCurrentPlaying
-                                      ? AppColors.primaryGold
-                                      : Colors.white.withValues(alpha: 0.06),
-                                  width: isCurrentPlaying ? 1.5 : 1,
-                                ),
-                              ),
-                              child: ListTile(
-                                contentPadding:
-                                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                                leading: GestureDetector(
-                                  onTap: () {
-                                    HapticFeedback.lightImpact();
-                                    if (isCurrentPlaying) {
-                                      audioProv.pause();
-                                    } else {
-                                      audioProv.play(hymn);
-                                    }
-                                  },
-                                  child: Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(12),
-                                        child: const SizedBox(
-                                          width: 52,
-                                          height: 52,
-                                          child: SafeAssetImage(
-                                            'assets/images/thumb_hymns.jpg',
-                                          ),
-                                        ),
-                                      ),
-                                      Container(
-                                        width: 30,
-                                        height: 30,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: isCurrentPlaying
-                                              ? AppColors.primaryGold
-                                              : Colors.black.withValues(alpha: 0.65),
-                                          border: Border.all(
-                                            color: AppColors.primaryGold,
-                                            width: 1.2,
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          isCurrentPlaying
-                                              ? Icons.pause_rounded
-                                              : Icons.play_arrow_rounded,
-                                          color: isCurrentPlaying
-                                              ? Colors.black
-                                              : AppColors.primaryGoldLight,
-                                          size: 18,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                title: Text(
-                                  hymn.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.cairo(
-                                    fontSize: 14.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.textLight,
-                                  ),
-                                ),
-                                subtitle: Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                      decoration: BoxDecoration(
-                                        color: Colors.red.withValues(alpha: 0.18),
-                                        borderRadius: BorderRadius.circular(4),
-                                        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.35)),
-                                      ),
-                                      child: Text(
-                                        'يوتيوب',
-                                        style: GoogleFonts.cairo(
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.redAccent,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(
-                                        '${hymn.cantor} • ${hymn.categoryName}',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: GoogleFonts.cairo(
-                                          fontSize: 11.5,
-                                          color: AppColors.textMuted,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                trailing: const Icon(
-                                  Icons.chevron_left_rounded,
-                                  size: 22,
-                                  color: AppColors.primaryGoldLight,
-                                ),
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    luxeRoute(
-                                      HymnDetailView(
-                                        hymn: hymn,
-                                        playlist: _filteredHymns,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            );
-                          },
-                        );
+                        return _buildHymnRow(p, hymn, audioProv);
                       },
                     ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSeasonalRibbon(
+    AppPalette p,
+    String seasonName,
+    String seasonCatId,
+    List<Hymn> seasonalHymns,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: p.surfaceElevated,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: p.accent.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.auto_awesome_rounded, color: p.accent, size: 17),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'ألحان موسم اليوم — $seasonName',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.cairo(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: p.ink,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () => setState(() => _selectedCategory = seasonCatId),
+                child: Text(
+                  'عرض الكل',
+                  style: GoogleFonts.cairo(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: p.accent,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 82,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: seasonalHymns.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (context, idx) {
+                final h = seasonalHymns[idx];
+                return GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    luxeRoute(HymnDetailView(hymn: h, playlist: seasonalHymns)),
+                  ),
+                  child: Container(
+                    width: 178,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: p.surfaceMuted,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: p.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          h.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.cairo(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: p.ink,
+                            height: 1.25,
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            Icon(
+                              h.exactYoutube
+                                  ? Icons.play_circle_filled_rounded
+                                  : Icons.audiotrack_rounded,
+                              size: 13,
+                              color: h.exactYoutube ? p.crimson : p.accent,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                h.cantor,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.cairo(
+                                  fontSize: 10,
+                                  color: p.inkMuted,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHymnRow(AppPalette p, Hymn hymn, AudioProvider audioProv) {
+    final isCurrent = audioProv.currentHymn?.id == hymn.id;
+    final isCurrentPlaying = isCurrent && audioProv.isPlaying;
+    final isCurrentLoading = isCurrent && audioProv.isLoading;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 9),
+      decoration: BoxDecoration(
+        color: p.surfaceElevated,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isCurrent ? p.accent : p.border,
+          width: isCurrent ? 1.3 : 1,
+        ),
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        leading: GestureDetector(
+          onTap: () async {
+            HapticFeedback.lightImpact();
+            if (isCurrentPlaying) {
+              audioProv.pause();
+            } else {
+              final ok = await audioProv.play(hymn);
+              if (!ok && mounted) {
+                // Open the full detail screen where YouTube playback is 1 tap away
+                Navigator.push(
+                  context,
+                  luxeRoute(
+                      HymnDetailView(hymn: hymn, playlist: _filteredHymns)),
+                );
+              }
+            }
+          },
+          child: Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: isCurrent ? p.accent : p.accentSoft,
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(
+                color: p.accent.withValues(alpha: 0.35),
+              ),
+            ),
+            child: isCurrentLoading
+                ? Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: isCurrent ? p.onAccent : p.accent,
+                    ),
+                  )
+                : Icon(
+                    isCurrentPlaying
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                    color: isCurrent ? p.onAccent : p.accent,
+                    size: 24,
+                  ),
+          ),
+        ),
+        title: Text(
+          hymn.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.cairo(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: p.ink,
+          ),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 3),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: hymn.exactYoutube ? p.crimsonSoft : p.accentSoft,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  hymn.exactYoutube ? 'فيديو + صوت' : 'نص + صوت',
+                  style: GoogleFonts.cairo(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                    color: hymn.exactYoutube ? p.crimson : p.accent,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '${hymn.cantor} • ${hymn.categoryName}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.cairo(
+                    fontSize: 11,
+                    color: p.inkMuted,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        trailing: Icon(
+          Icons.chevron_left_rounded,
+          size: 22,
+          color: p.inkSubtle,
+        ),
+        onTap: () {
+          Navigator.push(
+            context,
+            luxeRoute(
+              HymnDetailView(
+                hymn: hymn,
+                playlist: _filteredHymns,
+              ),
+            ),
+          );
+        },
         ),
       ),
     );

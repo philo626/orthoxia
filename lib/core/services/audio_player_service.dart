@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:collection';
+import 'dart:typed_data';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:http/http.dart' as http;
 import '../../models/hymn_model.dart';
 import 'security_guard_service.dart';
 
@@ -8,25 +11,33 @@ class AudioPlayerService {
   factory AudioPlayerService() => _instance;
 
   final AudioPlayer _player = AudioPlayer();
-  Timer? _fallbackTimer;
+  final LinkedHashMap<String, Uint8List> _audioCache =
+      LinkedHashMap<String, Uint8List>();
+  static const int _maxCachedTracks = 3;
+  static const int _maxAudioBytes = 25 * 1024 * 1024; // 25 MB safety cap
 
   Hymn? _currentHymn;
   String _activeAudioUrl = '';
   String _activeCantor = '';
   bool _isPlaying = false;
+  bool _isLoading = false;
+  String? _lastError;
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
   double _playbackSpeed = 1.0;
   bool _isLooping = false;
-  bool _isFallbackMode = false;
 
   final _hymnStreamController = StreamController<Hymn?>.broadcast();
   final _playingStreamController = StreamController<bool>.broadcast();
+  final _loadingStreamController = StreamController<bool>.broadcast();
+  final _errorStreamController = StreamController<String?>.broadcast();
   final _positionStreamController = StreamController<Duration>.broadcast();
   final _durationStreamController = StreamController<Duration>.broadcast();
 
   Stream<Hymn?> get currentHymnStream => _hymnStreamController.stream;
   Stream<bool> get isPlayingStream => _playingStreamController.stream;
+  Stream<bool> get isLoadingStream => _loadingStreamController.stream;
+  Stream<String?> get errorStream => _errorStreamController.stream;
   Stream<Duration> get positionStream => _positionStreamController.stream;
   Stream<Duration> get durationStream => _durationStreamController.stream;
 
@@ -34,6 +45,8 @@ class AudioPlayerService {
   String get activeAudioUrl => _activeAudioUrl;
   String get activeCantor => _activeCantor;
   bool get isPlaying => _isPlaying;
+  bool get isLoading => _isLoading;
+  String? get lastError => _lastError;
   Duration get duration => _duration;
   Duration get position => _position;
   double get playbackSpeed => _playbackSpeed;
@@ -57,24 +70,24 @@ class AudioPlayerService {
     );
 
     _player.onPlayerStateChanged.listen((state) {
-      if (!_isFallbackMode) {
-        _isPlaying = state == PlayerState.playing;
-        _playingStreamController.add(_isPlaying);
+      _isPlaying = state == PlayerState.playing;
+      if (_isPlaying) {
+        _isLoading = false;
+        _loadingStreamController.add(false);
       }
+      _playingStreamController.add(_isPlaying);
     });
 
     _player.onDurationChanged.listen((newDuration) {
-      if (!_isFallbackMode && newDuration > Duration.zero) {
+      if (newDuration > Duration.zero) {
         _duration = newDuration;
         _durationStreamController.add(_duration);
       }
     });
 
     _player.onPositionChanged.listen((newPosition) {
-      if (!_isFallbackMode) {
-        _position = newPosition;
-        _positionStreamController.add(_position);
-      }
+      _position = newPosition;
+      _positionStreamController.add(_position);
     });
 
     _player.onPlayerComplete.listen((_) {
@@ -85,6 +98,7 @@ class AudioPlayerService {
         _isPlaying = false;
         _position = Duration.zero;
         _playingStreamController.add(false);
+        _positionStreamController.add(Duration.zero);
       }
     });
   }
@@ -95,6 +109,11 @@ class AudioPlayerService {
       'https://media.stgeorgesaman.com/uploads/',
       'https://stgeorgesaman.com/wp-content/uploads/',
     );
+  }
+
+  void clearError() {
+    _lastError = null;
+    _errorStreamController.add(null);
   }
 
   Future<bool> _tryPlaySource(String rawSource) async {
@@ -109,10 +128,49 @@ class AudioPlayerService {
         await _player.setPlaybackRate(_playbackSpeed);
         return true;
       } else if (SecurityGuardService.isSafeExternalUrl(source)) {
-        final mime = source.toLowerCase().endsWith('.wav') ? 'audio/wav' : 'audio/mpeg';
+        final mime =
+            source.toLowerCase().endsWith('.wav') ? 'audio/wav' : 'audio/mpeg';
+
+        // 1. Check tiny in-memory LRU cache first
+        Uint8List? bytes = _audioCache[source];
+        if (bytes == null) {
+          // 2. Fetch with standard browser User-Agent so liturgical servers
+          //    (e.g. stgeorgesaman.com) do not reject Android MediaPlayer with HTTP 406.
+          try {
+            final resp = await http.get(
+              Uri.parse(source),
+              headers: const {
+                'User-Agent':
+                    'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                'Accept': 'audio/mpeg, audio/wav, audio/*;q=0.9, */*;q=0.5',
+              },
+            ).timeout(const Duration(seconds: 15));
+            if (resp.statusCode == 200 &&
+                resp.bodyBytes.length > 1024 &&
+                resp.bodyBytes.length <= _maxAudioBytes) {
+              bytes = resp.bodyBytes;
+              _audioCache[source] = bytes;
+              if (_audioCache.length > _maxCachedTracks) {
+                _audioCache.remove(_audioCache.keys.first);
+              }
+            }
+          } catch (_) {
+            bytes = null;
+          }
+        }
+
+        if (bytes != null) {
+          await _player
+              .play(BytesSource(bytes, mimeType: mime))
+              .timeout(const Duration(seconds: 12));
+          await _player.setPlaybackRate(_playbackSpeed);
+          return true;
+        }
+
+        // 3. Direct stream fallback for non-WAF hosts
         await _player
             .play(UrlSource(source, mimeType: mime))
-            .timeout(const Duration(seconds: 20));
+            .timeout(const Duration(seconds: 12));
         await _player.setPlaybackRate(_playbackSpeed);
         return true;
       }
@@ -122,21 +180,34 @@ class AudioPlayerService {
     return false;
   }
 
-  Future<void> playHymn(
+  /// Attempts to play real audio from local asset or verified remote recording.
+  /// Never simulates fake silent playback on network failure — instead reports
+  /// an honest error so the UI can switch smoothly to YouTube or inform the user.
+  Future<bool> playHymn(
     Hymn hymn, {
     String? customAudioUrl,
     String? customCantor,
   }) async {
     _currentHymn = hymn;
     _activeCantor = customCantor ?? hymn.cantor;
+    _isLoading = true;
+    _isPlaying = false;
+    _position = Duration.zero;
+    _duration = Duration.zero;
+    _lastError = null;
+
     _hymnStreamController.add(_currentHymn);
-    _stopFallback();
-    _isFallbackMode = false;
+    _loadingStreamController.add(true);
+    _playingStreamController.add(false);
+    _positionStreamController.add(Duration.zero);
+    _durationStreamController.add(Duration.zero);
+    _errorStreamController.add(null);
 
     final candidates = <Map<String, String>>[];
 
     if (customAudioUrl != null && customAudioUrl.isNotEmpty) {
-      candidates.add({'url': customAudioUrl, 'cantor': customCantor ?? hymn.cantor});
+      candidates
+          .add({'url': customAudioUrl, 'cantor': customCantor ?? hymn.cantor});
     }
     if (hymn.localAsset.isNotEmpty) {
       candidates.add({'url': hymn.localAsset, 'cantor': hymn.cantor});
@@ -150,7 +221,6 @@ class AudioPlayerService {
       }
     }
 
-    bool nativeSuccess = false;
     final tried = <String>{};
     for (final cand in candidates) {
       final url = cand['url']!;
@@ -160,82 +230,63 @@ class AudioPlayerService {
       if (ok) {
         _activeAudioUrl = url;
         _activeCantor = cand['cantor'] ?? hymn.cantor;
+        _isLoading = false;
         _isPlaying = true;
+        _lastError = null;
+        _loadingStreamController.add(false);
         _playingStreamController.add(true);
+        _errorStreamController.add(null);
         _hymnStreamController.add(_currentHymn);
-        nativeSuccess = true;
-        break;
+        return true;
       }
     }
 
-    if (!nativeSuccess) {
-      _startFallbackMode(hymn);
-    }
-  }
-
-  void _startFallbackMode(Hymn hymn) {
-    _isFallbackMode = true;
-    _isPlaying = true;
-    _position = Duration.zero;
-    final totalSec = (hymn.verses.isNotEmpty ? hymn.verses.length * 20 : 90);
-    _duration = Duration(seconds: totalSec);
-
-    _durationStreamController.add(_duration);
-    _playingStreamController.add(true);
-    _positionStreamController.add(Duration.zero);
-
-    _fallbackTimer?.cancel();
-    _fallbackTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      if (!_isPlaying) return;
-      final newPos = _position + Duration(milliseconds: (500 * _playbackSpeed).toInt());
-      if (newPos >= _duration) {
-        if (_isLooping) {
-          _position = Duration.zero;
-          _positionStreamController.add(_position);
-        } else {
-          _position = Duration.zero;
-          _isPlaying = false;
-          _playingStreamController.add(false);
-          _positionStreamController.add(_position);
-          timer.cancel();
-        }
-      } else {
-        _position = newPos;
-        _positionStreamController.add(_position);
-      }
-    });
-  }
-
-  void _stopFallback() {
-    _fallbackTimer?.cancel();
-    _fallbackTimer = null;
+    // Honest failure: do NOT tick a fake silent timer.
+    _isLoading = false;
+    _isPlaying = false;
+    _activeAudioUrl = '';
+    _lastError =
+        'خادم الصوت المباشر لهذا اللحن غير مستجيب حالياً — يمكنك الاستماع عبر يوتيوب مباشرة.';
+    _loadingStreamController.add(false);
+    _playingStreamController.add(false);
+    _errorStreamController.add(_lastError);
+    return false;
   }
 
   Future<void> pause() async {
     _isPlaying = false;
     _playingStreamController.add(false);
-    if (!_isFallbackMode) {
+    try {
       await _player.pause();
-    }
+    } catch (_) {}
   }
 
   Future<void> resume() async {
+    if (_activeAudioUrl.isEmpty && _currentHymn != null) {
+      await playHymn(_currentHymn!);
+      return;
+    }
     _isPlaying = true;
     _playingStreamController.add(true);
-    if (!_isFallbackMode) {
+    try {
       await _player.resume();
-    }
+    } catch (_) {}
   }
 
   Future<void> stop() async {
     _isPlaying = false;
+    _isLoading = false;
+    _lastError = null;
     _position = Duration.zero;
-    _stopFallback();
+    _duration = Duration.zero;
     _playingStreamController.add(false);
+    _loadingStreamController.add(false);
+    _errorStreamController.add(null);
     _positionStreamController.add(Duration.zero);
-    if (!_isFallbackMode) {
+    _durationStreamController.add(Duration.zero);
+    try {
       await _player.stop();
-    }
+    } catch (_) {}
     _currentHymn = null;
     _activeAudioUrl = '';
     _hymnStreamController.add(null);
@@ -244,16 +295,16 @@ class AudioPlayerService {
   Future<void> seek(Duration target) async {
     _position = target;
     _positionStreamController.add(target);
-    if (!_isFallbackMode) {
+    try {
       await _player.seek(target);
-    }
+    } catch (_) {}
   }
 
   Future<void> setSpeed(double speed) async {
     _playbackSpeed = speed;
-    if (!_isFallbackMode) {
+    try {
       await _player.setPlaybackRate(speed);
-    }
+    } catch (_) {}
   }
 
   void toggleLoop() {
@@ -261,10 +312,11 @@ class AudioPlayerService {
   }
 
   void dispose() {
-    _stopFallback();
     _player.dispose();
     _hymnStreamController.close();
     _playingStreamController.close();
+    _loadingStreamController.close();
+    _errorStreamController.close();
     _positionStreamController.close();
     _durationStreamController.close();
   }

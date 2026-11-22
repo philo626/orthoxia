@@ -1041,35 +1041,69 @@ class PatronSaintService {
   static List<PatronSaintProfile> _allSaintsCache = List<PatronSaintProfile>.from(curatedSaints);
   static bool _synaxariumLoaded = false;
 
+  /// Bespoke museum-grade Neo-Coptic Orthodox sacred icons bundled offline (0ms load, cohesive style)
+  static const Map<String, String> _bundledIconsById = {
+    'virgin_mary': 'assets/images/saints/virgin_mary.jpg',
+    'archangel_michael': 'assets/images/saints/archangel_michael.jpg',
+    'st_mark': 'assets/images/saints/st_mark.jpg',
+    'st_george': 'assets/images/saints/st_george.jpg',
+    'st_mina': 'assets/images/saints/st_mina.jpg',
+    'pope_kyrillos': 'assets/images/saints/pope_kyrillos.jpg',
+    'st_athanasius': 'assets/images/saints/st_athanasius.jpg',
+    'st_philopateer': 'assets/images/saints/st_philopateer.jpg',
+    'st_mercurius': 'assets/images/saints/st_philopateer.jpg',
+    'st_abanoub': 'assets/images/saints/st_abanoub.jpg',
+  };
+
+  static const List<Map<String, dynamic>> _bundledKeywordIcons = [
+    {'keys': ['العذراء', 'والدة الإله', 'ثيؤطوكوس'], 'url': 'assets/images/saints/virgin_mary.jpg'},
+    {'keys': ['ميخائيل'], 'url': 'assets/images/saints/archangel_michael.jpg'},
+    {'keys': ['مارمرقس', 'مرقس الرسول', 'مرقس الإنجيلي'], 'url': 'assets/images/saints/st_mark.jpg'},
+    {'keys': ['مارجرجس', 'جرجس'], 'url': 'assets/images/saints/st_george.jpg'},
+    {'keys': ['مارمينا', 'مينا العجائبي', 'مينا العجايبي'], 'url': 'assets/images/saints/st_mina.jpg'},
+    {'keys': ['البابا كيرلس السادس', 'كيرلس السادس'], 'url': 'assets/images/saints/pope_kyrillos.jpg'},
+    {'keys': ['أثناسيوس', 'اثناسيوس'], 'url': 'assets/images/saints/st_athanasius.jpg'},
+    {'keys': ['فيلوباتير', 'أبو سيفين', 'ابو سيفين', 'مرقوريوس'], 'url': 'assets/images/saints/st_philopateer.jpg'},
+    {'keys': ['أبانوب', 'ابانوب'], 'url': 'assets/images/saints/st_abanoub.jpg'},
+  ];
+
   static Map<String, String> _iconsById = {
-    'virgin_mary': 'https://thumb.wikimedia.org/wikipedia/commons/thumb/0/04/Kazan_moscow.jpg/500px-Kazan_moscow.jpg',
-    'archangel_michael': 'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/Coptic_Icon_of_the_Archangel_Michael.jpg/500px-Coptic_Icon_of_the_Archangel_Michael.jpg',
-    'pope_kyrillos': 'https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e4/Pope_Cyril_VI_of_Alexandria.jpg/500px-Pope_Cyril_VI_of_Alexandria.jpg',
+    ..._bundledIconsById,
     'pope_shenouda': 'https://thumb.wikimedia.org/wikipedia/commons/thumb/1/10/Pope_Shenouda_III_of_Alexandria_by_Chuck_Kennedy.jpg/500px-Pope_Shenouda_III_of_Alexandria_by_Chuck_Kennedy.jpg',
-    'st_george': 'https://upload.wikimedia.org/wikipedia/commons/6/60/Icon_of_Saint_George_%28Coptic_Museum%29.jpg',
-    'st_mina': 'https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c2/S.Menas_by_E.Tzanes.jpg/500px-S.Menas_by_E.Tzanes.jpg',
     'st_anthony': 'https://upload.wikimedia.org/wikipedia/commons/8/86/StAnthony.jpg',
     'st_demiana': 'https://thumb.wikimedia.org/wikipedia/commons/thumb/1/18/St.Demiana_and_the_40_virgins_in_the_Hanging_church.jpg/500px-St.Demiana_and_the_40_virgins_in_the_Hanging_church.jpg',
     'st_karas': 'https://upload.wikimedia.org/wikipedia/commons/b/b6/%D8%A7%D9%84%D8%A3%D9%86%D8%A8%D8%A7_%D9%83%D8%A7%D8%B1%D8%A7%D8%B3_%D8%A7%D9%84%D8%B3%D8%A7%D8%A6%D8%AD.jpg',
   };
   static List<Map<String, dynamic>> _iconsByKeyword = [];
   static Map<String, String> _iconsByCategory = {
-    'الملائكة والرسل': 'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/Coptic_Icon_of_the_Archangel_Michael.jpg/500px-Coptic_Icon_of_the_Archangel_Michael.jpg',
-    'الشهداء والشهيدات': 'https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a7/Nayrouz_icon.jpg/500px-Nayrouz_icon.jpg',
+    'الملائكة والرسل': 'assets/images/saints/archangel_michael.jpg',
+    'الشهداء والشهيدات': 'assets/images/saints/st_george.jpg',
     'آباء البرية والرهبان': 'https://upload.wikimedia.org/wikipedia/commons/8/86/StAnthony.jpg',
-    'البطاركة والأساقفة': 'https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1a/Fethiye_Camii_Athanasius.jpg/500px-Fethiye_Camii_Athanasius.jpg',
-    'القديسات والأمهات': 'https://thumb.wikimedia.org/wikipedia/commons/thumb/1/18/St.Demiana_and_the_40_virgins_in_the_Hanging_church.jpg/500px-St.Demiana_and_the_40_virgins_in_the_Hanging_church.jpg',
-    'القديسون المعاصرون': 'https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e4/Pope_Cyril_VI_of_Alexandria.jpg/500px-Pope_Cyril_VI_of_Alexandria.jpg',
-    'قديسو السنكسار': 'https://upload.wikimedia.org/wikipedia/commons/9/9d/Behnam%2C_Sarah%2C_and_the_Forty_Martyrs_%28Coptic_Museum%29.jpg',
+    'البطاركة والأساقفة': 'assets/images/saints/st_athanasius.jpg',
+    'القديسات والأمهات': 'assets/images/saints/virgin_mary.jpg',
+    'القديسون المعاصرون': 'assets/images/saints/pope_kyrillos.jpg',
+    'قديسو السنكسار': 'assets/images/saints/st_mark.jpg',
   };
 
-  /// Returns an authentic verified Coptic/Orthodox portrait URL for ANY saint
-  /// (curated OR dynamically loaded from the 850+ Synaxarium directory).
+  /// Returns an authentic cohesive Coptic Orthodox icon (bundled Neo-Coptic asset
+  /// or curated Coptic portrait URL) for ANY saint in the 850+ directory.
   static String getImageUrlForSaint(PatronSaintProfile saint) {
+    final bundled = _bundledIconsById[saint.id];
+    if (bundled != null) return bundled;
+
+    final hay = '${saint.name} ${saint.shortName} ${saint.title}';
+    for (final entry in _bundledKeywordIcons) {
+      final keys = (entry['keys'] as List?) ?? const [];
+      for (final k in keys) {
+        if (hay.contains(k.toString())) {
+          return entry['url'].toString();
+        }
+      }
+    }
+
     final direct = _iconsById[saint.id];
     if (direct != null && direct.isNotEmpty) return direct;
 
-    final hay = '${saint.name} ${saint.shortName} ${saint.title}';
     for (final entry in _iconsByKeyword) {
       final keys = (entry['keys'] as List?) ?? const [];
       for (final k in keys) {
@@ -1081,8 +1115,7 @@ class PatronSaintService {
     }
 
     return _iconsByCategory[saint.category] ??
-        _iconsByCategory['قديسو السنكسار'] ??
-        '';
+        'assets/images/saints/st_mark.jpg';
   }
 
   static const List<String> _copticMonths = [
@@ -1114,15 +1147,19 @@ class PatronSaintService {
         final Map<String, dynamic> iconsJson = jsonDecode(iconsRaw);
         final byId = iconsJson['byId'] as Map<String, dynamic>? ?? {};
         _iconsById = {
-          ..._iconsById,
           ...byId.map((k, v) => MapEntry(k, v.toString())),
+          ..._bundledIconsById,
         };
         _iconsByKeyword = List<Map<String, dynamic>>.from(
           (iconsJson['byKeyword'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)),
         );
+        // Preserve cohesive bundled Neo-Coptic category fallbacks first
         final byCat = iconsJson['byCategory'] as Map<String, dynamic>? ?? {};
         if (byCat.isNotEmpty) {
-          _iconsByCategory = byCat.map((k, v) => MapEntry(k, v.toString()));
+          _iconsByCategory = {
+            ...byCat.map((k, v) => MapEntry(k, v.toString())),
+            ..._iconsByCategory,
+          };
         }
       } catch (_) {}
 

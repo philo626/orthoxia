@@ -3,18 +3,17 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/services/online_coptic_library_service.dart';
 import '../../core/services/speech_pronunciation_service.dart';
+import '../../core/theme/app_palette.dart';
 import '../../providers/theme_provider.dart';
 import '../liturgical/widgets/floating_church_bar.dart';
 
 /// Full editorial chapter-by-chapter Patristic Bible Commentary reader
-/// supporting switching between Fr. Tadros Yacoub Malaty & Fr. Antonios Fekry
-/// across all 73 canonical books of the Coptic Orthodox Bible, with offline caching.
+/// (Fr. Tadros Yacoub Malaty & Fr. Antonios Fekry), 100% adaptive to AppPalette.
 class OnlineTafsirReaderView extends StatefulWidget {
   final TafsirBookEntry book;
-  final String initialCommentator; // 'tadros' or 'antonios'
+  final String initialCommentator;
   final ValueChanged<String>? onSearchMatta;
 
   const OnlineTafsirReaderView({
@@ -45,9 +44,10 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
   @override
   void initState() {
     super.initState();
-    _commentator = (widget.initialCommentator == 'tadros' && widget.book.tadrosUrl.isNotEmpty)
-        ? 'tadros'
-        : (widget.book.antoniosUrl.isNotEmpty ? 'antonios' : 'tadros');
+    _commentator =
+        (widget.initialCommentator == 'tadros' && widget.book.tadrosUrl.isNotEmpty)
+            ? 'tadros'
+            : (widget.book.antoniosUrl.isNotEmpty ? 'antonios' : 'tadros');
     _loadChapterIndex();
   }
 
@@ -78,7 +78,8 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
       if (list.isEmpty) {
         setState(() {
           _loadingIndex = false;
-          _errorMsg = 'لم يتم العثور على فهرس الأصحاحات لهذا المفسر. جرب التبديل للمفسر الآخر.';
+          _errorMsg =
+              'لم يتم العثور على فهرس الأصحاحات لهذا المفسر. جرب التبديل للمفسر الآخر.';
         });
         return;
       }
@@ -92,7 +93,8 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
       if (!mounted) return;
       setState(() {
         _loadingIndex = false;
-        _errorMsg = 'يتطلب تحميل التفسير لأول مرة اتصالاً بالإنترنت؛ وبعد قراءته يُحفظ تلقائياً للعمل بدون إنترنت.';
+        _errorMsg =
+            'يتطلب تحميل التفسير لأول مرة اتصالاً بالإنترنت؛ وبعد قراءته يُحفظ تلقائياً للعمل بدون إنترنت.';
       });
     }
   }
@@ -106,7 +108,8 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
       _errorMsg = null;
     });
     try {
-      final (paras, cached) = await _lib.fetchChapterParagraphs(_chapters[idx].url);
+      final (paras, cached) =
+          await _lib.fetchChapterParagraphs(_chapters[idx].url);
       if (!mounted) return;
       setState(() {
         _paragraphs = paras;
@@ -120,12 +123,14 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
       if (!mounted) return;
       setState(() {
         _loadingChapter = false;
-        _errorMsg = 'تعذّر تحميل هذا الأصحاح الآن. تأكد من اتصالك بالإنترنت وحاول مرة أخرى.';
+        _errorMsg =
+            'تعذّر تحميل هذا الأصحاح الآن. تأكد من اتصالك بالإنترنت وحاول مرة أخرى.';
       });
     }
   }
 
   void _openChapterPicker() {
+    final p = context.palette;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -133,10 +138,10 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
       builder: (ctx) => Container(
         height: MediaQuery.of(ctx).size.height * 0.72,
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        decoration: const BoxDecoration(
-          color: AppColors.deepNavy,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-          border: Border(top: BorderSide(color: AppColors.hairline)),
+        decoration: BoxDecoration(
+          color: p.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+          border: Border(top: BorderSide(color: p.border)),
         ),
         child: Column(
           children: [
@@ -144,7 +149,7 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
               width: 38,
               height: 3.5,
               decoration: BoxDecoration(
-                color: AppColors.primaryGold.withValues(alpha: 0.4),
+                color: p.borderStrong,
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -153,8 +158,8 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
               'فهرس تفسير ${widget.book.name} (${_chapters.length})',
               style: GoogleFonts.amiri(
                 fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primaryGoldLight,
+                fontWeight: FontWeight.w700,
+                color: p.ink,
               ),
             ),
             const SizedBox(height: 10),
@@ -168,23 +173,19 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
                     dense: true,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(
-                        color: sel ? AppColors.primaryGold : AppColors.hairline,
-                      ),
+                      side: BorderSide(color: sel ? p.accent : p.border),
                     ),
-                    tileColor: sel
-                        ? AppColors.primaryGold.withValues(alpha: 0.14)
-                        : AppColors.cardNavy,
+                    tileColor: sel ? p.accentSoft : p.surfaceElevated,
                     title: Text(
                       _chapters[i].title,
                       style: GoogleFonts.cairo(
                         fontSize: 13,
-                        fontWeight: sel ? FontWeight.bold : FontWeight.w500,
-                        color: sel ? AppColors.primaryGoldLight : AppColors.textLight,
+                        fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                        color: sel ? p.accent : p.ink,
                       ),
                     ),
                     trailing: sel
-                        ? const Icon(Icons.check_rounded, color: AppColors.primaryGold, size: 18)
+                        ? Icon(Icons.check_rounded, color: p.accent, size: 18)
                         : null,
                     onTap: () {
                       Navigator.pop(ctx);
@@ -202,6 +203,7 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     final fontScale = context.watch<ThemeProvider>().fontScale;
     final hasTadros = widget.book.tadrosUrl.isNotEmpty;
     final hasAntonios = widget.book.antoniosUrl.isNotEmpty;
@@ -210,9 +212,9 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
         : 'تفسير ${widget.book.name}';
 
     return Scaffold(
-      backgroundColor: AppColors.deepNavy,
+      backgroundColor: p.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepNavy,
+        backgroundColor: p.background,
         elevation: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -220,33 +222,35 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
             Text(
               'تفسير ${widget.book.name}',
               style: GoogleFonts.amiri(
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w700,
                 fontSize: 20,
-                color: AppColors.primaryGoldLight,
+                color: p.ink,
               ),
             ),
             Text(
               _commentatorName,
-              style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textMuted),
+              style: GoogleFonts.cairo(fontSize: 11, color: p.inkMuted),
             ),
           ],
         ),
         actions: [
           if (_chapters.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.format_list_numbered_rtl_rounded, color: AppColors.primaryGold),
+              icon: Icon(Icons.format_list_numbered_rtl_rounded,
+                  color: p.accent),
               tooltip: 'فهرس الأصحاحات',
               onPressed: _openChapterPicker,
             ),
           if (_paragraphs.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.share_outlined, color: AppColors.primaryGoldLight, size: 20),
+              icon: Icon(Icons.share_outlined, color: p.accent, size: 20),
               tooltip: 'مشاركة',
               onPressed: () {
                 final preview = _paragraphs.take(3).join('\n\n');
                 SharePlus.instance.share(
                   ShareParams(
-                    text: '$activeTitle\n($_commentatorName)\n\n$preview\n\nمن تطبيق أرثوذكسيا',
+                    text:
+                        '$activeTitle\n($_commentatorName)\n\n$preview\n\nمن تطبيق أرثوذكسيا',
                   ),
                 );
               },
@@ -257,11 +261,10 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
         children: [
           Column(
             children: [
-              // Commentator Switcher Bar
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: AppColors.hairline)),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: p.border)),
                 ),
                 child: Column(
                   children: [
@@ -270,6 +273,7 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
                         if (hasTadros)
                           Expanded(
                             child: _buildCommentatorTab(
+                              p: p,
                               keyId: 'tadros',
                               label: 'القمص تادرس يعقوب ملطي',
                             ),
@@ -278,13 +282,15 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
                         if (hasAntonios)
                           Expanded(
                             child: _buildCommentatorTab(
+                              p: p,
                               keyId: 'antonios',
                               label: 'القمص أنطونيوس فكري',
                             ),
                           ),
                       ],
                     ),
-                    if (widget.book.mattaQuery.isNotEmpty && widget.onSearchMatta != null) ...[
+                    if (widget.book.mattaQuery.isNotEmpty &&
+                        widget.onSearchMatta != null) ...[
                       const SizedBox(height: 8),
                       InkWell(
                         borderRadius: BorderRadius.circular(10),
@@ -293,23 +299,27 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
                           widget.onSearchMatta!(widget.book.mattaQuery);
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 7),
                           decoration: BoxDecoration(
-                            color: AppColors.surfaceNavy,
+                            color: p.surfaceMuted,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AppColors.hairline),
+                            border: Border.all(color: p.border),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.menu_book_outlined, size: 15, color: AppColors.primaryGold),
+                              Icon(Icons.menu_book_outlined,
+                                  size: 15, color: p.accent),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'تصفّح أيضاً شروح الأب متى المسكين لـ ${widget.book.name} في المكتبة الشاملة',
-                                  style: GoogleFonts.cairo(fontSize: 11, color: AppColors.primaryGoldLight),
+                                  'تصفّح أيضاً شروح الأب متى المسكين لـ ${widget.book.name}',
+                                  style: GoogleFonts.cairo(
+                                      fontSize: 11, color: p.accent),
                                 ),
                               ),
-                              const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: AppColors.textMuted),
+                              Icon(Icons.chevron_left_rounded,
+                                  size: 15, color: p.inkMuted),
                             ],
                           ),
                         ),
@@ -318,21 +328,21 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
                   ],
                 ),
               ),
-
-              // Reader Content Area
               Expanded(
                 child: _loadingIndex || _loadingChapter
                     ? Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const CircularProgressIndicator(color: AppColors.primaryGold, strokeWidth: 2),
+                            CircularProgressIndicator(
+                                color: p.accent, strokeWidth: 2),
                             const SizedBox(height: 14),
                             Text(
                               _loadingIndex
-                                  ? 'جاري تحميل فهرس التفسير الكامل...'
-                                  : 'جاري تجهيز النص للتصفح والحفظ الأوفلاين...',
-                              style: GoogleFonts.cairo(fontSize: 12.5, color: AppColors.textMuted),
+                                  ? 'جارٍ تحميل فهرس التفسير...'
+                                  : 'جارٍ تجهيز النص للقراءة...',
+                              style: GoogleFonts.cairo(
+                                  fontSize: 12.5, color: p.inkMuted),
                             ),
                           ],
                         ),
@@ -344,14 +354,15 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.cloud_off_rounded, color: AppColors.textMuted, size: 42),
+                                  Icon(Icons.cloud_off_rounded,
+                                      color: p.inkSubtle, size: 42),
                                   const SizedBox(height: 12),
                                   Text(
                                     _errorMsg!,
                                     textAlign: TextAlign.center,
                                     style: GoogleFonts.cairo(
                                       fontSize: 13.5,
-                                      color: AppColors.textLight,
+                                      color: p.ink,
                                       height: 1.6,
                                     ),
                                   ),
@@ -359,12 +370,16 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
                                   ElevatedButton.icon(
                                     onPressed: _chapters.isEmpty
                                         ? _loadChapterIndex
-                                        : () => _loadChapterContent(_selectedChapterIdx),
-                                    icon: const Icon(Icons.refresh_rounded, size: 17),
-                                    label: Text('إعادة المحاولة', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+                                        : () => _loadChapterContent(
+                                            _selectedChapterIdx),
+                                    icon: const Icon(Icons.refresh_rounded,
+                                        size: 17),
+                                    label: Text('إعادة المحاولة',
+                                        style: GoogleFonts.cairo(
+                                            fontWeight: FontWeight.w700)),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.primaryGold,
-                                      foregroundColor: Colors.black,
+                                      backgroundColor: p.accent,
+                                      foregroundColor: p.onAccent,
                                     ),
                                   ),
                                 ],
@@ -373,18 +388,18 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
                           )
                         : ListView(
                             controller: _scrollController,
-                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
+                            padding: const EdgeInsets.fromLTRB(20, 14, 20, 120),
                             children: [
-                              // Editorial Chapter Title Header
                               Container(
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: AppColors.cardNavy,
+                                  color: p.surfaceElevated,
                                   borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: AppColors.hairline),
+                                  border: Border.all(color: p.border),
                                 ),
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   children: [
                                     Row(
                                       children: [
@@ -393,25 +408,28 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
                                             activeTitle,
                                             style: GoogleFonts.amiri(
                                               fontSize: 20 * fontScale,
-                                              fontWeight: FontWeight.bold,
-                                              color: AppColors.primaryGoldLight,
+                                              fontWeight: FontWeight.w700,
+                                              color: p.ink,
                                               height: 1.4,
                                             ),
                                           ),
                                         ),
                                         if (_isCachedOffline)
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 3),
                                             decoration: BoxDecoration(
-                                              color: AppColors.successGreen.withValues(alpha: 0.16),
-                                              borderRadius: BorderRadius.circular(8),
+                                              color: p.success
+                                                  .withValues(alpha: 0.14),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
                                             ),
                                             child: Text(
                                               'محفوظ أوفلاين',
                                               style: GoogleFonts.cairo(
                                                 fontSize: 10,
-                                                color: AppColors.textLight,
-                                                fontWeight: FontWeight.w600,
+                                                color: p.success,
+                                                fontWeight: FontWeight.w700,
                                               ),
                                             ),
                                           ),
@@ -421,7 +439,8 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
                                     Row(
                                       children: [
                                         SpeechPlayStopButton(
-                                          textToSpeak: _paragraphs.take(25).join(' '),
+                                          textToSpeak:
+                                              _paragraphs.take(25).join(' '),
                                           label: activeTitle,
                                           playText: 'استماع للتفسير',
                                           stopText: 'إيقاف الصوت',
@@ -430,12 +449,13 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
                                         const Spacer(),
                                         TextButton.icon(
                                           onPressed: _openChapterPicker,
-                                          icon: const Icon(Icons.list_alt_rounded, size: 16, color: AppColors.primaryGold),
+                                          icon: Icon(Icons.list_alt_rounded,
+                                              size: 16, color: p.accent),
                                           label: Text(
-                                            'تغيير الأصحاح (${_selectedChapterIdx + 1}/${_chapters.length})',
+                                            'الأصحاح (${_selectedChapterIdx + 1}/${_chapters.length})',
                                             style: GoogleFonts.cairo(
                                               fontSize: 11.5,
-                                              color: AppColors.primaryGoldLight,
+                                              color: p.accent,
                                             ),
                                           ),
                                         ),
@@ -444,52 +464,61 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
                                   ],
                                 ),
                               ),
-
                               const SizedBox(height: 18),
-
-                              // Full Patristic Commentary Paragraphs
-                              for (final p in _paragraphs) ...[
+                              for (final para in _paragraphs)
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 14),
                                   child: SelectableText(
-                                    p,
+                                    para,
                                     style: GoogleFonts.amiri(
                                       fontSize: 19 * fontScale,
                                       height: 1.9,
-                                      color: AppColors.textLight,
+                                      color: p.ink,
                                     ),
                                   ),
                                 ),
-                              ],
-
                               const SizedBox(height: 22),
-
-                              // Previous / Next Chapter Navigation
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   if (_selectedChapterIdx > 0)
                                     OutlinedButton.icon(
-                                      onPressed: () => _loadChapterContent(_selectedChapterIdx - 1),
-                                      icon: const Icon(Icons.arrow_back_rounded, size: 16, color: AppColors.primaryGold),
-                                      label: Text('الأصحاح السابق', style: GoogleFonts.cairo(color: AppColors.primaryGoldLight, fontSize: 12.5)),
+                                      onPressed: () => _loadChapterContent(
+                                          _selectedChapterIdx - 1),
+                                      icon: Icon(Icons.arrow_back_rounded,
+                                          size: 16, color: p.accent),
+                                      label: Text('الأصحاح السابق',
+                                          style: GoogleFonts.cairo(
+                                              color: p.accent, fontSize: 12.5)),
                                       style: OutlinedButton.styleFrom(
-                                        side: const BorderSide(color: AppColors.hairline),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        side: BorderSide(color: p.border),
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(10)),
                                       ),
                                     )
                                   else
                                     const SizedBox.shrink(),
-                                  if (_selectedChapterIdx < _chapters.length - 1)
+                                  if (_selectedChapterIdx <
+                                      _chapters.length - 1)
                                     ElevatedButton.icon(
-                                      onPressed: () => _loadChapterContent(_selectedChapterIdx + 1),
-                                      icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                                      label: Text('الأصحاح التالي', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 12.5)),
+                                      onPressed: () => _loadChapterContent(
+                                          _selectedChapterIdx + 1),
+                                      icon: const Icon(
+                                          Icons.arrow_forward_rounded,
+                                          size: 16),
+                                      label: Text('الأصحاح التالي',
+                                          style: GoogleFonts.cairo(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 12.5)),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppColors.primaryGold,
-                                        foregroundColor: Colors.black,
+                                        backgroundColor: p.accent,
+                                        foregroundColor: p.onAccent,
                                         elevation: 0,
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(10)),
                                       ),
                                     )
                                   else
@@ -507,7 +536,11 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
     );
   }
 
-  Widget _buildCommentatorTab({required String keyId, required String label}) {
+  Widget _buildCommentatorTab({
+    required AppPalette p,
+    required String keyId,
+    required String label,
+  }) {
     final active = _commentator == keyId;
     return GestureDetector(
       onTap: () {
@@ -520,11 +553,9 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: active ? AppColors.primaryGold : AppColors.cardNavy,
+          color: active ? p.accent : p.surfaceElevated,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: active ? AppColors.primaryGold : AppColors.hairline,
-          ),
+          border: Border.all(color: active ? p.accent : p.border),
         ),
         child: Text(
           label,
@@ -533,8 +564,8 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
           overflow: TextOverflow.ellipsis,
           style: GoogleFonts.cairo(
             fontSize: 11.5,
-            fontWeight: FontWeight.bold,
-            color: active ? Colors.black : AppColors.textLight,
+            fontWeight: FontWeight.w700,
+            color: active ? p.onAccent : p.ink,
           ),
         ),
       ),

@@ -14,6 +14,7 @@ import 'package:orthodox_app/core/services/encryption_service.dart';
 import 'package:orthodox_app/core/services/notification_service.dart';
 import 'package:orthodox_app/core/services/online_coptic_library_service.dart';
 import 'package:orthodox_app/core/services/patron_saint_service.dart';
+import 'package:orthodox_app/core/services/reading_state_service.dart';
 import 'package:orthodox_app/core/services/security_guard_service.dart';
 import 'package:orthodox_app/core/services/storage_service.dart';
 import 'package:orthodox_app/core/theme/app_palette.dart';
@@ -22,6 +23,7 @@ import 'package:orthodox_app/models/spiritual_tracker_model.dart';
 import 'package:orthodox_app/providers/books_provider.dart';
 import 'package:orthodox_app/providers/church_mode_provider.dart';
 import 'package:orthodox_app/providers/liturgy_provider.dart';
+import 'package:orthodox_app/providers/spiritual_tracker_provider.dart';
 import 'package:orthodox_app/providers/theme_provider.dart';
 import 'package:orthodox_app/views/books/books_library_view.dart';
 import 'package:orthodox_app/views/coptic_academy/coptic_academy_view.dart';
@@ -163,12 +165,18 @@ void main() {
       final deadIds = {'3_p4J6p-gV4', 'n0YqZ7Ld3K0', 'o3N_uTz9h44', 'sW8p1q6tV5U'};
       final audioUrls = <String>{};
       final youtubeIds = <String>{};
+      final titles = <String>{};
       for (final h in hymns) {
         final yid = '${h['youtube_id'] ?? ''}';
         final aurl = '${h['audio_url'] ?? ''}';
+        final title = '${h['title'] ?? ''}';
         expect(yid.isNotEmpty, isTrue);
         expect(aurl.startsWith('http'), isTrue);
         expect(deadIds.contains(yid), isFalse, reason: 'Dead YouTube ID found: $yid');
+        expect(titles.add(title), isTrue, reason: 'Duplicate hymn title found: $title');
+        for (final v in (h['verses'] as List? ?? [])) {
+          expect('${v['coptic'] ?? ''}'.contains('\xad'), isFalse, reason: 'Soft hyphen artifact in $title');
+        }
         audioUrls.add(aurl);
         youtubeIds.add(yid);
       }
@@ -176,6 +184,54 @@ void main() {
       expect(youtubeIds.length, greaterThanOrEqualTo(250), reason: 'Hymns must map to specific YouTube video IDs');
       expect(CopticYouTubeRegistry.resolveVideoId(hymnId: 'tai-shori', title: 'طاي شوري'), 'RIRb2ED0qvE');
       expect(CopticYouTubeRegistry.resolveVideoId(hymnId: 'golgotha', title: 'غولغوثا'), '6iuEVnKP7rU');
+    });
+
+    test('Authentic Agpeya (all 8 hours, zero truncations, distinct Ps 114/115 & 146/147, 3 Midnight watches) & rich offline Books', () {
+      final agpeya = jsonDecode(File('assets/data/agpeya.json').readAsStringSync()) as List;
+      expect(agpeya.length, 8);
+      String? ps114;
+      String? ps115;
+      String? ps146;
+      String? ps147;
+      for (final hour in agpeya) {
+        final secs = hour['sections'] as List;
+        expect(secs.length, greaterThanOrEqualTo(6));
+        for (final sec in secs) {
+          final title = '${sec['title'] ?? ''}';
+          final content = '${sec['content'] ?? ''}';
+          expect(
+            content.trim().isNotEmpty,
+            isTrue,
+            reason: 'Empty section in ${hour['id']}: $title',
+          );
+          expect(content.contains('...'), isFalse, reason: 'Truncated prayer in ${hour['id']}: $title');
+          if (title == 'المزمور 114') ps114 = content;
+          if (title == 'المزمور 115') ps115 = content;
+          if (title == 'المزمور 146') ps146 = content;
+          if (title == 'المزمور 147') ps147 = content;
+        }
+      }
+      expect(ps114, isNotNull);
+      expect(ps115, isNotNull);
+      expect(ps114, isNot(equals(ps115)));
+      expect(ps146, isNotNull);
+      expect(ps147, isNotNull);
+      expect(ps146, isNot(equals(ps147)));
+
+      final midnight = agpeya.firstWhere((h) => h['id'] == 'midnight');
+      final midnightTitles = (midnight['sections'] as List).map((s) => '${s['title']}').join('\n');
+      expect(midnightTitles.contains('الخدمة الأولى'), isTrue);
+      expect(midnightTitles.contains('الخدمة الثانية'), isTrue);
+      expect(midnightTitles.contains('الخدمة الثالثة'), isTrue);
+
+      final books = jsonDecode(File('assets/data/books.json').readAsStringSync()) as List;
+      expect(books.length, greaterThanOrEqualTo(12));
+      for (final b in books) {
+        final chapters = b['chapters'] as List;
+        expect(chapters.isNotEmpty, isTrue);
+        final totalLen = chapters.fold<int>(0, (sum, c) => sum + '${c['content'] ?? ''}'.length);
+        expect(totalLen, greaterThanOrEqualTo(800), reason: 'Book too short/stub: ${b['title']}');
+      }
     });
   });
 
@@ -288,8 +344,46 @@ void main() {
       expect(PatronSaintService.saints.length, greaterThanOrEqualTo(800));
       for (final s in PatronSaintService.saints) {
         final img = PatronSaintService.getImageUrlForSaint(s);
-        expect(img.startsWith('https://'), isTrue, reason: 'Every saint must resolve to a real portrait URL: ${s.name}');
+        expect(
+          img.startsWith('https://') || img.startsWith('assets/'),
+          isTrue,
+          reason: 'Every saint must resolve to a bundled Neo-Coptic icon or HTTPS portrait: ${s.name}',
+        );
       }
+      expect(
+        PatronSaintService.getImageUrlForSaint(PatronSaintService.getSaintById('virgin_mary')),
+        startsWith('assets/images/saints/'),
+      );
+
+      // Verify ReadingStateService (resume + favorite verses) and real SpiritualTrackerProvider 7-day logs
+      SharedPreferences.setMockInitialValues({});
+      await StorageService().init();
+      final readingState = ReadingStateService();
+      await readingState.saveLastBible(bookAbbrev: 'jn', bookName: 'إنجيل يوحنا', chapter: 3);
+      expect(readingState.lastBible?['abbrev'], 'jn');
+      expect(readingState.lastBible?['chapter'], 3);
+      await readingState.toggleFavoriteVerse(
+        FavoriteVerse(
+          bookAbbrev: 'jn',
+          bookName: 'إنجيل يوحنا',
+          chapter: 3,
+          verse: 16,
+          text: 'لأَنَّهُ هكَذَا أَحَبَّ اللهُ الْعَالَمَ',
+          savedAt: DateTime.now(),
+        ),
+      );
+      expect(readingState.isVerseFavorited('jn', 3, 16), isTrue);
+
+      await StorageService().saveSpiritualLogs([]);
+      final tracker = SpiritualTrackerProvider();
+      expect(tracker.last7DaysLogs.length, 7);
+      // Zero fake data: before user logs anything, past 6 days are strictly 0
+      expect(
+        tracker.last7DaysLogs.take(6).every((l) => l.bibleChaptersRead == 0 && l.agpeyaHoursCompleted == 0),
+        isTrue,
+      );
+      tracker.incrementBibleChapters();
+      expect(tracker.last7DaysLogs.last.bibleChaptersRead, 1);
 
       // Verify multi-source online books catalog & full 73-book tafsir catalog
       final lib = OnlineCopticLibraryService();
@@ -464,7 +558,7 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(find.text('خلوة الـ ٥ دقائق (بماذا تشعر الآن؟)'), findsOneWidget);
+      expect(find.text('خلوة هادئة لقلبك'), findsOneWidget);
 
       await tester.pumpWidget(
         const MaterialApp(

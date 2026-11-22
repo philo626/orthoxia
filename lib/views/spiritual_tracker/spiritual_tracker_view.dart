@@ -1,9 +1,10 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/services/security_guard_service.dart';
+import '../../core/theme/app_palette.dart';
 import '../../providers/spiritual_tracker_provider.dart';
 
 class SpiritualTrackerView extends StatefulWidget {
@@ -14,6 +15,16 @@ class SpiritualTrackerView extends StatefulWidget {
 }
 
 class _SpiritualTrackerViewState extends State<SpiritualTrackerView> {
+  static const List<String> _arabicWeekdays = [
+    'إثنين',
+    'ثلاثاء',
+    'أربعاء',
+    'خميس',
+    'جمعة',
+    'سبت',
+    'أحد',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -28,95 +39,123 @@ class _SpiritualTrackerViewState extends State<SpiritualTrackerView> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
+
     return Consumer<SpiritualTrackerProvider>(
       builder: (context, trackerProv, _) {
         final today = trackerProv.todayLog;
+        final weekLogs = trackerProv.last7DaysLogs;
+        final streak = trackerProv.activeStreakDays;
+
+        // Calculate realistic Y axis max from actual recorded values
+        double maxActivity = 6.0;
+        for (final l in weekLogs) {
+          final score = (l.bibleChaptersRead + l.agpeyaHoursCompleted).toDouble();
+          if (score > maxActivity) maxActivity = score + 1;
+        }
+        final hasAnyWeekData = weekLogs.any(
+          (l) => l.bibleChaptersRead > 0 || l.agpeyaHoursCompleted > 0,
+        );
 
         return Scaffold(
-          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          backgroundColor: p.background,
           appBar: AppBar(
+            backgroundColor: p.background,
+            elevation: 0,
             title: Text(
-              'مُتتبع الجهاد الروحي الشخصي',
-              style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 17),
+              'مُتتبع الجهاد الروحي',
+              style: GoogleFonts.amiri(
+                fontWeight: FontWeight.w700,
+                fontSize: 22,
+                color: p.ink,
+              ),
             ),
           ),
           body: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Encouragement Verse Card (Non-judgmental)
+                // Encouragement Verse Card (Non-judgmental, calm parchment aesthetic)
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColors.sacredBurgundyDark, AppColors.cardNavy],
-                    ),
+                    color: p.surfaceElevated,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.primaryGold.withOpacity(0.4)),
+                    border: Border.all(color: p.accent.withValues(alpha: 0.35)),
                   ),
                   child: Column(
                     children: [
-                      const Icon(Icons.favorite_rounded, color: AppColors.primaryGold, size: 28),
+                      Icon(Icons.auto_stories_rounded,
+                          color: p.accent, size: 24),
                       const SizedBox(height: 10),
                       Text(
                         trackerProv.encouragingVerse,
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.cairo(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textLight,
+                        style: GoogleFonts.amiri(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: p.ink,
                           height: 1.6,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'الجهاد الروحي مسيرة نعمة ونمو هادئ في محبة الفادي',
+                        streak > 0
+                            ? 'أيام المواظبة المتواصلة: $streak ${streak == 1 ? "يوم" : "أيام"} • مسيرة نعمة هادئة'
+                            : 'الجهاد الروحي مسيرة نعمة ونمو هادئ في محبة الفادي',
+                        textAlign: TextAlign.center,
                         style: GoogleFonts.cairo(
-                          fontSize: 12,
-                          color: AppColors.primaryGoldLight,
+                          fontSize: 11.5,
+                          color: p.accent,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                   ),
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 22),
 
                 Text(
                   'أعمال اليوم الروحية',
                   style: GoogleFonts.cairo(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryGold,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    color: p.accent,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
 
-                // Grid of Daily Counters
                 Row(
                   children: [
-                    // Bible Chapters
                     Expanded(
                       child: _buildCounterTile(
+                        p: p,
                         title: 'أصحاحات الإنجيل',
                         count: '${today.bibleChaptersRead}',
                         unit: 'أصحاح',
                         icon: Icons.menu_book_rounded,
-                        color: AppColors.prayerBlue,
-                        onIncrement: () => trackerProv.incrementBibleChapters(),
+                        accentColor: p.accent,
+                        onIncrement: () {
+                          HapticFeedback.lightImpact();
+                          trackerProv.incrementBibleChapters();
+                        },
                       ),
                     ),
                     const SizedBox(width: 12),
-                    // Agpeya Prayers
                     Expanded(
                       child: _buildCounterTile(
+                        p: p,
                         title: 'صلوات الأجبية',
                         count: '${today.agpeyaHoursCompleted} / 7',
                         unit: 'صلاة',
                         icon: Icons.access_time_filled_rounded,
-                        color: AppColors.primaryGold,
-                        onIncrement: () => trackerProv.incrementAgpeyaHours(),
+                        accentColor: p.crimson,
+                        onIncrement: () {
+                          HapticFeedback.lightImpact();
+                          trackerProv.incrementAgpeyaHours();
+                        },
                       ),
                     ),
                   ],
@@ -126,84 +165,98 @@ class _SpiritualTrackerViewState extends State<SpiritualTrackerView> {
 
                 Row(
                   children: [
-                    // Secret Prayer Minutes
                     Expanded(
                       child: _buildCounterTile(
+                        p: p,
                         title: 'الصلاة السرية',
                         count: '${today.personalPrayerMinutes}',
                         unit: 'دقيقة',
                         icon: Icons.self_improvement_rounded,
-                        color: AppColors.fastingPurple,
-                        onIncrement: () => trackerProv.addPersonalPrayerMinutes(5),
+                        accentColor: p.accent,
+                        onIncrement: () {
+                          HapticFeedback.lightImpact();
+                          trackerProv.addPersonalPrayerMinutes(5);
+                        },
                       ),
                     ),
                     const SizedBox(width: 12),
-                    // Communion & Charity toggles
                     Expanded(
                       child: Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: AppColors.cardNavy,
+                          color: p.surfaceElevated,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.white.withOpacity(0.08)),
+                          border: Border.all(color: p.border),
                         ),
                         child: Column(
                           children: [
-                            // Communion
                             InkWell(
-                              onTap: () => trackerProv.toggleCommunion(),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    today.tookCommunion
-                                        ? Icons.check_circle_rounded
-                                        : Icons.radio_button_unchecked_rounded,
-                                    color: today.tookCommunion
-                                        ? AppColors.primaryGold
-                                        : AppColors.textMuted,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      'التناول المقدس',
-                                      style: GoogleFonts.cairo(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.textLight,
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                trackerProv.toggleCommunion();
+                              },
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 4),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      today.tookCommunion
+                                          ? Icons.check_circle_rounded
+                                          : Icons.radio_button_unchecked_rounded,
+                                      color: today.tookCommunion
+                                          ? p.accent
+                                          : p.inkSubtle,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'التناول المقدس',
+                                        style: GoogleFonts.cairo(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: p.ink,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
-                            const Divider(height: 16),
-                            // Charity
+                            Divider(color: p.border, height: 18),
                             InkWell(
-                              onTap: () => trackerProv.toggleCharity(),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    today.actsOfCharity
-                                        ? Icons.check_circle_rounded
-                                        : Icons.radio_button_unchecked_rounded,
-                                    color: today.actsOfCharity
-                                        ? AppColors.successGreen
-                                        : AppColors.textMuted,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      'أعمال المحبة',
-                                      style: GoogleFonts.cairo(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.textLight,
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                trackerProv.toggleCharity();
+                              },
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 4),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      today.actsOfCharity
+                                          ? Icons.check_circle_rounded
+                                          : Icons.radio_button_unchecked_rounded,
+                                      color: today.actsOfCharity
+                                          ? p.success
+                                          : p.inkSubtle,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'أعمال المحبة',
+                                        style: GoogleFonts.cairo(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: p.ink,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ],
@@ -213,36 +266,38 @@ class _SpiritualTrackerViewState extends State<SpiritualTrackerView> {
                   ],
                 ),
 
-                const SizedBox(height: 28),
+                const SizedBox(height: 26),
 
-                // Weekly Growth Chart
+                // REAL Weekly Growth Chart (100% bound to user's actual logs)
                 Text(
-                  'مؤشر الثبات والاستمرار الأسبوعي',
+                  'سجل آخر ٧ أيام الفعلي',
                   style: GoogleFonts.cairo(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryGold,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    color: p.accent,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 Text(
-                  'يهدف لمراقبة نموك الروحي بهدوء دون مقارنة أو إدانة',
-                  style: GoogleFonts.cairo(fontSize: 12, color: AppColors.textMuted),
+                  hasAnyWeekData
+                      ? 'مجموع الأصحاحات وصلوات الأجبية المسجلة يومياً'
+                      : 'ابدأ بتسجيل أول أصحاح أو صلاة أجبية اليوم ليظهر تقدمك الحقيقي هنا',
+                  style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkMuted),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
                 Container(
-                  height: 180,
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
+                  height: 195,
+                  padding: const EdgeInsets.fromLTRB(14, 20, 14, 10),
                   decoration: BoxDecoration(
-                    color: AppColors.cardNavy,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withOpacity(0.08)),
+                    color: p.surfaceElevated,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: p.border),
                   ),
                   child: BarChart(
                     BarChartData(
                       alignment: BarChartAlignment.spaceAround,
-                      maxY: 6,
+                      maxY: maxActivity,
                       barTouchData: BarTouchData(enabled: false),
                       titlesData: FlTitlesData(
                         show: true,
@@ -250,31 +305,69 @@ class _SpiritualTrackerViewState extends State<SpiritualTrackerView> {
                           sideTitles: SideTitles(
                             showTitles: true,
                             getTitlesWidget: (val, meta) {
-                              const days = ['أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
-                              final dayIdx = val.toInt() % days.length;
-                              return Text(
-                                days[dayIdx],
-                                style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 10),
+                              final idx = val.toInt();
+                              if (idx < 0 || idx >= weekLogs.length) {
+                                return const SizedBox.shrink();
+                              }
+                              final parsed =
+                                  DateTime.tryParse(weekLogs[idx].date) ??
+                                      DateTime.now();
+                              final label = idx == 6
+                                  ? 'اليوم'
+                                  : _arabicWeekdays[parsed.weekday - 1];
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  label,
+                                  style: GoogleFonts.cairo(
+                                    color: idx == 6 ? p.accent : p.inkMuted,
+                                    fontWeight: idx == 6
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    fontSize: 10,
+                                  ),
+                                ),
                               );
                             },
                           ),
                         ),
-                        leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        leftTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false)),
+                        topTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false)),
+                        rightTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false)),
                       ),
-                      gridData: const FlGridData(show: false),
+                      gridData: FlGridData(
+                        show: true,
+                        drawVerticalLine: false,
+                        horizontalInterval: 2,
+                        getDrawingHorizontalLine: (_) =>
+                            FlLine(color: p.border, strokeWidth: 0.7),
+                      ),
                       borderData: FlBorderData(show: false),
-                      barGroups: List.generate(7, (i) {
-                        final val = (i == 6 ? (today.bibleChaptersRead + today.agpeyaHoursCompleted) : (i * 2 % 5 + 1)).toDouble();
+                      barGroups: List.generate(weekLogs.length, (i) {
+                        final log = weekLogs[i];
+                        final realVal =
+                            (log.bibleChaptersRead + log.agpeyaHoursCompleted)
+                                .toDouble();
                         return BarChartGroupData(
                           x: i,
                           barRods: [
                             BarChartRodData(
-                              toY: val.clamp(0.5, 6.0),
-                              color: i == 6 ? AppColors.primaryGold : AppColors.primaryGold.withOpacity(0.4),
-                              width: 14,
-                              borderRadius: BorderRadius.circular(6),
+                              toY: realVal,
+                              color: i == 6
+                                  ? p.accent
+                                  : p.accent.withValues(alpha: 0.45),
+                              width: 16,
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(6),
+                              ),
+                              backDrawRodData: BackgroundBarChartRodData(
+                                show: true,
+                                toY: maxActivity,
+                                color: p.surfaceMuted,
+                              ),
                             ),
                           ],
                         );
@@ -293,19 +386,20 @@ class _SpiritualTrackerViewState extends State<SpiritualTrackerView> {
   }
 
   Widget _buildCounterTile({
+    required AppPalette p,
     required String title,
     required String count,
     required String unit,
     required IconData icon,
-    required Color color,
+    required Color accentColor,
     required VoidCallback onIncrement,
   }) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.cardNavy,
+        color: p.surfaceElevated,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: p.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -313,10 +407,10 @@ class _SpiritualTrackerViewState extends State<SpiritualTrackerView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, color: color, size: 22),
+              Icon(icon, color: accentColor, size: 22),
               IconButton(
                 icon: const Icon(Icons.add_circle_rounded, size: 26),
-                color: color,
+                color: accentColor,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
                 onPressed: onIncrement,
@@ -326,15 +420,15 @@ class _SpiritualTrackerViewState extends State<SpiritualTrackerView> {
           const SizedBox(height: 10),
           Text(
             title,
-            style: GoogleFonts.cairo(fontSize: 12, color: AppColors.textMuted),
+            style: GoogleFonts.cairo(fontSize: 12, color: p.inkMuted),
           ),
           const SizedBox(height: 2),
           Text(
             '$count $unit',
             style: GoogleFonts.cairo(
-              fontSize: 17,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textLight,
+              fontSize: 16.5,
+              fontWeight: FontWeight.w700,
+              color: p.ink,
             ),
           ),
         ],

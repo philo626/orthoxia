@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/bible_model.dart';
+import 'firebase_service.dart';
 
-/// Tracks completed chapters across all books of the Holy Bible ("ختم الكتاب المقدس").
+/// Tracks completed chapters across all books of the Holy Bible ("ختم الكتاب المقدس"),
+/// with automatic cloud merge when signed in.
 class BibleReadingProgressService {
   static final BibleReadingProgressService _instance =
       BibleReadingProgressService._internal();
@@ -25,6 +27,21 @@ class BibleReadingProgressService {
     _loaded = true;
   }
 
+  Future<void> mergeCloudChapters(List<String> cloudKeys) async {
+    await ensureLoaded();
+    bool changed = false;
+    for (final k in cloudKeys) {
+      if (k.isNotEmpty && _completedKeys.add(k)) {
+        changed = true;
+      }
+    }
+    if (changed) {
+      completedCountNotifier.value = _completedKeys.length;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_prefsKey, _completedKeys.toList());
+    }
+  }
+
   String _key(String abbrev, int chapter) => '$abbrev:$chapter';
 
   bool isChapterCompleted(String abbrev, int chapter) {
@@ -44,7 +61,10 @@ class BibleReadingProgressService {
     }
     completedCountNotifier.value = _completedKeys.length;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_prefsKey, _completedKeys.toList());
+    final list = _completedKeys.toList();
+    await prefs.setStringList(_prefsKey, list);
+    // Non-blocking cloud sync for signed-in users
+    FirebaseService().syncBibleCompletedChapters(list);
     return nowCompleted;
   }
 

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/services/encryption_service.dart';
 import '../../core/services/security_guard_service.dart';
 import '../../core/services/storage_service.dart';
+import '../../core/theme/app_palette.dart';
 import '../../providers/spiritual_tracker_provider.dart';
 
 class ConscienceExamView extends StatefulWidget {
@@ -43,7 +43,12 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
 
   Future<void> _checkBiometricGate() async {
     if (!StorageService().isBiometricConfessionLockEnabled()) {
-      if (mounted) setState(() { _unlocked = true; _checkingLock = false; });
+      if (mounted) {
+        setState(() {
+          _unlocked = true;
+          _checkingLock = false;
+        });
+      }
       return;
     }
     final ok = await EncryptionService().authenticateForConfession();
@@ -55,45 +60,56 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
     }
   }
 
-  final List<String> _categories = [
+  final List<String> _categories = const [
     'علاقتي بالله',
     'علاقتي بالقريب',
     'نقاوة القلب والجسد',
   ];
 
   void _confirmSelfDestruct() {
+    final p = context.palette;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.cardNavy,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: p.surfaceElevated,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: p.border),
+        ),
         title: Text(
           'محو سجل فحص الضمير',
-          style: GoogleFonts.cairo(color: Colors.redAccent, fontWeight: FontWeight.bold),
+          style: GoogleFonts.cairo(
+            color: p.crimson,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         content: Text(
-          'هل قمت بالاعتراف وتريد محو جميع ملاحظاتك الشخصية من هذا الجهاز نهائياً لحفظ السرية التامة؟',
-          style: GoogleFonts.cairo(color: AppColors.textLight),
+          'هل أتممت الاعتراف وتريد محو جميع ملاحظاتك الشخصية من هذا الجهاز نهائياً لحفظ السرية التامة؟',
+          style: GoogleFonts.cairo(color: p.inkMuted, height: 1.55),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('إلغاء', style: GoogleFonts.cairo(color: AppColors.textMuted)),
+            child: Text('إلغاء', style: GoogleFonts.cairo(color: p.inkMuted)),
           ),
           ElevatedButton(
             onPressed: () {
-              Provider.of<SpiritualTrackerProvider>(context, listen: false).clearConscienceNotes();
+              Provider.of<SpiritualTrackerProvider>(context, listen: false)
+                  .clearConscienceNotes();
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('تم محو جميع ملاحظات الاعتراف بنجاح وبسرية تامة.',
-                      style: GoogleFonts.cairo()),
-                  backgroundColor: AppColors.successGreen,
+                  content: Text(
+                    'تم محو جميع ملاحظات الاعتراف بنجاح وبسرية تامة.',
+                    style: GoogleFonts.cairo(),
+                  ),
+                  backgroundColor: p.success,
                 ),
               );
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: Text('نعم، امح الملاحظات', style: GoogleFonts.cairo(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: p.crimson),
+            child: Text('نعم، امح الملاحظات',
+                style: GoogleFonts.cairo(color: Colors.white)),
           ),
         ],
       ),
@@ -102,13 +118,21 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
+
     if (_checkingLock || !_unlocked) {
       return Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: p.background,
         appBar: AppBar(
+          backgroundColor: p.background,
+          elevation: 0,
           title: Text(
-            'مذكرات الاعتراف المشفرة',
-            style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 17),
+            'مذكرة الاعتراف الخاصة',
+            style: GoogleFonts.amiri(
+              fontWeight: FontWeight.w700,
+              fontSize: 22,
+              color: p.ink,
+            ),
           ),
         ),
         body: Center(
@@ -121,39 +145,46 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
                   padding: const EdgeInsets.all(22),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: AppColors.primaryGold.withValues(alpha: 0.14),
-                    border: Border.all(color: AppColors.primaryGold, width: 1.5),
+                    color: p.accentSoft,
+                    border: Border.all(color: p.accent, width: 1.4),
                   ),
-                  child: const Icon(Icons.fingerprint_rounded, size: 54, color: AppColors.primaryGold),
+                  child: Icon(Icons.fingerprint_rounded,
+                      size: 52, color: p.accent),
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  'مذكرات الاعتراف محمية بتشفير AES-256-GCM محلياً',
+                  'مذكرة الاعتراف محمية ومشفرة على جهازك فقط',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.cairo(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryGoldLight,
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w700,
+                    color: p.ink,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'ملاحظاتك مشفرة على جهازك فقط ولا تُرفع لأي سيرفر سحابي إطلاقاً.',
+                  'ملاحظاتك خاصة تماماً ولا تُرفع لأي خادم خارجي إطلاقاً.',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.cairo(fontSize: 12.5, color: AppColors.textMuted),
+                  style: GoogleFonts.cairo(fontSize: 12.5, color: p.inkMuted),
                 ),
                 const SizedBox(height: 22),
                 ElevatedButton.icon(
                   onPressed: _checkBiometricGate,
-                  icon: const Icon(Icons.lock_open_rounded, color: Colors.black),
+                  icon: Icon(Icons.lock_open_rounded, color: p.onAccent),
                   label: Text(
-                    'تأكيد الهوية وفتح المذكرات',
-                    style: GoogleFonts.cairo(color: Colors.black, fontWeight: FontWeight.bold),
+                    'تأكيد الهوية وفتح المذكرة',
+                    style: GoogleFonts.cairo(
+                      color: p.onAccent,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryGold,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    backgroundColor: p.accent,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
                   ),
                 ),
               ],
@@ -166,19 +197,26 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
     return Consumer<SpiritualTrackerProvider>(
       builder: (context, trackerProv, _) {
         final allQuestions = trackerProv.conscienceQuestions;
-        final filteredQuestions =
-            allQuestions.where((q) => q.category == _selectedCategory).toList();
+        final filteredQuestions = allQuestions
+            .where((q) => q.category == _selectedCategory)
+            .toList();
 
         return Scaffold(
-          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          backgroundColor: p.background,
           appBar: AppBar(
+            backgroundColor: p.background,
+            elevation: 0,
             title: Text(
-              'دليل فحص الضمير للاعتراف',
-              style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 17),
+              'فحص الضمير للاعتراف',
+              style: GoogleFonts.amiri(
+                fontWeight: FontWeight.w700,
+                fontSize: 22,
+                color: p.ink,
+              ),
             ),
             actions: [
               IconButton(
-                icon: const Icon(Icons.delete_forever_rounded, color: Colors.redAccent),
+                icon: Icon(Icons.delete_forever_rounded, color: p.crimson),
                 tooltip: 'محو الملاحظات بعد الاعتراف',
                 onPressed: _confirmSelfDestruct,
               ),
@@ -187,55 +225,62 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
           ),
           body: Column(
             children: [
-              // Notice banner: AES-256-GCM + FLAG_SECURE Zero-server storage
               Container(
-                margin: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                padding: const EdgeInsets.all(14),
+                margin: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                padding: const EdgeInsets.all(13),
                 decoration: BoxDecoration(
-                  color: AppColors.sacredBurgundy.withValues(alpha: 0.2),
+                  color: p.accentSoft,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.35)),
+                  border: Border.all(color: p.accent.withValues(alpha: 0.35)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.verified_user_rounded, color: AppColors.primaryGold, size: 22),
+                    Icon(Icons.verified_user_rounded,
+                        color: p.accent, size: 20),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'مشفرة محلياً بتقنية AES-256-GCM داخل مفتاح أمان الهاتف (Keystore) مع منع التقاط أو تسجيل الشاشة (FLAG_SECURE)، ولا تُرفع لأي سيرفر.',
-                        style: GoogleFonts.cairo(fontSize: 12, color: AppColors.primaryGoldLight),
+                        'جميع ملاحظاتك مشفرة محلياً داخل شريحة أمان هاتفك مع منع التقاط الشاشة، ولا تُرفع لأي خادم.',
+                        style: GoogleFonts.cairo(
+                          fontSize: 12,
+                          color: p.ink,
+                          height: 1.45,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-
               if (_deviceIntegrity.hasRisk)
                 Container(
                   margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF4A1818).withValues(alpha: 0.75),
+                    color: p.crimsonSoft,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.5)),
+                    border:
+                        Border.all(color: p.crimson.withValues(alpha: 0.45)),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.warning_amber_rounded, color: Colors.amberAccent, size: 20),
+                      Icon(Icons.warning_amber_rounded,
+                          color: p.crimson, size: 20),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'تنبيه أمان: تم رصد صلاحيات Root أو بيئة غير محمية على هذا الجهاز. يُنصح بمحو ملاحظات الاعتراف فور إتمام السر.',
-                          style: GoogleFonts.cairo(fontSize: 11.5, color: Colors.amber.shade100),
+                          'تنبيه أمان: يُنصح بمحو ملاحظات الاعتراف فور إتمام السر.',
+                          style: GoogleFonts.cairo(
+                            fontSize: 11.5,
+                            color: p.crimson,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-
-              // Category Selector
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: Row(
                   children: _categories.map((cat) {
                     final isSel = _selectedCategory == cat;
@@ -244,21 +289,21 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
                         onTap: () => setState(() => _selectedCategory = cat),
                         child: Container(
                           margin: const EdgeInsets.symmetric(horizontal: 4),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 9),
                           decoration: BoxDecoration(
-                            color: isSel ? AppColors.primaryGold : AppColors.cardNavy,
-                            borderRadius: BorderRadius.circular(10),
+                            color: isSel ? p.accent : p.surfaceElevated,
+                            borderRadius: BorderRadius.circular(11),
                             border: Border.all(
-                              color: isSel ? AppColors.primaryGold : Colors.white.withOpacity(0.08),
+                              color: isSel ? p.accent : p.border,
                             ),
                           ),
                           child: Text(
                             cat,
                             textAlign: TextAlign.center,
                             style: GoogleFonts.cairo(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: isSel ? Colors.black : AppColors.textLight,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: isSel ? p.onAccent : p.ink,
                             ),
                           ),
                         ),
@@ -267,27 +312,23 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
                   }).toList(),
                 ),
               ),
-
-              const SizedBox(height: 14),
-
-              // Questions list
+              const SizedBox(height: 12),
               Expanded(
                 child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   itemCount: filteredQuestions.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     final q = filteredQuestions[index];
                     return Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: AppColors.cardNavy,
+                        color: p.surfaceElevated,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: q.isChecked
-                              ? AppColors.primaryGold
-                              : Colors.white.withOpacity(0.08),
-                          width: q.isChecked ? 1.5 : 1,
+                          color: q.isChecked ? p.accent : p.border,
+                          width: q.isChecked ? 1.4 : 1,
                         ),
                       ),
                       child: Column(
@@ -298,11 +339,12 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
                             children: [
                               Checkbox(
                                 value: q.isChecked,
-                                activeColor: AppColors.primaryGold,
-                                checkColor: Colors.black,
-                                onChanged: (_) => trackerProv.toggleQuestion(q.id),
+                                activeColor: p.accent,
+                                checkColor: p.onAccent,
+                                onChanged: (_) =>
+                                    trackerProv.toggleQuestion(q.id),
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: 6),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -310,20 +352,18 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
                                     Text(
                                       q.title,
                                       style: GoogleFonts.cairo(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.bold,
-                                        color: q.isChecked
-                                            ? AppColors.primaryGold
-                                            : AppColors.textLight,
+                                        fontSize: 14.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: q.isChecked ? p.accent : p.ink,
                                       ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       q.explanation,
                                       style: GoogleFonts.cairo(
-                                        fontSize: 13,
-                                        color: AppColors.textMuted,
-                                        height: 1.4,
+                                        fontSize: 12.5,
+                                        color: p.inkMuted,
+                                        height: 1.45,
                                       ),
                                     ),
                                   ],
@@ -331,27 +371,26 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
                               ),
                             ],
                           ),
-
-                          // Personal Note Field if checked
                           if (q.isChecked) ...[
-                            const SizedBox(height: 12),
-                            TextField(
-                              onChanged: (val) => trackerProv.updateQuestionNote(q.id, val),
-                              controller: TextEditingController(text: q.personalNote)
-                                ..selection = TextSelection.fromPosition(
-                                    TextPosition(offset: q.personalNote.length)),
-                              style: const TextStyle(color: Colors.white, fontSize: 13),
+                            const SizedBox(height: 10),
+                            TextFormField(
+                              initialValue: q.personalNote,
+                              onChanged: (val) =>
+                                  trackerProv.updateQuestionNote(q.id, val),
+                              style: GoogleFonts.cairo(
+                                  color: p.ink, fontSize: 13),
                               decoration: InputDecoration(
-                                hintText: 'ملاحظة سرية خاصة لتذكرها مع أب الاعتراف...',
-                                hintStyle: TextStyle(color: AppColors.textMuted.withOpacity(0.6)),
+                                hintText:
+                                    'ملاحظة سرية خاصة لتذكرها مع أب الاعتراف...',
+                                hintStyle: GoogleFonts.cairo(
+                                    color: p.inkSubtle, fontSize: 12),
                                 filled: true,
-                                fillColor: AppColors.surfaceNavy,
-                                contentPadding:
-                                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                fillColor: p.surfaceMuted,
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(10),
-                                  borderSide: BorderSide(
-                                      color: AppColors.primaryGold.withOpacity(0.3)),
+                                  borderSide: BorderSide(color: p.border),
                                 ),
                               ),
                             ),
@@ -362,22 +401,24 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
                   },
                 ),
               ),
-
-              // Bottom Self-Destruct / Action button
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: ElevatedButton.icon(
                   onPressed: _confirmSelfDestruct,
-                  icon: const Icon(Icons.check_circle_outline_rounded, size: 20),
+                  icon:
+                      const Icon(Icons.check_circle_outline_rounded, size: 20),
                   label: Text(
                     'إتمام الاعتراف ومحو الملاحظات',
-                    style: GoogleFonts.cairo(fontSize: 14, fontWeight: FontWeight.bold),
+                    style: GoogleFonts.cairo(
+                        fontSize: 13.5, fontWeight: FontWeight.w700),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.sacredBurgundy,
+                    backgroundColor: p.crimson,
                     foregroundColor: Colors.white,
+                    elevation: 0,
                     minimumSize: const Size(double.infinity, 48),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
                   ),
                 ),
               ),

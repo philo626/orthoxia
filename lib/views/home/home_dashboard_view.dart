@@ -7,6 +7,7 @@ import '../../core/services/coptic_calendar_service.dart';
 import '../../core/services/coptic_fast_service.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/services/patron_saint_service.dart';
+import '../../core/services/reading_state_service.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/theme/app_palette.dart';
 import '../../core/theme/app_theme.dart';
@@ -14,10 +15,12 @@ import '../../core/widgets/blessing_poster_studio_sheet.dart';
 import '../../core/widgets/luxe_widgets.dart';
 import '../../core/widgets/saint_icon_avatar.dart';
 import '../../models/katameros_model.dart';
+import '../../providers/bible_provider.dart';
 import '../../providers/church_mode_provider.dart';
 import '../../providers/liturgy_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../bible/bible_explorer_view.dart';
+import '../bible/bible_reader_view.dart';
 import '../books/books_library_view.dart';
 import '../community/prayer_wall_view.dart';
 import '../community/trivia_game_view.dart';
@@ -89,6 +92,7 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
       await Future.wait([
         CopticCalendarService.ensureLectionaryLoaded(),
         PatronSaintService.ensureLoaded(),
+        ReadingStateService().ensureLoaded(),
       ]);
       final katamerosRaw = await rootBundle.loadString('assets/data/katameros.json');
       _katameros = KatamerosDay.fromJson(jsonDecode(katamerosRaw));
@@ -765,6 +769,95 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                   ),
 
                   const SizedBox(height: 12),
+
+                  // 2a. Subtle "أكمل القراءة" Resume Card (only shown when user has read a Bible chapter)
+                  ValueListenableBuilder<int>(
+                    valueListenable: ReadingStateService().revisionNotifier,
+                    builder: (context, _, __) {
+                      final last = ReadingStateService().lastBible;
+                      if (last == null) return const SizedBox.shrink();
+                      final lastAbbrev = '${last['abbrev'] ?? ''}';
+                      final lastName = '${last['name'] ?? ''}';
+                      final lastChapter = (last['chapter'] as num?)?.toInt() ?? 1;
+                      if (lastAbbrev.isEmpty || lastName.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                        child: PressScale(
+                          scale: 0.985,
+                          onTap: () async {
+                            final bibleProv = context.read<BibleProvider>();
+                            await bibleProv.loadBible();
+                            final matched = bibleProv.allBooks
+                                .where((b) => b.abbrev == lastAbbrev);
+                            if (matched.isNotEmpty) {
+                              bibleProv.setCurrentBookAndChapter(
+                                matched.first,
+                                lastChapter,
+                              );
+                              if (!context.mounted) return;
+                              Navigator.push(
+                                context,
+                                luxeRoute(const BibleReaderView()),
+                              );
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 11),
+                            decoration: BoxDecoration(
+                              color: p.surfaceElevated,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                  color: p.accent.withValues(alpha: 0.35)),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: p.accentSoft,
+                                    borderRadius: BorderRadius.circular(11),
+                                  ),
+                                  child: Icon(Icons.bookmark_added_rounded,
+                                      size: 18, color: p.accent),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'أكمل القراءة من حيث توقفت',
+                                        style: GoogleFonts.cairo(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: p.accent,
+                                        ),
+                                      ),
+                                      Text(
+                                        '$lastName — الأصحاح $lastChapter',
+                                        style: GoogleFonts.amiri(
+                                          fontSize: 16.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: p.ink,
+                                          height: 1.2,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(Icons.chevron_left_rounded,
+                                    size: 20, color: p.inkSubtle),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
 
                   // 2b. Clean Paired Daily Readings Pills (Katameros + Synaxarium)
                   Padding(

@@ -4,9 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
-import '../../../core/constants/app_colors.dart';
 import '../../../core/services/coptic_youtube_registry.dart';
 import '../../../core/services/security_guard_service.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../models/hymn_model.dart';
 
 class YouTubeHymnPlayer extends StatefulWidget {
@@ -26,7 +26,7 @@ class YouTubeHymnPlayer extends StatefulWidget {
 }
 
 class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
-  late YoutubePlayerController _controller;
+  YoutubePlayerController? _controller;
   StreamSubscription? _videoStateSub;
   StreamSubscription? _valueSub;
 
@@ -36,19 +36,37 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
   bool _isLooping = false;
   bool _hasError = false;
 
+  bool get _hasExactVideo => widget.hymn.exactYoutube;
+
   @override
   void initState() {
     super.initState();
+    _syncFromHymn(initial: true);
+  }
+
+  void _syncFromHymn({bool initial = false}) {
     _currentVideoId = widget.hymn.resolvedYoutubeId;
     _activeCantorName = widget.hymn.youtubeTitle.isNotEmpty
         ? widget.hymn.youtubeTitle
-        : '${widget.hymn.title} • ${widget.hymn.cantor}';
-    _initController();
+        : '${widget.hymn.title} — ${widget.hymn.cantor}';
+    _hasError = false;
+
+    if (!_hasExactVideo) {
+      _disposeController();
+      return;
+    }
+
+    if (initial || _controller == null) {
+      _initController();
+    } else {
+      _controller!.loadVideoById(videoId: _currentVideoId);
+    }
   }
 
   void _initController() {
+    _disposeController();
     _hasError = false;
-    _controller = YoutubePlayerController.fromVideoId(
+    final ctrl = YoutubePlayerController.fromVideoId(
       videoId: _currentVideoId,
       autoPlay: true,
       params: const YoutubePlayerParams(
@@ -60,62 +78,62 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
         strictRelatedVideos: true,
       ),
     );
+    _controller = ctrl;
 
-    _videoStateSub = _controller.videoStateStream.listen((state) {
+    _videoStateSub = ctrl.videoStateStream.listen((state) {
       widget.onPositionChanged?.call(state.position);
     });
 
-    _valueSub = _controller.listen((value) {
+    _valueSub = ctrl.listen((value) {
       if (value.hasError && !_hasError && mounted) {
         setState(() => _hasError = true);
       }
       if (value.playerState == PlayerState.ended && _isLooping) {
-        _controller.seekTo(seconds: 0, allowSeekAhead: true);
-        _controller.playVideo();
+        ctrl.seekTo(seconds: 0, allowSeekAhead: true);
+        ctrl.playVideo();
       }
     });
+  }
+
+  void _disposeController() {
+    _videoStateSub?.cancel();
+    _videoStateSub = null;
+    _valueSub?.cancel();
+    _valueSub = null;
+    _controller?.close();
+    _controller = null;
   }
 
   @override
   void didUpdateWidget(covariant YouTubeHymnPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.hymn.id != widget.hymn.id) {
-      _loadNewVideo(
-        widget.hymn.resolvedYoutubeId,
-        widget.hymn.youtubeTitle.isNotEmpty
-            ? widget.hymn.youtubeTitle
-            : '${widget.hymn.title} • ${widget.hymn.cantor}',
-      );
+      setState(() {
+        _syncFromHymn();
+      });
     }
-  }
-
-  void _loadNewVideo(String newId, String cantorName) {
-    setState(() {
-      _currentVideoId = newId;
-      _activeCantorName = cantorName;
-      _hasError = false;
-    });
-    _controller.loadVideoById(videoId: newId);
   }
 
   void _cyclePlaybackSpeed() {
     HapticFeedback.selectionClick();
     final speeds = [0.75, 1.0, 1.25];
-    final nextSpeed = speeds[(speeds.indexOf(_playbackRate) + 1) % speeds.length];
+    final nextSpeed =
+        speeds[(speeds.indexOf(_playbackRate) + 1) % speeds.length];
     setState(() => _playbackRate = nextSpeed);
-    _controller.setPlaybackRate(nextSpeed);
+    _controller?.setPlaybackRate(nextSpeed);
   }
 
   void _toggleLoop() {
     HapticFeedback.selectionClick();
     setState(() => _isLooping = !_isLooping);
+    final p = context.palette;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          _isLooping ? 'تم تفعيل وضع التكرار لحفظ اللحن' : 'تم إيقاف التكرار',
-          style: GoogleFonts.cairo(fontSize: 12),
+          _isLooping ? 'تم تفعيل التكرار لحفظ اللحن' : 'تم إيقاف التكرار',
+          style: GoogleFonts.cairo(fontSize: 12.5, color: p.onAccent),
         ),
-        backgroundColor: AppColors.cardNavy,
+        backgroundColor: p.accent,
         duration: const Duration(seconds: 2),
       ),
     );
@@ -123,15 +141,15 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
 
   @override
   void dispose() {
-    _videoStateSub?.cancel();
-    _valueSub?.cancel();
-    _controller.close();
+    _disposeController();
     super.dispose();
   }
 
   Future<void> _openExternalYouTube() async {
     final url = SecurityGuardService.upgradeToHttps(
-      CopticYouTubeRegistry.buildWatchUrl(_currentVideoId),
+      _hasExactVideo
+          ? CopticYouTubeRegistry.buildWatchUrl(_currentVideoId)
+          : widget.hymn.youtubeSearchUrl,
     );
     if (!SecurityGuardService.isSafeExternalUrl(url)) return;
     final uri = Uri.parse(url);
@@ -141,7 +159,8 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
   }
 
   Future<void> _searchYouTubeMore() async {
-    final url = SecurityGuardService.upgradeToHttps(widget.hymn.youtubeSearchUrl);
+    final url =
+        SecurityGuardService.upgradeToHttps(widget.hymn.youtubeSearchUrl);
     if (!SecurityGuardService.isSafeExternalUrl(url)) return;
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
@@ -149,158 +168,121 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
     }
   }
 
-  void _selectCantorSheet(BuildContext context) {
-    final cantors = CopticYouTubeRegistry.getAvailableCantors(
-      hymnTitle: widget.hymn.title,
-      defaultCantor: widget.hymn.cantor,
-      primaryVideoId: widget.hymn.resolvedYoutubeId,
-      primaryVideoTitle: widget.hymn.youtubeTitle,
-    );
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
 
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        padding: const EdgeInsets.all(20),
+    // Honest card when this specific hymn has no exact verified YouTube video ID
+    // (never plays an unrelated hymn under the wrong title!)
+    if (!_hasExactVideo) {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF141417),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.45)),
+          color: p.surfaceElevated,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: p.border),
         ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryGold.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(4),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: p.accentSoft,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.music_note_rounded, color: p.accent, size: 20),
                 ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              'اختر أداء المرتل عبر يوتيوب',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.cairo(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primaryGold,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'تسجيلات كنسية موثقة تعمل مباشرة بدون تقطيع',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.cairo(fontSize: 12, color: Colors.white70),
-            ),
-            const SizedBox(height: 16),
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: cantors.length,
-                separatorBuilder: (_, _) => Divider(
-                  color: AppColors.primaryGold.withValues(alpha: 0.15),
-                  height: 1,
-                ),
-                itemBuilder: (ctx, idx) {
-                  final c = cantors[idx];
-                  final isSelected = c.videoId == _currentVideoId;
-                  return Material(
-                    type: MaterialType.transparency,
-                    child: ListTile(
-                      dense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isSelected
-                              ? AppColors.primaryGold
-                              : AppColors.primaryGold.withValues(alpha: 0.12),
-                        ),
-                        child: Icon(
-                          Icons.music_note,
-                          size: 18,
-                          color: isSelected ? Colors.black : AppColors.primaryGold,
-                        ),
-                      ),
-                      title: Text(
-                        c.name,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'نص اللحن الكامل متاح للقراءة والحفظ',
                         style: GoogleFonts.cairo(
                           fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: isSelected ? AppColors.primaryGoldLight : Colors.white,
+                          fontWeight: FontWeight.w700,
+                          color: p.ink,
                         ),
                       ),
-                      subtitle: Text(
-                        c.description,
-                        style: GoogleFonts.cairo(fontSize: 11, color: Colors.white60),
+                      Text(
+                        'لا يوجد فيديو يوتيوب مطابق مدمج لهذا اللحن بعد — يمكنك البحث عنه مباشرة على يوتيوب أو تجربة الصوت المباشر.',
+                        style: GoogleFonts.cairo(
+                          fontSize: 11.5,
+                          height: 1.45,
+                          color: p.inkMuted,
+                        ),
                       ),
-                      trailing: isSelected
-                          ? const Icon(Icons.check_circle, color: AppColors.primaryGold, size: 20)
-                          : const Icon(Icons.play_arrow_rounded, color: Colors.white54),
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        Navigator.pop(ctx);
-                        _loadNewVideo(c.videoId, c.name);
-                      },
-                    ),
-                  );
-                },
-              ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                _actionPill(
+                  p: p,
+                  icon: Icons.search_rounded,
+                  label: 'ابحث عن اللحن على يوتيوب',
+                  highlighted: true,
+                  onTap: _searchYouTubeMore,
+                ),
+                if (widget.onSwitchToAudio != null)
+                  _actionPill(
+                    p: p,
+                    icon: Icons.headphones_rounded,
+                    label: 'تجربة الصوت المباشر',
+                    onTap: widget.onSwitchToAudio!,
+                  ),
+              ],
             ),
           ],
         ),
-      ),
-    );
-  }
+      );
+    }
 
-  @override
-  Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF141418),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.45), width: 1.3),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primaryGold.withValues(alpha: 0.12),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        color: p.surfaceElevated,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: p.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header Badge
+          // Header Badge + Cantor Speed Trainer
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFF0000).withValues(alpha: 0.18),
+                    color: p.crimsonSoft,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFFF4444).withValues(alpha: 0.5)),
+                    border: Border.all(color: p.crimson.withValues(alpha: 0.35)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.play_circle_fill_rounded, color: Color(0xFFFF4444), size: 14),
+                      Icon(Icons.play_circle_filled_rounded,
+                          color: p.crimson, size: 13),
                       const SizedBox(width: 4),
                       Text(
-                        'يوتيوب أونلاين',
+                        'تسجيل موثّق',
                         style: GoogleFonts.cairo(
                           fontSize: 10.5,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          color: p.crimson,
                         ),
                       ),
                     ],
@@ -314,27 +296,29 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.cairo(
                       fontSize: 12,
-                      color: AppColors.primaryGoldLight,
-                      fontWeight: FontWeight.w600,
+                      color: p.ink,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
-                // Deacon speed trainer button
+                const SizedBox(width: 6),
                 InkWell(
                   onTap: _cyclePlaybackSpeed,
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: AppColors.primaryGold.withValues(alpha: 0.18),
+                      color: p.accentSoft,
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: p.accent.withValues(alpha: 0.3)),
                     ),
                     child: Text(
                       '${_playbackRate}x',
                       style: GoogleFonts.cairo(
                         fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primaryGoldLight,
+                        fontWeight: FontWeight.w700,
+                        color: p.accent,
                       ),
                     ),
                   ),
@@ -347,68 +331,87 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(13),
               child: AspectRatio(
                 aspectRatio: 16 / 9,
-                child: _hasError
+                child: _hasError || _controller == null
                     ? Container(
-                        color: Colors.black,
+                        color: p.surfaceMuted,
                         padding: const EdgeInsets.all(16),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.wifi_off_rounded, color: AppColors.primaryGold, size: 36),
+                            Icon(Icons.wifi_off_rounded,
+                                color: p.accent, size: 32),
                             const SizedBox(height: 8),
                             Text(
-                              'تعذر تشغيل فيديو يوتيوب حالياً',
-                              style: GoogleFonts.cairo(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                              'تعذر تشغيل الفيديو داخل التطبيق حالياً',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.cairo(
+                                color: p.ink,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                            const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              alignment: WrapAlignment.center,
                               children: [
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: p.accent,
+                                    foregroundColor: p.onAccent,
+                                  ),
+                                  onPressed: _openExternalYouTube,
+                                  icon: const Icon(Icons.open_in_new_rounded,
+                                      size: 15),
+                                  label: Text(
+                                    'فتح في يوتيوب',
+                                    style: GoogleFonts.cairo(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
                                 if (widget.onSwitchToAudio != null)
-                                  ElevatedButton.icon(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.primaryGold,
-                                      foregroundColor: Colors.black,
+                                  OutlinedButton.icon(
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: p.ink,
+                                      side: BorderSide(color: p.borderStrong),
                                     ),
                                     onPressed: widget.onSwitchToAudio,
-                                    icon: const Icon(Icons.headphones_rounded, size: 16),
-                                    label: Text('تشغيل الصوت المباشر', style: GoogleFonts.cairo(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                                    icon: const Icon(Icons.headphones_rounded,
+                                        size: 15),
+                                    label: Text(
+                                      'الصوت المباشر',
+                                      style: GoogleFonts.cairo(fontSize: 11.5),
+                                    ),
                                   ),
-                                const SizedBox(width: 8),
-                                OutlinedButton(
-                                  onPressed: _openExternalYouTube,
-                                  child: Text('فتح في يوتيوب', style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.primaryGold)),
-                                ),
                               ],
                             ),
                           ],
                         ),
                       )
                     : YoutubePlayer(
-                        controller: _controller,
+                        controller: _controller!,
                         aspectRatio: 16 / 9,
                       ),
               ),
             ),
           ),
 
-          // Action Controls Row (Cantors, Loop, Direct Audio, Open in YouTube)
+          // Action Controls Row
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
             child: Wrap(
               spacing: 8,
               runSpacing: 8,
               alignment: WrapAlignment.center,
               children: [
                 _actionPill(
-                  icon: Icons.people_alt_rounded,
-                  label: 'تغيير المرتل',
-                  onTap: () => _selectCantorSheet(context),
-                ),
-                _actionPill(
+                  p: p,
                   icon: Icons.repeat_rounded,
                   label: _isLooping ? 'التكرار: مفعل' : 'تكرار للحفظ',
                   highlighted: _isLooping,
@@ -416,18 +419,21 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
                 ),
                 if (widget.onSwitchToAudio != null)
                   _actionPill(
+                    p: p,
                     icon: Icons.headphones_rounded,
-                    label: 'صوت بالخلفية (MP3)',
+                    label: 'صوت بالخلفية',
                     onTap: widget.onSwitchToAudio!,
                   ),
                 _actionPill(
+                  p: p,
                   icon: Icons.open_in_new_rounded,
                   label: 'فتح في يوتيوب',
                   onTap: _openExternalYouTube,
                 ),
                 _actionPill(
+                  p: p,
                   icon: Icons.search_rounded,
-                  label: 'تسجيلات أخرى',
+                  label: 'مرتلون آخرون',
                   onTap: _searchYouTubeMore,
                 ),
               ],
@@ -439,6 +445,7 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
   }
 
   Widget _actionPill({
+    required AppPalette p,
     required IconData icon,
     required String label,
     required VoidCallback onTap,
@@ -446,14 +453,14 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(11),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: highlighted ? AppColors.primaryGold : AppColors.cardNavy,
-          borderRadius: BorderRadius.circular(12),
+          color: highlighted ? p.accent : p.surfaceMuted,
+          borderRadius: BorderRadius.circular(11),
           border: Border.all(
-            color: AppColors.primaryGold.withValues(alpha: highlighted ? 1.0 : 0.3),
+            color: highlighted ? p.accent : p.border,
           ),
         ),
         child: Row(
@@ -462,15 +469,15 @@ class _YouTubeHymnPlayerState extends State<YouTubeHymnPlayer> {
             Icon(
               icon,
               size: 14,
-              color: highlighted ? Colors.black : AppColors.primaryGold,
+              color: highlighted ? p.onAccent : p.accent,
             ),
             const SizedBox(width: 5),
             Text(
               label,
               style: GoogleFonts.cairo(
                 fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: highlighted ? Colors.black : AppColors.textLight,
+                fontWeight: FontWeight.w700,
+                color: highlighted ? p.onAccent : p.ink,
               ),
             ),
           ],

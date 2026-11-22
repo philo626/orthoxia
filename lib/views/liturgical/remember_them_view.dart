@@ -2,15 +2,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/services/security_guard_service.dart';
 import '../../core/services/speech_pronunciation_service.dart';
 import '../../core/services/storage_service.dart';
+import '../../core/theme/app_palette.dart';
 import '../../core/widgets/coptic_cross.dart';
 
 /// Personal Liturgical Diptych ("دفتر اذكرهم يا رب على مذبح صلاتي")
-/// Saves names of family, sick, travelers, and departed encrypted locally via AES-256-GCM
-/// and generates a live personalized Orthodox intercession prayer with audio reading.
+/// Saves names of family, sick, travelers, and departed encrypted locally via AES-256-GCM.
 class RememberThemView extends StatefulWidget {
   const RememberThemView({super.key});
 
@@ -50,7 +49,7 @@ class _RememberThemViewState extends State<RememberThemView> {
     },
   ];
 
-  Map<String, List<String>> _namesByCat = {
+  final Map<String, List<String>> _namesByCat = {
     'family': [],
     'sick': [],
     'travelers': [],
@@ -101,7 +100,7 @@ class _RememberThemViewState extends State<RememberThemView> {
     );
     if (txt.isEmpty) return;
     HapticFeedback.lightImpact();
-    final catId = _categories[_activeCatIndex]['id']!;
+    final catId = _categories[_activeCatIndex]['id'] as String;
     setState(() {
       if (!_namesByCat[catId]!.contains(txt)) {
         _namesByCat[catId]!.add(txt);
@@ -126,21 +125,27 @@ class _RememberThemViewState extends State<RememberThemView> {
     final dep = _namesByCat['departed']!;
 
     final buf = StringBuffer();
-    buf.writeln('أيها السيد الرب يسوع المسيح إلهنا الصالح، نرفع إليك قلوبنا وصلواتنا من أجل أحبائنا:');
+    buf.writeln(
+        'أيها السيد الرب يسوع المسيح إلهنا الصالح، نرفع إليك قلوبنا وصلواتنا من أجل أحبائنا:');
     if (fam.isNotEmpty) {
-      buf.writeln('• اذكر يا رب عبيدك وأحباءنا: (${fam.join("، ")})، بارك حياتهم واحفظهم في سلامك ومخافتك.');
+      buf.writeln(
+          '• اذكر يا رب عبيدك وأحباءنا: (${fam.join("، ")})، بارك حياتهم واحفظهم في سلامك ومخافتك.');
     }
     if (sick.isNotEmpty) {
-      buf.writeln('• اذكر يا رب المرضى والمتضايقين: (${sick.join("، ")})، مد يدك الشافية إليهم وهبهم عافية وتعزية سماوية.');
+      buf.writeln(
+          '• اذكر يا رب المرضى والمتضايقين: (${sick.join("، ")})، مد يدك الشافية إليهم وهبهم عافية وتعزية سماوية.');
     }
     if (trav.isNotEmpty) {
-      buf.writeln('• اذكر يا رب المسافرين والمغتربين: (${trav.join("، ")})، رافقهم بملائكتك الأطهار واحفظهم في كل طرقهم.');
+      buf.writeln(
+          '• اذكر يا رب المسافرين والمغتربين: (${trav.join("، ")})، رافقهم بملائكتك الأطهار واحفظهم في كل طرقهم.');
     }
     if (dep.isNotEmpty) {
-      buf.writeln('• اذكر يا رب نفوس عبيدك المنتقلين على رجاء القيامة: (${dep.join("، ")})، نيح نفوسهم في فردوس النعيم في أحضان آبائنا إبراهيم وإسحق ويعقوب.');
+      buf.writeln(
+          '• اذكر يا رب نفوس عبيدك المنتقلين على رجاء القيامة: (${dep.join("، ")})، نيح نفوسهم في فردوس النعيم في أحضان آبائنا إبراهيم وإسحق ويعقوب.');
     }
     if (fam.isEmpty && sick.isEmpty && trav.isEmpty && dep.isEmpty) {
-      buf.writeln('• اذكر يا رب أسرتنا وكنيستنا وكل المحتاجين إلى مراحمك السماوية، واشملنا جميعاً بنعمتك وسلامك. آمين.');
+      buf.writeln(
+          '• اذكر يا رب أسرتنا وكنيستنا وكل المحتاجين إلى مراحمك السماوية، واشملنا جميعاً بنعمتك وسلامك. آمين.');
     } else {
       buf.writeln('بشفاعة والدة الإله القديسة الطاهرة مريم وجميع قديسيك. آمين.');
     }
@@ -149,25 +154,30 @@ class _RememberThemViewState extends State<RememberThemView> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     final activeCat = _categories[_activeCatIndex];
-    final activeCatId = activeCat['id']!;
+    final activeCatId = activeCat['id'] as String;
     final activeList = _namesByCat[activeCatId] ?? [];
     final prayerText = _buildPersonalizedPrayer();
 
     return Scaffold(
-      backgroundColor: AppColors.deepNavy,
+      backgroundColor: p.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepNavy,
+        backgroundColor: p.background,
+        elevation: 0,
         centerTitle: true,
         title: Text(
           'دفتر «اذكرهم يا رب» في صلاتي',
-          style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 16),
+          style: GoogleFonts.amiri(
+            fontWeight: FontWeight.w700,
+            fontSize: 21,
+            color: p.ink,
+          ),
         ),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 36),
         children: [
-          // 1. Category Selector Tabs
           SizedBox(
             height: 82,
             child: ListView.separated(
@@ -177,7 +187,7 @@ class _RememberThemViewState extends State<RememberThemView> {
               itemBuilder: (context, idx) {
                 final cat = _categories[idx];
                 final isSel = idx == _activeCatIndex;
-                final count = (_namesByCat[cat['id']!] ?? []).length;
+                final count = (_namesByCat[cat['id'] as String] ?? []).length;
                 return GestureDetector(
                   onTap: () {
                     HapticFeedback.selectionClick();
@@ -187,13 +197,11 @@ class _RememberThemViewState extends State<RememberThemView> {
                     width: 145,
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: isSel
-                          ? AppColors.primaryGold.withValues(alpha: 0.18)
-                          : AppColors.cardNavy,
+                      color: isSel ? p.accentSoft : p.surfaceElevated,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: isSel ? AppColors.primaryGold : Colors.white12,
-                        width: isSel ? 1.5 : 1.0,
+                        color: isSel ? p.accent : p.border,
+                        width: isSel ? 1.4 : 1.0,
                       ),
                     ),
                     child: Column(
@@ -202,20 +210,22 @@ class _RememberThemViewState extends State<RememberThemView> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(cat['iconData'] as IconData, color: AppColors.primaryGold, size: 19),
+                            Icon(cat['iconData'] as IconData,
+                                color: p.accent, size: 19),
                             const SizedBox(width: 6),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 1),
                               decoration: BoxDecoration(
-                                color: AppColors.primaryGold,
+                                color: p.accent,
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
                                 '$count',
                                 style: GoogleFonts.cairo(
                                   fontSize: 10.5,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black,
+                                  fontWeight: FontWeight.w700,
+                                  color: p.onAccent,
                                 ),
                               ),
                             ),
@@ -223,13 +233,13 @@ class _RememberThemViewState extends State<RememberThemView> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          cat['title']!,
+                          cat['title'] as String,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.cairo(
                             fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: isSel ? AppColors.primaryGoldLight : Colors.white,
+                            fontWeight: FontWeight.w700,
+                            color: isSel ? p.accent : p.ink,
                           ),
                         ),
                       ],
@@ -239,31 +249,29 @@ class _RememberThemViewState extends State<RememberThemView> {
               },
             ),
           ),
-
           const SizedBox(height: 14),
-
-          // 2. Add Name Box
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.cardNavy,
+              color: p.surfaceElevated,
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.35)),
+              border: Border.all(color: p.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Row(
                   children: [
-                    Icon(activeCat['iconData'] as IconData, color: AppColors.primaryGold, size: 18),
+                    Icon(activeCat['iconData'] as IconData,
+                        color: p.accent, size: 18),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         '${activeCat['subtitle']}',
                         style: GoogleFonts.cairo(
                           fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primaryGoldLight,
+                          fontWeight: FontWeight.w700,
+                          color: p.ink,
                         ),
                       ),
                     ),
@@ -276,13 +284,16 @@ class _RememberThemViewState extends State<RememberThemView> {
                       child: TextField(
                         controller: _nameCtrl,
                         onSubmitted: (_) => _addName(),
-                        style: GoogleFonts.cairo(color: Colors.white, fontSize: 13.5),
+                        style: GoogleFonts.cairo(color: p.ink, fontSize: 13.5),
                         decoration: InputDecoration(
-                          hintText: 'اكتب الاسم لإضافته إلى ${activeCat['title']}...',
-                          hintStyle: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 12),
+                          hintText:
+                              'اكتب الاسم لإضافته إلى ${activeCat['title']}...',
+                          hintStyle: GoogleFonts.cairo(
+                              color: p.inkSubtle, fontSize: 12),
                           filled: true,
-                          fillColor: const Color(0xFF14161F),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          fillColor: p.surfaceMuted,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide.none,
@@ -294,13 +305,17 @@ class _RememberThemViewState extends State<RememberThemView> {
                     ElevatedButton.icon(
                       onPressed: _addName,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryGold,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        backgroundColor: p.accent,
+                        foregroundColor: p.onAccent,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 11),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                       icon: const Icon(Icons.add_rounded, size: 18),
-                      label: Text('إضافة', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+                      label: Text('إضافة',
+                          style: GoogleFonts.cairo(fontWeight: FontWeight.w700)),
                     ),
                   ],
                 ),
@@ -311,7 +326,8 @@ class _RememberThemViewState extends State<RememberThemView> {
                     child: Text(
                       'لم تضف أسماء في هذه الخانة بعد. أضف أسماء أحبائك ليُذكروا في صلاتك اليومية.',
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.cairo(fontSize: 12, color: AppColors.textMuted),
+                      style:
+                          GoogleFonts.cairo(fontSize: 12, color: p.inkMuted),
                     ),
                   )
                 else
@@ -320,17 +336,18 @@ class _RememberThemViewState extends State<RememberThemView> {
                     runSpacing: 8,
                     children: activeList.map((name) {
                       return Chip(
-                        backgroundColor: const Color(0xFF231D14),
-                        side: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.45)),
+                        backgroundColor: p.accentSoft,
+                        side: BorderSide(color: p.accent.withValues(alpha: 0.4)),
                         label: Text(
                           name,
                           style: GoogleFonts.cairo(
                             fontSize: 12.5,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primaryGoldLight,
+                            fontWeight: FontWeight.w700,
+                            color: p.ink,
                           ),
                         ),
-                        deleteIcon: const Icon(Icons.close_rounded, size: 16, color: Colors.white70),
+                        deleteIcon:
+                            Icon(Icons.close_rounded, size: 16, color: p.inkMuted),
                         onDeleted: () => _removeName(activeCatId, name),
                       );
                     }).toList(),
@@ -338,35 +355,28 @@ class _RememberThemViewState extends State<RememberThemView> {
               ],
             ),
           ),
-
           const SizedBox(height: 18),
-
-          // 3. Generated Personalized Liturgical Prayer Card
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF2B2012), Color(0xFF14151C)],
-                begin: Alignment.topRight,
-                end: Alignment.bottomLeft,
-              ),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: AppColors.primaryGold, width: 1.3),
+              color: p.surfaceElevated,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: p.accent.withValues(alpha: 0.45)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Row(
                   children: [
-                    const CopticCross(size: 20),
+                    CopticCross(size: 20, color: p.accent),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'صلاتك وأوشيتك الخاصة بأسمائهم الآن',
                         style: GoogleFonts.cairo(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primaryGoldLight,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: p.accent,
                         ),
                       ),
                     ),
@@ -378,7 +388,7 @@ class _RememberThemViewState extends State<RememberThemView> {
                   style: GoogleFonts.amiri(
                     fontSize: 19,
                     height: 1.8,
-                    color: Colors.white,
+                    color: p.ink,
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -390,20 +400,26 @@ class _RememberThemViewState extends State<RememberThemView> {
                         if (speaking) {
                           _speech.stop();
                         } else {
-                          _speech.speakText(prayerText, label: 'أوشية اذكرهم يا رب');
+                          _speech.speakText(prayerText,
+                              label: 'أوشية اذكرهم يا رب');
                         }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: speaking ? AppColors.sacredBurgundy : AppColors.primaryGold,
-                        foregroundColor: speaking ? Colors.white : Colors.black,
+                        backgroundColor: speaking ? p.crimson : p.accent,
+                        foregroundColor: speaking ? Colors.white : p.onAccent,
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
-                      icon: Icon(speaking ? Icons.stop_rounded : Icons.volume_up_rounded),
+                      icon: Icon(
+                          speaking ? Icons.stop_rounded : Icons.volume_up_rounded),
                       label: Text(
-                        speaking ? 'إيقاف القراءة الصوتية' : 'استمع للصلاة بأسمائهم صوتياً',
-                        style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 13.5),
+                        speaking
+                            ? 'إيقاف القراءة الصوتية'
+                            : 'استمع للصلاة بأسمائهم صوتياً',
+                        style: GoogleFonts.cairo(
+                            fontWeight: FontWeight.w700, fontSize: 13.5),
                       ),
                     );
                   },

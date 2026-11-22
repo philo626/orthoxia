@@ -3,7 +3,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../constants/app_colors.dart';
+import '../theme/app_palette.dart';
 
 /// Neural Arabic & Coptic-Phonetic Speech Pronunciation Service
 /// With reactive Play / Stop state and global floating Stop control.
@@ -197,6 +197,7 @@ class SpeechPlayStopButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     final speech = SpeechPronunciationService();
     return ValueListenableBuilder<bool>(
       valueListenable: speech.isSpeakingNotifier,
@@ -215,34 +216,34 @@ class SpeechPlayStopButton extends StatelessWidget {
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: isThisActive
-                    ? AppColors.sacredBurgundy
-                    : AppColors.primaryGold.withValues(alpha: 0.14),
-                foregroundColor: isThisActive ? Colors.white : AppColors.primaryGoldLight,
+                backgroundColor: isThisActive ? p.crimson : p.accentSoft,
+                foregroundColor: isThisActive ? Colors.white : p.accent,
                 elevation: 0,
-                visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
+                visualDensity:
+                    compact ? VisualDensity.compact : VisualDensity.standard,
                 padding: EdgeInsets.symmetric(
                   horizontal: compact ? 10 : 14,
                   vertical: compact ? 6 : 10,
                 ),
                 side: BorderSide(
                   color: isThisActive
-                      ? AppColors.rubricRed
-                      : AppColors.primaryGold.withValues(alpha: 0.35),
+                      ? p.crimson
+                      : p.accent.withValues(alpha: 0.35),
                 ),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
               ),
               icon: Icon(
                 isThisActive ? Icons.stop_rounded : Icons.volume_up_rounded,
                 size: compact ? 15 : 17,
-                color: isThisActive ? Colors.white : AppColors.primaryGold,
+                color: isThisActive ? Colors.white : p.accent,
               ),
               label: Text(
                 isThisActive ? stopText : playText,
                 style: GoogleFonts.cairo(
                   fontSize: compact ? 11.5 : 12.5,
-                  fontWeight: FontWeight.bold,
-                  color: isThisActive ? Colors.white : AppColors.primaryGoldLight,
+                  fontWeight: FontWeight.w700,
+                  color: isThisActive ? Colors.white : p.accent,
                 ),
               ),
             );

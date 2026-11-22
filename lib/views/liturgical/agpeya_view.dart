@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/services/notification_service.dart';
+import '../../core/theme/app_palette.dart';
+import '../../core/widgets/luxe_widgets.dart';
 import '../../models/agpeya_model.dart';
 import 'agpeya_reader_view.dart';
 
@@ -16,19 +17,18 @@ class AgpeyaView extends StatefulWidget {
 }
 
 class _AgpeyaViewState extends State<AgpeyaView> {
-  static const String _alarmsKey = 'agpeya_optional_alarms_v1';
   List<AgpeyaHour> _hours = [];
   bool _isLoading = true;
   Set<String> _enabledAlarmIds = {};
 
   static const List<Map<String, String>> _alarmSlots = [
-    {'id': 'prime', 'title': 'صلاة باكر (٦:٠٠ ص)', 'time': '06:00'},
-    {'id': 'terce', 'title': 'صلاة الساعة الثالثة (٩:٠٠ ص)', 'time': '09:00'},
-    {'id': 'sext', 'title': 'صلاة الساعة السادسة (١٢:٠٠ ظ)', 'time': '12:00'},
-    {'id': 'none', 'title': 'صلاة الساعة التاسعة (٣:٠٠ ع)', 'time': '15:00'},
-    {'id': 'vespers', 'title': 'صلاة الغروب (٥:٠٠ م)', 'time': '17:00'},
-    {'id': 'compline', 'title': 'صلاة النوم (٩:٠٠ م)', 'time': '21:00'},
-    {'id': 'midnight', 'title': 'صلاة نصف الليل (١١:٣٠ م)', 'time': '23:30'},
+    {'id': 'prime', 'title': 'صلاة باكر (٦:٠٠ ص)'},
+    {'id': 'terce', 'title': 'صلاة الساعة الثالثة (٩:٠٠ ص)'},
+    {'id': 'sext', 'title': 'صلاة الساعة السادسة (١٢:٠٠ ظ)'},
+    {'id': 'none', 'title': 'صلاة الساعة التاسعة (٣:٠٠ ع)'},
+    {'id': 'vespers', 'title': 'صلاة الغروب (٥:٠٠ م)'},
+    {'id': 'compline', 'title': 'صلاة النوم (٩:٠٠ م)'},
+    {'id': 'midnight', 'title': 'صلاة نصف الليل (١١:٣٠ م)'},
   ];
 
   @override
@@ -40,7 +40,8 @@ class _AgpeyaViewState extends State<AgpeyaView> {
   Future<void> _loadHours() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _enabledAlarmIds = (prefs.getStringList(_alarmsKey) ?? []).toSet();
+      _enabledAlarmIds =
+          (prefs.getStringList(NotificationService.agpeyaAlarmsPrefsKey) ?? []).toSet();
 
       final raw = await rootBundle.loadString('assets/data/agpeya.json');
       final list = jsonDecode(raw) as List;
@@ -53,233 +54,332 @@ class _AgpeyaViewState extends State<AgpeyaView> {
     }
   }
 
+  String _recommendedHourIdNow() {
+    final h = DateTime.now().hour;
+    if (h >= 5 && h < 9) return 'prime';
+    if (h >= 9 && h < 12) return 'terce';
+    if (h >= 12 && h < 15) return 'sext';
+    if (h >= 15 && h < 17) return 'none';
+    if (h >= 17 && h < 20) return 'vespers';
+    if (h >= 20 && h < 23) return 'compline';
+    return 'midnight';
+  }
+
   void _openAgpeyaAlarmsSheet() {
     HapticFeedback.selectionClick();
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) {
-          return Container(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 22),
-            decoration: const BoxDecoration(
-              color: Color(0xFF13151D),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-              border: Border(top: BorderSide(color: AppColors.primaryGold, width: 1.5)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 44,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryGold.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  '⏰ منبّه سواعي الأجبية (اختياري)',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.cairo(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryGoldLight,
-                  ),
-                ),
-                Text(
-                  'اختر الساعات التي تحب أن يذكرك التطبيق بصلاوتها يومياً (يمكنك إيقافها في أي وقت)',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.textMuted),
-                ),
-                const SizedBox(height: 12),
-                ..._alarmSlots.map((slot) {
-                  final id = slot['id']!;
-                  final isOn = _enabledAlarmIds.contains(id);
-                  return SwitchListTile(
-                    dense: true,
-                    activeThumbColor: AppColors.primaryGold,
-                    title: Text(
-                      slot['title']!,
-                      style: GoogleFonts.cairo(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.bold,
-                        color: isOn ? AppColors.primaryGoldLight : Colors.white,
+      builder: (ctx) {
+        final p = ctx.palette;
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Container(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 26),
+              decoration: BoxDecoration(
+                color: p.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+                border: Border(top: BorderSide(color: p.border)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: p.border,
+                        borderRadius: BorderRadius.circular(4),
                       ),
                     ),
-                    value: isOn,
-                    onChanged: (val) async {
-                      setSheetState(() {
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'منبّه سواعي الأجبية',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.amiri(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: p.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'اختر الساعات التي ترغب أن يذكّرك بها التطبيق يومياً في موعدها',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.cairo(fontSize: 12, color: p.inkSecondary),
+                  ),
+                  const SizedBox(height: 12),
+                  ..._alarmSlots.map((slot) {
+                    final id = slot['id']!;
+                    final isOn = _enabledAlarmIds.contains(id);
+                    return SwitchListTile(
+                      dense: true,
+                      activeThumbColor: p.accent,
+                      title: Text(
+                        slot['title']!,
+                        style: GoogleFonts.cairo(
+                          fontSize: 13.5,
+                          fontWeight: isOn ? FontWeight.bold : FontWeight.w500,
+                          color: isOn ? p.accent : p.ink,
+                        ),
+                      ),
+                      value: isOn,
+                      onChanged: (val) async {
+                        setSheetState(() {
+                          if (val) {
+                            _enabledAlarmIds.add(id);
+                          } else {
+                            _enabledAlarmIds.remove(id);
+                          }
+                        });
+                        setState(() {});
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setStringList(
+                          NotificationService.agpeyaAlarmsPrefsKey,
+                          _enabledAlarmIds.toList(),
+                        );
                         if (val) {
-                          _enabledAlarmIds.add(id);
-                        } else {
-                          _enabledAlarmIds.remove(id);
+                          await NotificationService().requestPermission();
                         }
-                      });
-                      setState(() {});
-                      final prefs = await SharedPreferences.getInstance();
-                      await prefs.setStringList(_alarmsKey, _enabledAlarmIds.toList());
-                      if (val) {
-                        await NotificationService().requestPermission();
-                      }
-                    },
-                  );
-                }),
-              ],
-            ),
-          );
-        },
-      ),
+                        await NotificationService().syncAgpeyaAlarms(_enabledAlarmIds);
+                      },
+                    );
+                  }),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.primaryGold));
+      return Scaffold(
+        backgroundColor: p.canvas,
+        body: Center(child: CircularProgressIndicator(color: p.accent, strokeWidth: 2)),
+      );
     }
 
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: Column(
-        children: [
-          // Optional Agpeya Alarms Top Card
-          Container(
-            margin: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF281F12), Color(0xFF15161E)],
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.45)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.alarm_rounded, color: AppColors.primaryGold, size: 22),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'منبّه سواعي الأجبية الاختياري',
-                        style: GoogleFonts.cairo(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primaryGoldLight,
-                        ),
-                      ),
-                      Text(
-                        _enabledAlarmIds.isEmpty
-                            ? 'اضغط لتحديد الساعات التي تحب التذكير بها'
-                            : 'تم تفعيل التذكير لـ ${_enabledAlarmIds.length} من سواعي الأجبية',
-                        style: GoogleFonts.cairo(fontSize: 11, color: Colors.white70),
-                      ),
-                    ],
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: _openAgpeyaAlarmsSheet,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryGold,
-                    foregroundColor: Colors.black,
-                    visualDensity: VisualDensity.compact,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: Text(
-                    'ضبط المنبّه',
-                    style: GoogleFonts.cairo(fontSize: 11.5, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-          ),
+    final currentHourId = _recommendedHourIdNow();
 
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              itemCount: _hours.length,
-              itemBuilder: (context, index) {
-                final hour = _hours[index];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardNavy,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.2)),
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      leading: Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.sacredBurgundy.withValues(alpha: 0.3),
-                          border: Border.all(color: AppColors.primaryGold, width: 1.2),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '${index + 1}',
-                            style: GoogleFonts.cairo(
-                              color: AppColors.primaryGold,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
+    return Scaffold(
+      backgroundColor: p.canvas,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: Column(
+            children: [
+              // Clean Adaptive Alarms Strip
+              Container(
+                margin: const EdgeInsets.fromLTRB(18, 12, 18, 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: p.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: p.border),
+                  boxShadow: p.isDark
+                      ? null
+                      : [
+                          BoxShadow(
+                            color: p.shadow,
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
                           ),
-                        ),
+                        ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: p.goldSoft,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      title: Text(
-                        hour.nameAr,
-                        style: GoogleFonts.cairo(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textLight,
-                        ),
-                      ),
-                      subtitle: Column(
+                      child: Icon(Icons.notifications_active_outlined, color: p.gold, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            hour.nameCoptic,
+                            'منبّه سواعي الأجبية',
                             style: GoogleFonts.cairo(
-                              fontSize: 12,
-                              color: AppColors.primaryGoldLight,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.bold,
+                              color: p.ink,
                             ),
                           ),
                           Text(
-                            hour.theme,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.cairo(
-                              fontSize: 11,
-                              color: AppColors.textMuted,
-                            ),
+                            _enabledAlarmIds.isEmpty
+                                ? 'اختياري — اضبط الساعات التي تحب التذكير بها'
+                                : 'مُفعّل لـ ${_enabledAlarmIds.length} من سواعي الصلاة يومياً',
+                            style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkSecondary),
                           ),
                         ],
                       ),
-                      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: AppColors.primaryGold),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => AgpeyaReaderView(hour: hour)),
-                        );
-                      },
                     ),
-                  ),
-                );
-              },
-            ),
+                    OutlinedButton(
+                      onPressed: _openAgpeyaAlarmsSheet,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 36),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        side: BorderSide(color: p.goldBorder),
+                        backgroundColor: p.goldSoft,
+                      ),
+                      child: Text(
+                        'ضبط',
+                        style: GoogleFonts.cairo(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: p.isDark ? p.gold : p.accent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(18, 6, 18, 36),
+                  itemCount: _hours.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final hour = _hours[index];
+                    final isRecommended = hour.id == currentHourId;
+                    return PressScale(
+                      scale: 0.985,
+                      onTap: () => Navigator.push(
+                        context,
+                        luxeRoute(AgpeyaReaderView(hour: hour)),
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.all(15),
+                        decoration: BoxDecoration(
+                          color: isRecommended ? p.goldSoft : p.surface,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: isRecommended ? p.accent : p.border,
+                            width: isRecommended ? 1.4 : 1,
+                          ),
+                          boxShadow: p.isDark
+                              ? null
+                              : [
+                                  BoxShadow(
+                                    color: p.shadow,
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isRecommended ? p.accent : p.surfaceSubtle,
+                                border: Border.all(
+                                  color: isRecommended ? p.accent : p.border,
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                '${index + 1}',
+                                style: GoogleFonts.amiri(
+                                  color: isRecommended ? p.onAccent : p.ink,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 19,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          hour.nameAr,
+                                          style: GoogleFonts.amiri(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                            color: p.ink,
+                                          ),
+                                        ),
+                                      ),
+                                      if (isRecommended)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: p.accent,
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          child: Text(
+                                            'الآن',
+                                            style: GoogleFonts.cairo(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.bold,
+                                              color: p.onAccent,
+                                            ),
+                                          ),
+                                        )
+                                      else if (hour.timeRange.isNotEmpty)
+                                        Text(
+                                          hour.timeRange,
+                                          style: GoogleFonts.cairo(
+                                            fontSize: 11,
+                                            color: p.inkMuted,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    hour.theme,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.cairo(
+                                      fontSize: 12,
+                                      color: p.inkSecondary,
+                                      height: 1.45,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.chevron_left_rounded,
+                              color: isRecommended ? p.accent : p.inkMuted,
+                              size: 20,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/services/ai_theology_service.dart';
 import '../../core/services/speech_pronunciation_service.dart';
+import '../../core/theme/app_palette.dart';
 import '../../core/widgets/coptic_cross.dart';
 import '../../providers/ai_companion_provider.dart';
 import '../../providers/theme_provider.dart';
@@ -35,7 +35,7 @@ class _AiCompanionViewState extends State<AiCompanionView> {
     _msgCtrl.clear();
     FocusScope.of(context).unfocus();
     provider.sendMessage(text);
-    Future.delayed(const Duration(milliseconds: 200), () {
+    Future.delayed(const Duration(milliseconds: 220), () {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
@@ -46,8 +46,12 @@ class _AiCompanionViewState extends State<AiCompanionView> {
     });
   }
 
-  /// Renders a clean, structured Patristic answer without any raw *** or markdown symbols
-  Widget _buildFormattedPatristicAnswer(String rawText, double fontScale) {
+  /// Renders a clean, structured Patristic answer adapted to AppPalette
+  Widget _buildFormattedPatristicAnswer(
+    AppPalette p,
+    String rawText,
+    double fontScale,
+  ) {
     final cleaned = AiTheologyService.cleanMarkdownFormatting(rawText);
     final lines = cleaned.split('\n');
     final widgets = <Widget>[];
@@ -59,10 +63,8 @@ class _AiCompanionViewState extends State<AiCompanionView> {
         continue;
       }
 
-      // 1. Section Header (starts with ☦ or short line ending with :)
+      // 1. Section Header
       final isHeader = line.startsWith('☦') ||
-          line.startsWith('📖') ||
-          line.startsWith('🕯️') ||
           (line.endsWith(':') && line.length <= 55);
       if (isHeader) {
         widgets.add(
@@ -71,15 +73,15 @@ class _AiCompanionViewState extends State<AiCompanionView> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const CopticCross(size: 14),
+                CopticCross(size: 13, color: p.accent),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     line.replaceFirst(RegExp(r'^☦\s*'), ''),
                     style: GoogleFonts.cairo(
-                      fontSize: 14.5 * fontScale,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primaryGoldLight,
+                      fontSize: 14 * fontScale,
+                      fontWeight: FontWeight.w700,
+                      color: p.accent,
                       height: 1.5,
                     ),
                   ),
@@ -92,7 +94,8 @@ class _AiCompanionViewState extends State<AiCompanionView> {
       }
 
       // 2. Bullet or Numbered Point
-      final bulletMatch = RegExp(r'^([•\-]|[٠-٩0-9]+[\.\-\)])\s*(.+)$').firstMatch(line);
+      final bulletMatch =
+          RegExp(r'^([•\-]|[٠-٩0-9]+[\.\-\)])\s*(.+)$').firstMatch(line);
       if (bulletMatch != null) {
         final marker = bulletMatch.group(1)!;
         final body = bulletMatch.group(2)!;
@@ -101,26 +104,27 @@ class _AiCompanionViewState extends State<AiCompanionView> {
             margin: const EdgeInsets.symmetric(vertical: 4),
             padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.22),
+              color: p.surfaceMuted,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.2)),
+              border: Border.all(color: p.border),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
                   margin: const EdgeInsets.only(top: 3, left: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryGold.withValues(alpha: 0.2),
+                    color: p.accentSoft,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    marker == '•' || marker == '-' ? '✦' : marker,
+                    marker == '•' || marker == '-' ? '•' : marker,
                     style: GoogleFonts.cairo(
                       fontSize: 11.5 * fontScale,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primaryGold,
+                      fontWeight: FontWeight.w700,
+                      color: p.accent,
                     ),
                   ),
                 ),
@@ -129,7 +133,7 @@ class _AiCompanionViewState extends State<AiCompanionView> {
                     body,
                     style: GoogleFonts.cairo(
                       fontSize: 13.5 * fontScale,
-                      color: AppColors.textLight,
+                      color: p.ink,
                       height: 1.6,
                     ),
                   ),
@@ -148,21 +152,18 @@ class _AiCompanionViewState extends State<AiCompanionView> {
             margin: const EdgeInsets.symmetric(vertical: 5),
             padding: const EdgeInsets.all(11),
             decoration: BoxDecoration(
-              color: const Color(0xFF231C12),
+              color: p.accentSoft,
               borderRadius: BorderRadius.circular(12),
               border: Border(
-                right: const BorderSide(color: AppColors.primaryGold, width: 3),
-                top: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.2)),
-                bottom: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.2)),
-                left: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.2)),
+                right: BorderSide(color: p.accent, width: 3),
               ),
             ),
             child: SelectableText(
               line,
-              style: GoogleFonts.cairo(
-                fontSize: 13.8 * fontScale,
+              style: GoogleFonts.amiri(
+                fontSize: 16.5 * fontScale,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFFFDF8EE),
+                color: p.ink,
                 height: 1.65,
               ),
             ),
@@ -178,8 +179,8 @@ class _AiCompanionViewState extends State<AiCompanionView> {
           child: SelectableText(
             line,
             style: GoogleFonts.cairo(
-              fontSize: 14 * fontScale,
-              color: AppColors.textLight,
+              fontSize: 13.8 * fontScale,
+              color: p.ink,
               height: 1.65,
             ),
           ),
@@ -195,26 +196,28 @@ class _AiCompanionViewState extends State<AiCompanionView> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     final themeProv = Provider.of<ThemeProvider>(context);
     final fontScale = themeProv.fontScale;
 
     return Consumer<AiCompanionProvider>(
       builder: (context, aiProv, _) {
         return Scaffold(
-          backgroundColor: AppColors.deepNavy,
+          backgroundColor: p.background,
           appBar: AppBar(
-            backgroundColor: AppColors.deepNavy,
+            backgroundColor: p.background,
+            elevation: 0,
             title: Row(
               children: [
                 Container(
-                  width: 38,
-                  height: 38,
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: AppColors.primaryGold.withValues(alpha: 0.15),
-                    border: Border.all(color: AppColors.primaryGold, width: 1.2),
+                    color: p.accentSoft,
+                    border: Border.all(color: p.accent.withValues(alpha: 0.45)),
                   ),
-                  child: const Center(child: CopticCross(size: 20)),
+                  child: Center(child: CopticCross(size: 18, color: p.accent)),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -222,38 +225,54 @@ class _AiCompanionViewState extends State<AiCompanionView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'الهيئة الآبائية والمساعد الذكي',
-                        style: GoogleFonts.cairo(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15.5,
-                          color: AppColors.primaryGoldLight,
+                        'المرشد الآبائي',
+                        style: GoogleFonts.amiri(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 20,
+                          color: p.ink,
+                          height: 1.1,
                         ),
                       ),
                       Text(
-                        'إجابات منسقة من الكتاب المقدس والطقس وأقوال الآباء',
-                        style: GoogleFonts.cairo(fontSize: 10.5, color: AppColors.textMuted),
+                        'إجابات موثقة من الكتاب المقدس والطقس وأقوال الآباء',
+                        style: GoogleFonts.cairo(
+                            fontSize: 10.5, color: p.inkMuted),
                       ),
                     ],
                   ),
                 ),
               ],
             ),
+            actions: [
+              if (aiProv.messages.length > 1)
+                IconButton(
+                  tooltip: 'محادثة جديدة',
+                  icon: Icon(Icons.refresh_rounded, color: p.accent),
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    aiProv.clearConversation();
+                  },
+                ),
+            ],
           ),
           body: SafeArea(
             bottom: false,
             child: Column(
               children: [
-                // Chat Messages List
                 Expanded(
                   child: ListView.builder(
                     controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
                     itemCount: aiProv.messages.length,
                     itemBuilder: (context, index) {
                       final msg = aiProv.messages[index];
-                      final cleanedText = AiTheologyService.cleanMarkdownFormatting(msg.text);
+                      final cleanedText =
+                          AiTheologyService.cleanMarkdownFormatting(msg.text);
                       return Align(
-                        alignment: msg.isUser ? Alignment.centerRight : Alignment.centerLeft,
+                        alignment: msg.isUser
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
                         child: Container(
                           margin: const EdgeInsets.only(bottom: 12),
                           constraints: BoxConstraints(
@@ -261,11 +280,9 @@ class _AiCompanionViewState extends State<AiCompanionView> {
                           ),
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            gradient: msg.isUser
-                                ? const LinearGradient(
-                                    colors: [Color(0xFF3A2B18), Color(0xFF241B10)],
-                                  )
-                                : AppColors.obsidianCard,
+                            color: msg.isUser
+                                ? p.accentSoft
+                                : p.surfaceElevated,
                             borderRadius: BorderRadius.only(
                               topLeft: const Radius.circular(18),
                               topRight: const Radius.circular(18),
@@ -274,8 +291,8 @@ class _AiCompanionViewState extends State<AiCompanionView> {
                             ),
                             border: Border.all(
                               color: msg.isUser
-                                  ? AppColors.primaryGold.withValues(alpha: 0.6)
-                                  : AppColors.primaryGold.withValues(alpha: 0.26),
+                                  ? p.accent.withValues(alpha: 0.45)
+                                  : p.border,
                             ),
                           ),
                           child: Column(
@@ -287,14 +304,15 @@ class _AiCompanionViewState extends State<AiCompanionView> {
                                   style: GoogleFonts.cairo(
                                     fontSize: 14 * fontScale,
                                     fontWeight: FontWeight.w600,
-                                    color: AppColors.textLight,
-                                    height: 1.6,
+                                    color: p.ink,
+                                    height: 1.55,
                                   ),
                                 )
                               else
-                                _buildFormattedPatristicAnswer(cleanedText, fontScale),
+                                _buildFormattedPatristicAnswer(
+                                    p, cleanedText, fontScale),
 
-                              // Action bar for Patristic AI responses (Audio Reader + Copy)
+                              // Action bar for Patristic responses (Audio Reader + Copy)
                               if (!msg.isUser) ...[
                                 const SizedBox(height: 10),
                                 Row(
@@ -302,37 +320,51 @@ class _AiCompanionViewState extends State<AiCompanionView> {
                                   children: [
                                     SpeechPlayStopButton(
                                       textToSpeak: cleanedText,
-                                      label: 'إجابة الهيئة الآبائية $index',
-                                      playText: 'استماع صوتي 🔊',
-                                      stopText: 'إيقاف الصوت ⏹️',
+                                      label: 'إجابة المرشد الآبائي $index',
+                                      playText: 'استماع',
+                                      stopText: 'إيقاف',
                                       compact: true,
                                     ),
                                     const SizedBox(width: 8),
                                     InkWell(
                                       onTap: () {
-                                        Clipboard.setData(ClipboardData(text: cleanedText));
-                                        ScaffoldMessenger.of(context).showSnackBar(
+                                        Clipboard.setData(
+                                            ClipboardData(text: cleanedText));
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
                                           SnackBar(
-                                            content: Text('تم نسخ الإجابة الآبائية', style: GoogleFonts.cairo(fontSize: 12)),
-                                            duration: const Duration(seconds: 1),
+                                            content: Text(
+                                              'تم نسخ الإجابة',
+                                              style: GoogleFonts.cairo(
+                                                  fontSize: 12),
+                                            ),
+                                            duration:
+                                                const Duration(seconds: 1),
                                           ),
                                         );
                                       },
                                       borderRadius: BorderRadius.circular(8),
                                       child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 9, vertical: 5),
                                         decoration: BoxDecoration(
-                                          color: Colors.white10,
-                                          borderRadius: BorderRadius.circular(8),
+                                          color: p.surfaceMuted,
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          border: Border.all(color: p.border),
                                         ),
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            const Icon(Icons.copy_rounded, size: 13, color: Colors.white70),
+                                            Icon(Icons.copy_rounded,
+                                                size: 13, color: p.inkMuted),
                                             const SizedBox(width: 4),
                                             Text(
                                               'نسخ',
-                                              style: GoogleFonts.cairo(fontSize: 10.5, color: Colors.white70),
+                                              style: GoogleFonts.cairo(
+                                                fontSize: 10.5,
+                                                color: p.inkMuted,
+                                              ),
                                             ),
                                           ],
                                         ),
@@ -342,9 +374,10 @@ class _AiCompanionViewState extends State<AiCompanionView> {
                                 ),
                               ],
 
-                              if (msg.citations != null && msg.citations!.isNotEmpty) ...[
+                              if (msg.citations != null &&
+                                  msg.citations!.isNotEmpty) ...[
                                 const SizedBox(height: 10),
-                                Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
+                                Divider(color: p.border, height: 1),
                                 const SizedBox(height: 8),
                                 Wrap(
                                   spacing: 6,
@@ -356,19 +389,17 @@ class _AiCompanionViewState extends State<AiCompanionView> {
                                         vertical: 3,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: AppColors.surfaceNavy,
+                                        color: p.surfaceMuted,
                                         borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: AppColors.primaryGold.withValues(alpha: 0.3),
-                                        ),
+                                        border: Border.all(color: p.border),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          const Icon(
+                                          Icon(
                                             Icons.bookmark_outline_rounded,
                                             size: 11,
-                                            color: AppColors.primaryGold,
+                                            color: p.accent,
                                           ),
                                           const SizedBox(width: 4),
                                           Flexible(
@@ -376,7 +407,7 @@ class _AiCompanionViewState extends State<AiCompanionView> {
                                               c,
                                               style: GoogleFonts.cairo(
                                                 fontSize: 10,
-                                                color: AppColors.primaryGoldLight,
+                                                color: p.inkMuted,
                                                 fontWeight: FontWeight.w600,
                                               ),
                                             ),
@@ -397,23 +428,24 @@ class _AiCompanionViewState extends State<AiCompanionView> {
 
                 if (aiProv.isLoading)
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 18, vertical: 6),
                     child: Row(
                       children: [
-                        const SizedBox(
-                          width: 16,
-                          height: 16,
+                        SizedBox(
+                          width: 15,
+                          height: 15,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: AppColors.primaryGold,
+                            color: p.accent,
                           ),
                         ),
                         const SizedBox(width: 10),
                         Text(
-                          'الهيئة الآبائية تبحث في التفاسير وأقوال الآباء...',
+                          'جارٍ البحث في التفاسير وأقوال الآباء...',
                           style: GoogleFonts.cairo(
                             fontSize: 12,
-                            color: AppColors.primaryGoldLight,
+                            color: p.accent,
                           ),
                         ),
                       ],
@@ -427,7 +459,7 @@ class _AiCompanionViewState extends State<AiCompanionView> {
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     itemCount: aiProv.quickPrompts.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
                     itemBuilder: (context, index) {
                       final prompt = aiProv.quickPrompts[index];
                       return ActionChip(
@@ -436,11 +468,11 @@ class _AiCompanionViewState extends State<AiCompanionView> {
                           prompt,
                           style: GoogleFonts.cairo(
                             fontSize: 11.5,
-                            color: AppColors.primaryGoldLight,
+                            color: p.ink,
                           ),
                         ),
-                        backgroundColor: AppColors.cardNavy,
-                        side: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.3)),
+                        backgroundColor: p.surfaceElevated,
+                        side: BorderSide(color: p.border),
                         onPressed: () => _sendMessage(aiProv, prompt),
                       );
                     },
@@ -451,22 +483,16 @@ class _AiCompanionViewState extends State<AiCompanionView> {
 
                 // Input Bar
                 Container(
-                  margin: const EdgeInsets.fromLTRB(14, 0, 14, 82),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                  margin: const EdgeInsets.fromLTRB(14, 0, 14, 84),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E1E22),
-                    borderRadius: BorderRadius.circular(28),
+                    color: p.surfaceElevated,
+                    borderRadius: BorderRadius.circular(24),
                     border: Border.all(
-                      color: AppColors.primaryGold.withValues(alpha: 0.55),
-                      width: 1.3,
+                      color: p.accent.withValues(alpha: 0.45),
+                      width: 1.2,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.65),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
                   ),
                   child: Row(
                     children: [
@@ -474,16 +500,18 @@ class _AiCompanionViewState extends State<AiCompanionView> {
                         child: TextField(
                           controller: _msgCtrl,
                           textInputAction: TextInputAction.send,
-                          style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 14),
-                          cursorColor: AppColors.primaryGold,
+                          style: GoogleFonts.cairo(color: p.ink, fontSize: 14),
+                          cursorColor: p.accent,
                           decoration: InputDecoration(
-                            hintText: 'اكتب أي سؤال في الكتاب المقدس أو الطقس أو العقيدة...',
+                            hintText:
+                                'اكتب سؤالك في الكتاب المقدس أو الطقس أو العقيدة...',
                             hintStyle: GoogleFonts.cairo(
-                              color: AppColors.textMuted,
+                              color: p.inkSubtle,
                               fontSize: 12.5,
                             ),
                             border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 8),
                           ),
                           onSubmitted: (val) => _sendMessage(aiProv, val),
                         ),
@@ -491,16 +519,16 @@ class _AiCompanionViewState extends State<AiCompanionView> {
                       GestureDetector(
                         onTap: () => _sendMessage(aiProv, _msgCtrl.text),
                         child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: const BoxDecoration(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: AppColors.champagne,
+                            color: p.accent,
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.send_rounded,
-                            color: Colors.black,
-                            size: 20,
+                            color: p.onAccent,
+                            size: 18,
                           ),
                         ),
                       ),

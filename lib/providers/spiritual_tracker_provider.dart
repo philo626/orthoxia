@@ -37,6 +37,42 @@ class SpiritualTrackerProvider with ChangeNotifier {
     }
   }
 
+  /// Returns REAL daily logs for the last 7 calendar days (oldest -> today).
+  /// Days with no recorded activity honestly return 0 (ZERO fake/hardcoded data).
+  List<SpiritualLog> get last7DaysLogs {
+    final now = DateTime.now();
+    final map = {for (final l in _logs) l.date: l};
+    return List.generate(7, (idx) {
+      final day = now.subtract(Duration(days: 6 - idx));
+      final key = DateFormat('yyyy-MM-dd').format(day);
+      return map[key] ?? SpiritualLog(date: key);
+    });
+  }
+
+  /// Real consecutive active spiritual days ending today (or yesterday).
+  int get activeStreakDays {
+    final map = {for (final l in _logs) l.date: l};
+    int streak = 0;
+    final now = DateTime.now();
+    for (int offset = 0; offset < 365; offset++) {
+      final day = now.subtract(Duration(days: offset));
+      final key = DateFormat('yyyy-MM-dd').format(day);
+      final log = map[key];
+      final hasActivity = log != null &&
+          (log.agpeyaHoursCompleted > 0 ||
+              log.bibleChaptersRead > 0 ||
+              log.personalPrayerMinutes > 0 ||
+              log.tookCommunion ||
+              log.actsOfCharity);
+      if (hasActivity) {
+        streak++;
+      } else if (offset > 0) {
+        break;
+      }
+    }
+    return streak;
+  }
+
   void incrementBibleChapters() {
     todayLog.bibleChaptersRead += 1;
     _storage.saveSpiritualLogs(_logs);
@@ -73,7 +109,8 @@ class SpiritualTrackerProvider with ChangeNotifier {
   void toggleQuestion(String id) {
     final idx = _conscienceQuestions.indexWhere((q) => q.id == id);
     if (idx != -1) {
-      _conscienceQuestions[idx].isChecked = !_conscienceQuestions[idx].isChecked;
+      _conscienceQuestions[idx].isChecked =
+          !_conscienceQuestions[idx].isChecked;
       _storage.saveConscienceQuestions(_conscienceQuestions);
       notifyListeners();
     }
@@ -104,11 +141,11 @@ class SpiritualTrackerProvider with ChangeNotifier {
 
   String get encouragingVerse {
     const verses = [
-      '«لاَ تَشْمَتِي بِي يَا عَدُوَّتِي، إِذَا سَقَطْتُ أَقُومُ. إِذَا جَلَسْتُ فِي الظُّلْمَةِ فَالرَّبُّ نُورٌ لِي» (ميخا ٧: ٨)',
-      '«تَعَالَوْا إِلَيَّ يَا جَمِيعَ الْمُتْعَبِينَ وَالثَّقِيلِي الأَحْمَالِ، وَأَنَا أُرِيحُكُمْ» (متى ١١: ٢٨)',
-      '«إِنْ سَلَكْنَا فِي النُّورِ كَمَا هُوَ فِي النُّورِ، فَلَنَا شَرِكَةٌ بَعْضِنَا مَعَ بَعْضٍ» (١ يو ١: ٧)',
-      '«أَسْتَطِيعُ كُلَّ شَيْءٍ فِي الْمَسِيحِ الَّذِي يُقَوِّينِي» (في ٤: ١٣)',
-      '«لاَ تَخَفْ لأَنِّي مَعَكَ. لاَ تَتَلَفَّتْ لأَنِّي إِلَهُكَ. قَدْ أَيَّدْتُكَ وَأَعَنْتُكَ» (إش ٤١: ١٠)',
+      '«لاَ تَشْمَتِي بِي يَا عَدُوَّتِي، إِذَا سَقَطْتُ أَقُومُ. إِذَا جَلَسْتُ فِي الظُّلْمَةِ فَالرَّبُّ نُورٌ لِي» (ميخا ٧: ٨)',
+      '«تَعَالَوْا إِلَيَّ يَا جَمِيعَ الْمُتْعَبِينَ وَالثَّقِيلِي الأَحْمَالِ، وَأَنَا أُرِيحُكُمْ» (متى ١١: ٢٨)',
+      '«إِنْ سَلَكْنَا فِي النُّورِ كَمَا هُوَ فِي النُّورِ، فَلَنَا شَرِكَةٌ بَعْضِنَا مَعَ بَعْضٍ» (١ يو ١: ٧)',
+      '«أَسْتَطِيعُ كُلَّ شَيْءٍ فِي الْمَسِيحِ الَّذِي يُقَوِّينِي» (في ٤: ١٣)',
+      '«لاَ تَخَفْ لأَنِّي مَعَكَ. لاَ تَتَلَفَّتْ لأَنِّي إِلَهُكَ. قَدْ أَيَّدْتُكَ وَأَعَنْتُكَ» (إش ٤١: ١٠)',
     ];
     return verses[DateTime.now().day % verses.length];
   }

@@ -3,9 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../firebase_options.dart';
 import '../../models/prayer_request_model.dart';
 import 'security_guard_service.dart';
+import 'storage_service.dart';
 
 class FirebaseAuthResult {
   final bool success;
@@ -27,7 +29,7 @@ class FirebaseAuthResult {
   });
 }
 
-/// Unified Firebase Service (Auth + Cloud Firestore) with safe offline/unconfigured fallback.
+/// Unified Firebase Service (Auth + Cloud Firestore) with safe offline-first fallback.
 /// Privacy Guarantee: Confession notes & spiritual tracker logs are NEVER uploaded to Firestore.
 class FirebaseService {
   static final FirebaseService _instance = FirebaseService._internal();
@@ -37,7 +39,8 @@ class FirebaseService {
   bool _isInitialized = false;
   bool get isFirebaseReady => _isInitialized;
 
-  User? get currentUser => _isInitialized ? FirebaseAuth.instance.currentUser : null;
+  User? get currentUser =>
+      _isInitialized ? FirebaseAuth.instance.currentUser : null;
 
   /// Safely initializes Firebase using DefaultFirebaseOptions & google-services.json
   Future<void> initSafely() async {
@@ -50,6 +53,10 @@ class FirebaseService {
       if (kDebugMode) {
         debugPrint('Firebase initialized successfully.');
       }
+      // Restore cloud public profile silently if already signed in
+      if (FirebaseAuth.instance.currentUser != null) {
+        await fetchAndRestorePublicProfile();
+      }
     } catch (e) {
       _isInitialized = false;
       if (kDebugMode) {
@@ -58,28 +65,104 @@ class FirebaseService {
     }
   }
 
-  /// Syncs ONLY sanitized non-sensitive public profile fields (display name + patron saint).
+  /// Syncs ONLY sanitized non-sensitive public profile fields (display name,
+  /// patron saint, and optional Bible reading progress).
   /// Strictly matches Firestore zero-trust schema; NEVER syncs confession notes.
   Future<void> syncPublicProfile({
     required String displayName,
     String? patronSaintId,
+    List<String>? completedChapters,
   }) async {
     if (!_isInitialized) return;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    final safeName = SecurityGuardService.sanitizeText(displayName, maxLength: 60, allowNewlines: false);
-    final safeSaint = SecurityGuardService.sanitizeText(patronSaintId ?? 'virgin_mary', maxLength: 60, allowNewlines: false);
+    final safeName = SecurityGuardService.sanitizeText(
+      displayName,
+      maxLength: 60,
+      allowNewlines: false,
+    );
+    final resolvedSaint = patronSaintId ?? StorageService().getPatronSaintId();
+    final safeSaint = SecurityGuardService.sanitizeText(
+      resolvedSaint,
+      maxLength: 60,
+      allowNewlines: false,
+    );
     if (safeName.isEmpty) return;
+
+    final payload = <String, dynamic>{
+      'displayName': safeName,
+      'patronSaintId': safeSaint.isEmpty ? 'virgin_mary' : safeSaint,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (completedChapters != null && completedChapters.length <= 1500) {
+      payload['completedChapters'] = completedChapters;
+    }
+
     try {
       await user.updateDisplayName(safeName);
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'displayName': safeName,
-        'patronSaintId': safeSaint.isEmpty ? 'virgin_mary' : safeSaint,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set(payload, SetOptions(merge: true));
     } catch (e) {
       if (kDebugMode) debugPrint('Firestore profile sync skipped: $e');
     }
+  }
+
+  /// Restores user's public display name, patron saint, and Bible completed chapters
+  /// from Firestore on sign-in or new device startup.
+  Future<void> fetchAndRestorePublicProfile() async {
+    if (!_isInitialized) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      if (!doc.exists) return;
+      final data = doc.data();
+      if (data == null) return;
+
+      final storage = StorageService();
+      final cloudName = (data['displayName'] as String? ?? '').trim();
+      final cloudSaint = (data['patronSaintId'] as String? ?? '').trim();
+      if (cloudName.isNotEmpty) {
+        await storage.setUserName(cloudName);
+      }
+      if (cloudSaint.isNotEmpty) {
+        await storage.setPatronSaintId(cloudSaint);
+      }
+      if (user.email != null && user.email!.isNotEmpty) {
+        await storage.setUserEmail(user.email!);
+      }
+
+      final cloudChapters = data['completedChapters'];
+      if (cloudChapters is List && cloudChapters.isNotEmpty) {
+        final prefs = await SharedPreferences.getInstance();
+        final local =
+            (prefs.getStringList('bible_completed_chapters_v1') ?? []).toSet();
+        for (final item in cloudChapters) {
+          if (item is String && item.isNotEmpty) local.add(item);
+        }
+        await prefs.setStringList('bible_completed_chapters_v1', local.toList());
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('Firestore profile restore skipped: $e');
+    }
+  }
+
+  /// Syncs Bible completed chapters list to user's Firestore profile if signed in.
+  Future<void> syncBibleCompletedChapters(List<String> chapters) async {
+    if (!_isInitialized) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final storage = StorageService();
+    await syncPublicProfile(
+      displayName: storage.getUserName(),
+      patronSaintId: storage.getPatronSaintId(),
+      completedChapters: chapters.take(1500).toList(),
+    );
   }
 
   /// Email & Password Login or Registration via Firebase Auth (with brute-force rate limiting)
@@ -98,7 +181,8 @@ class FirebaseService {
       return const FirebaseAuthResult(
         success: false,
         isCloudBacked: true,
-        message: 'عدد محاولات الدخول متكرر جداً. يُرجى الانتظار قليلاً ثم المحاولة مرة أخرى.',
+        message:
+            'عدد محاولات الدخول متكرر جداً. يُرجى الانتظار قليلاً ثم المحاولة مرة أخرى.',
       );
     }
 
@@ -130,6 +214,7 @@ class FirebaseService {
           email: email.trim(),
           password: password,
         );
+        await fetchAndRestorePublicProfile();
       } else {
         cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: email.trim(),
@@ -142,9 +227,14 @@ class FirebaseService {
 
       final resolvedName = displayName.trim().isNotEmpty
           ? displayName.trim()
-          : (cred.user?.displayName ?? email.split('@').first);
+          : (cred.user?.displayName ??
+              (StorageService().hasCustomUserName()
+                  ? StorageService().getUserName()
+                  : email.split('@').first));
 
-      await syncPublicProfile(displayName: resolvedName);
+      if (!isLogin || displayName.trim().isNotEmpty) {
+        await syncPublicProfile(displayName: resolvedName);
+      }
 
       return FirebaseAuthResult(
         success: true,
@@ -152,7 +242,8 @@ class FirebaseService {
         uid: cred.user?.uid,
         displayName: resolvedName,
         email: cred.user?.email ?? email,
-        message: isLogin ? 'أهلاً بعودتك إلى أرثوذكسيا.' : 'تم إنشاء حسابك بنجاح.',
+        message:
+            isLogin ? 'أهلاً بعودتك إلى أرثوذكسيا.' : 'تم إنشاء حسابك بنجاح.',
       );
     } on FirebaseAuthException catch (e) {
       return FirebaseAuthResult(
@@ -160,8 +251,8 @@ class FirebaseService {
         isCloudBacked: true,
         message: _arabicAuthError(e.code),
       );
-    } catch (e) {
-      return FirebaseAuthResult(
+    } catch (_) {
+      return const FirebaseAuthResult(
         success: false,
         isCloudBacked: true,
         message: 'حدث خطأ أثناء الاتصال بالخادم، حاول مرة أخرى.',
@@ -175,13 +266,14 @@ class FirebaseService {
       return const FirebaseAuthResult(
         success: false,
         isCloudBacked: false,
-        message: 'يتطلب تسجيل الدخول بحساب Google تفعيل ملف google-services.json من Firebase Console.',
+        message: 'تعذر الاتصال بخدمة تسجيل الدخول حالياً.',
       );
     }
 
     try {
       final googleSignIn = GoogleSignIn(
-        serverClientId: '374506508479-1oq4tomh0rjrp2o6voevcvta7l1qa47k.apps.googleusercontent.com',
+        serverClientId:
+            '374506508479-1oq4tomh0rjrp2o6voevcvta7l1qa47k.apps.googleusercontent.com',
       );
       final googleUser = await googleSignIn.signIn();
       if (googleUser == null) {
@@ -198,9 +290,16 @@ class FirebaseService {
         idToken: googleAuth.idToken,
       );
 
-      final userCred = await FirebaseAuth.instance.signInWithCredential(credential);
-      final name = userCred.user?.displayName ?? googleUser.displayName ?? '';
-      await syncPublicProfile(displayName: name);
+      final userCred =
+          await FirebaseAuth.instance.signInWithCredential(credential);
+      await fetchAndRestorePublicProfile();
+
+      final name = StorageService().hasCustomUserName()
+          ? StorageService().getUserName()
+          : (userCred.user?.displayName ?? googleUser.displayName ?? '');
+      if (name.isNotEmpty) {
+        await syncPublicProfile(displayName: name);
+      }
 
       return FirebaseAuthResult(
         success: true,
@@ -208,13 +307,13 @@ class FirebaseService {
         uid: userCred.user?.uid,
         displayName: name,
         email: userCred.user?.email ?? googleUser.email,
-        message: 'مرحباً بك يا $name! تم الربط بحساب Google بنجاح.',
+        message: 'أهلاً بك يا $name!',
       );
-    } catch (e) {
-      return FirebaseAuthResult(
+    } catch (_) {
+      return const FirebaseAuthResult(
         success: false,
         isCloudBacked: true,
-        message: 'تعذر إتمام تسجيل الدخول بـ Google: تأكد من إضافة بصمة SHA-1 في Firebase.',
+        message: 'تعذر إتمام تسجيل الدخول بحساب Google حالياً. حاول مرة أخرى.',
       );
     }
   }
@@ -227,7 +326,7 @@ class FirebaseService {
     required void Function(FirebaseAuthResult result) onAutoVerified,
   }) async {
     if (!_isInitialized) {
-      onCodeSent('offline_local_otp');
+      onError('تعذر إرسال رمز التحقق دون اتصال بالإنترنت.');
       return;
     }
 
@@ -236,7 +335,9 @@ class FirebaseService {
         phoneNumber: phoneNumber,
         timeout: const Duration(seconds: 60),
         verificationCompleted: (PhoneAuthCredential credential) async {
-          final userCred = await FirebaseAuth.instance.signInWithCredential(credential);
+          final userCred =
+              await FirebaseAuth.instance.signInWithCredential(credential);
+          await fetchAndRestorePublicProfile();
           onAutoVerified(FirebaseAuthResult(
             success: true,
             isCloudBacked: true,
@@ -253,7 +354,7 @@ class FirebaseService {
         },
         codeAutoRetrievalTimeout: (_) {},
       );
-    } catch (e) {
+    } catch (_) {
       onError('تعذر إرسال رمز التحقق حالياً.');
     }
   }
@@ -265,12 +366,11 @@ class FirebaseService {
     required String displayName,
     required String phoneNumber,
   }) async {
-    if (!_isInitialized || verificationId == 'offline_local_otp') {
-      return FirebaseAuthResult(
-        success: true,
+    if (!_isInitialized) {
+      return const FirebaseAuthResult(
+        success: false,
         isCloudBacked: false,
-        displayName: displayName,
-        phone: phoneNumber,
+        message: 'تعذر التحقق من الرمز حالياً.',
       );
     }
 
@@ -280,6 +380,7 @@ class FirebaseService {
         smsCode: smsCode.trim(),
       );
       final userCred = await FirebaseAuth.instance.signInWithCredential(cred);
+      await fetchAndRestorePublicProfile();
       if (displayName.trim().isNotEmpty) {
         await syncPublicProfile(displayName: displayName.trim());
       }
@@ -318,7 +419,8 @@ class FirebaseService {
       return const FirebaseAuthResult(
         success: false,
         isCloudBacked: true,
-        message: 'تم إرسال طلب استعادة مؤخراً. يرجى الانتظار قليلاً قبل إعادة المحاولة.',
+        message:
+            'تم إرسال طلب استعادة مؤخراً. يرجى الانتظار قليلاً قبل إعادة المحاولة.',
       );
     }
     if (!_isInitialized) {
@@ -333,15 +435,16 @@ class FirebaseService {
       return const FirebaseAuthResult(
         success: true,
         isCloudBacked: true,
-        message: 'إذا كان البريد مسجلاً لدينا، ستصلك رسالة استعادة كلمة المرور خلال لحظات.',
+        message:
+            'إذا كان البريد مسجلاً لدينا، ستصلك رسالة استعادة كلمة المرور خلال لحظات.',
       );
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') {
-        // Anti-enumeration: identical reassuring response
         return const FirebaseAuthResult(
           success: true,
           isCloudBacked: true,
-          message: 'إذا كان البريد مسجلاً لدينا، ستصلك رسالة استعادة كلمة المرور خلال لحظات.',
+          message:
+              'إذا كان البريد مسجلاً لدينا، ستصلك رسالة استعادة كلمة المرور خلال لحظات.',
         );
       }
       return FirebaseAuthResult(
@@ -359,11 +462,48 @@ class FirebaseService {
   }
 
   Future<void> signOut() async {
-    if (!_isInitialized) return;
-    try {
-      await GoogleSignIn().signOut();
-      await FirebaseAuth.instance.signOut();
-    } catch (_) {}
+    if (_isInitialized) {
+      try {
+        await GoogleSignIn().signOut();
+      } catch (_) {}
+      try {
+        await FirebaseAuth.instance.signOut();
+      } catch (_) {}
+    }
+    final storage = StorageService();
+    await storage.setGuestMode(true);
+    await storage.setUserEmail('');
+    await storage.setUserPhone('');
+  }
+
+  /// Permanently deletes the user's cloud profile doc, Firebase Auth account,
+  /// and ALL local encrypted device data & hardware encryption key.
+  /// Returns `null` on success, or an Arabic explanation message on error.
+  Future<String?> deleteAccountCompletely() async {
+    if (_isInitialized) {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        try {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .delete();
+        } catch (_) {}
+        try {
+          await user.delete();
+        } on FirebaseAuthException catch (e) {
+          if (e.code == 'requires-recent-login') {
+            return 'لحماية حسابك، يُرجى تسجيل الخروج ثم الدخول مجدداً قبل حذف الحساب السحابي نهائياً.';
+          }
+          return _arabicAuthError(e.code);
+        } catch (_) {}
+      }
+      try {
+        await GoogleSignIn().signOut();
+      } catch (_) {}
+    }
+    await StorageService().deleteAllUserData();
+    return null;
   }
 
   // ==================== CLOUD FIRESTORE PRAYER WALL ====================
@@ -383,6 +523,7 @@ class FirebaseService {
                 return PrayerRequest(
                   id: doc.id,
                   authorName: '${d['authorName'] ?? ''}',
+                  authorUid: '${d['authorUid'] ?? ''}',
                   isAnonymous: d['isAnonymous'] == true,
                   title: '${d['title'] ?? ''}',
                   content: '${d['content'] ?? ''}',
@@ -395,15 +536,21 @@ class FirebaseService {
     }
   }
 
-  Future<void> addPrayerRequestToCloud({
+  /// Posts a prayer request to Firestore. Returns `null` on success or an Arabic
+  /// error message if blocked/unauthenticated/offline.
+  Future<String?> addPrayerRequestToCloud({
     required String title,
     required String content,
     required bool isAnonymous,
     required String authorName,
   }) async {
-    if (!_isInitialized) return;
+    if (!_isInitialized) {
+      return 'تعذر الاتصال بالسحابة حالياً. تأكد من اتصالك بالإنترنت.';
+    }
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return; // Zero-trust: Firestore requires signed-in authorUid
+    if (user == null) {
+      return 'يرجى تسجيل الدخول بحسابك أولاً لنشر طلبة صلاة على حائط الصلاة المشترك.';
+    }
 
     if (!SecurityGuardService().allowAction(
       'prayer_wall_post',
@@ -411,15 +558,23 @@ class FirebaseService {
       maxPerWindow: 4,
       window: const Duration(minutes: 10),
     )) {
-      return;
+      return 'يرجى الانتظار بضع ثوانٍ قبل إرسال طلبة صلاة جديدة.';
     }
 
-    final safeTitle = SecurityGuardService.sanitizeText(title, maxLength: 120, allowNewlines: false);
-    final safeContent = SecurityGuardService.sanitizeText(content, maxLength: 800, allowNewlines: true);
+    final safeTitle = SecurityGuardService.sanitizeText(title,
+        maxLength: 120, allowNewlines: false);
+    final safeContent = SecurityGuardService.sanitizeText(content,
+        maxLength: 800, allowNewlines: true);
     final safeAuthor = isAnonymous
         ? ''
-        : SecurityGuardService.sanitizeText(authorName, maxLength: 60, allowNewlines: false);
-    if (safeTitle.length < 3 || safeContent.length < 5) return;
+        : SecurityGuardService.sanitizeText(authorName,
+            maxLength: 60, allowNewlines: false);
+    if (safeTitle.length < 3) {
+      return 'يرجى كتابة عنوان واضح لطلبة الصلاة (٣ أحرف على الأقل).';
+    }
+    if (safeContent.length < 5) {
+      return 'يرجى كتابة تفاصيل طلبة الصلاة (٥ أحرف على الأقل).';
+    }
 
     try {
       await FirebaseFirestore.instance.collection('prayer_requests').add({
@@ -431,15 +586,32 @@ class FirebaseService {
         'prayedCount': 1,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      return null;
     } catch (e) {
-      if (kDebugMode) debugPrint('Firestore addPrayerRequest skipped: $e');
+      if (kDebugMode) debugPrint('Firestore addPrayerRequest error: $e');
+      return 'تعذر نشر طلبة الصلاة حالياً. تأكد من اتصالك بالإنترنت.';
+    }
+  }
+
+  Future<bool> deletePrayerRequestFromCloud(String docId) async {
+    if (!_isInitialized || docId.startsWith('req_')) return false;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+    try {
+      await FirebaseFirestore.instance
+          .collection('prayer_requests')
+          .doc(docId)
+          .delete();
+      return true;
+    } catch (e) {
+      if (kDebugMode) debugPrint('Firestore deletePrayerRequest error: $e');
+      return false;
     }
   }
 
   Future<void> incrementPrayedCountInCloud(String docId, int delta) async {
     if (!_isInitialized || docId.startsWith('req_')) return;
     if (FirebaseAuth.instance.currentUser == null) return;
-    // Strictly clamp delta to +1 or -1 to match server-side Firestore Rules
     final safeDelta = delta >= 0 ? 1 : -1;
     try {
       await FirebaseFirestore.instance
@@ -454,7 +626,6 @@ class FirebaseService {
       case 'user-not-found':
       case 'wrong-password':
       case 'invalid-credential':
-        // Generic message prevents account enumeration attacks
         return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
       case 'email-already-in-use':
         return 'هذا البريد الإلكتروني مسجل بالفعل.';
@@ -465,7 +636,7 @@ class FirebaseService {
       case 'too-many-requests':
         return 'تم تقييد المحاولات مؤقتاً لحماية حسابك. حاول بعد قليل.';
       case 'invalid-verification-code':
-        return 'رمز التحقق (OTP) غير صحيح.';
+        return 'رمز التحقق غير صحيح.';
       default:
         return 'تعذر إتمام العملية حالياً. تأكد من اتصالك بالإنترنت وحاول مرة أخرى.';
     }

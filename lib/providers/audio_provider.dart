@@ -7,6 +7,8 @@ class AudioProvider with ChangeNotifier {
 
   Hymn? _currentHymn;
   bool _isPlaying = false;
+  bool _isLoading = false;
+  String? _playbackError;
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
 
@@ -16,6 +18,8 @@ class AudioProvider with ChangeNotifier {
       ? _service.activeCantor
       : (_currentHymn?.cantor ?? '');
   bool get isPlaying => _isPlaying;
+  bool get isLoading => _isLoading;
+  String? get playbackError => _playbackError;
   Duration get duration => _duration;
   Duration get position => _position;
   double get playbackSpeed => _service.playbackSpeed;
@@ -33,7 +37,9 @@ class AudioProvider with ChangeNotifier {
       return idx.clamp(0, verses.length - 1);
     }
     for (int i = 0; i < verses.length; i++) {
-      if (verses[i].endMs > 0 && posMs >= verses[i].startMs && posMs < verses[i].endMs) {
+      if (verses[i].endMs > 0 &&
+          posMs >= verses[i].startMs &&
+          posMs < verses[i].endMs) {
         return i;
       }
     }
@@ -51,6 +57,16 @@ class AudioProvider with ChangeNotifier {
       notifyListeners();
     });
 
+    _service.isLoadingStream.listen((loading) {
+      _isLoading = loading;
+      notifyListeners();
+    });
+
+    _service.errorStream.listen((err) {
+      _playbackError = err;
+      notifyListeners();
+    });
+
     _service.durationStream.listen((d) {
       _duration = d;
       notifyListeners();
@@ -62,12 +78,22 @@ class AudioProvider with ChangeNotifier {
     });
   }
 
-  void play(Hymn hymn, {String? customAudioUrl, String? customCantor}) {
-    _service.playHymn(
+  Future<bool> play(
+    Hymn hymn, {
+    String? customAudioUrl,
+    String? customCantor,
+  }) {
+    return _service.playHymn(
       hymn,
       customAudioUrl: customAudioUrl,
       customCantor: customCantor,
     );
+  }
+
+  void clearError() {
+    _service.clearError();
+    _playbackError = null;
+    notifyListeners();
   }
 
   void pause() {

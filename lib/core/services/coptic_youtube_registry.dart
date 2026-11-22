@@ -13,7 +13,7 @@ class CopticYouTubeCantor {
 class CopticYouTubeRegistry {
   static final RegExp _ytIdRegex = RegExp(r'^[a-zA-Z0-9_-]{11}$');
 
-  /// Direct fallback map by hymn slug if explicitYoutubeId is empty
+  /// Direct verified map by hymn slug if explicitYoutubeId is empty
   static const Map<String, String> _hymnVideoMap = {
     'psali-adam-pentecost': 'wMY14z83qNg',
     'aripsalin': '1fhw8IYL02I',
@@ -62,12 +62,11 @@ class CopticYouTubeRegistry {
     'كيهك والميلاد والغطاس': 'Dlu3GI_oIC8',
     'التسبحة والأبصلمودية': 'o5CIYH07ur0',
     'الأعياد والمناسبات': 'zld51r43YyU',
-    'الأجبية بالقبطي': 'hFQYLOLuR2U',
   };
 
   static const String masterDefaultVideoId = 'RIRb2ED0qvE';
 
-  /// Resolves the exact 1-to-1 YouTube video ID for a given hymn
+  /// Resolves the best YouTube video ID for a given hymn.
   static String resolveVideoId({
     required String hymnId,
     required String title,
@@ -85,26 +84,74 @@ class CopticYouTubeRegistry {
     }
 
     final lowerTitle = title.toLowerCase();
-    if (lowerTitle.contains('غولغوثا') || lowerTitle.contains('golgotha')) return '6iuEVnKP7rU';
-    if (lowerTitle.contains('طاي شوري') || lowerTitle.contains('طاى شورى') || lowerTitle.contains('tai shori')) return 'RIRb2ED0qvE';
-    if (lowerTitle.contains('هيتني') || lowerTitle.contains('hitene')) return 'SEFJNb_-JgE';
-    if (lowerTitle.contains('أجيوس') || lowerTitle.contains('اجيوس') || lowerTitle.contains('agios')) return '_R03VturUEg';
-    if (lowerTitle.contains('أريبصالين') || lowerTitle.contains('اريبصالين') || lowerTitle.contains('aripsalin')) return '1fhw8IYL02I';
-    if (lowerTitle.contains('صفوف') || lowerTitle.contains('سمائيين')) return 'zoMLL5Abtew';
-    if (lowerTitle.contains('اللص اليمين') || lowerTitle.contains('امانة اللص')) return 'VvAVF8zcWaA';
-    if (lowerTitle.contains('إفريك') || lowerTitle.contains('افريك') || lowerTitle.contains('صعود')) return 'HroG5veVO5A';
-    if (lowerTitle.contains('بيك اثرونوس') || lowerTitle.contains('بيك إثرونوس')) return 'svoEcl7t5dE';
-    if (lowerTitle.contains('ابؤرو') || lowerTitle.contains('إبؤرو')) return 'zld51r43YyU';
-    if (lowerTitle.contains('شيري') || lowerTitle.contains('ماريا')) return '8p43TAdEd40';
-    if (lowerTitle.contains('تنين') || lowerTitle.contains('tenen')) return 'QJ4uwZdy_7U';
-    if (lowerTitle.contains('ثوك') || lowerTitle.contains('تسبحة البصخة')) return '676sEDTHsns';
-    if (lowerTitle.contains('اخرستوس') || lowerTitle.contains('قيامة')) return 'ioi4KmLau6o';
-    if (lowerTitle.contains('اومونوجينيس') || lowerTitle.contains('أومونوجينيس')) return 'TP6xIUxhOgA';
-    if (lowerTitle.contains('اهموت') || lowerTitle.contains('أهموت')) return 'XF2UvZA953k';
+    if (lowerTitle.contains('غولغوثا') || lowerTitle.contains('golgotha')) {
+      return '6iuEVnKP7rU';
+    }
+    if (lowerTitle.contains('طاي شوري') ||
+        lowerTitle.contains('طاى شورى') ||
+        lowerTitle.contains('tai shori')) {
+      return 'RIRb2ED0qvE';
+    }
+    if (lowerTitle.contains('هيتني') || lowerTitle.contains('hitene')) {
+      return 'SEFJNb_-JgE';
+    }
+    if (lowerTitle.contains('أجيوس') ||
+        lowerTitle.contains('اجيوس') ||
+        lowerTitle.contains('agios')) {
+      return '_R03VturUEg';
+    }
+    if (lowerTitle.contains('أريبصالين') ||
+        lowerTitle.contains('اريبصالين') ||
+        lowerTitle.contains('aripsalin')) {
+      return '1fhw8IYL02I';
+    }
+    if (lowerTitle.contains('صفوف') || lowerTitle.contains('سمائيين')) {
+      return 'zoMLL5Abtew';
+    }
+    if (lowerTitle.contains('اللص اليمين') || lowerTitle.contains('امانة اللص')) {
+      return 'VvAVF8zcWaA';
+    }
+    if (lowerTitle.contains('إفريك') ||
+        lowerTitle.contains('افريك') ||
+        lowerTitle.contains('صعود')) {
+      return 'HroG5veVO5A';
+    }
+    if (lowerTitle.contains('بيك اثرونوس') ||
+        lowerTitle.contains('بيك إثرونوس')) {
+      return 'svoEcl7t5dE';
+    }
+    if (lowerTitle.contains('ابؤرو') || lowerTitle.contains('إبؤرو')) {
+      return 'zld51r43YyU';
+    }
+    if (lowerTitle.contains('شيري') || lowerTitle.contains('ماريا')) {
+      return '8p43TAdEd40';
+    }
+    if (lowerTitle.contains('تنين') || lowerTitle.contains('tenen')) {
+      return 'QJ4uwZdy_7U';
+    }
+    if (lowerTitle.contains('ثوك') || lowerTitle.contains('تسبحة البصخة')) {
+      return '676sEDTHsns';
+    }
+    if (lowerTitle.contains('اخرستوس') || lowerTitle.contains('قيامة')) {
+      return 'ioi4KmLau6o';
+    }
+    if (lowerTitle.contains('اومونوجينيس') ||
+        lowerTitle.contains('أومونوجينيس')) {
+      return 'TP6xIUxhOgA';
+    }
+    if (lowerTitle.contains('اهموت') || lowerTitle.contains('أهموت')) {
+      return 'XF2UvZA953k';
+    }
     if (lowerTitle.contains('لعازر')) return 'D0zkpzhEM8o';
     if (lowerTitle.contains('كيرياليسون')) return 'GmkNsXdFpJU';
-    if (lowerTitle.contains('الهوس الأول') || lowerTitle.contains('الهوس الاول')) return 'o5CIYH07ur0';
-    if (lowerTitle.contains('الهوس الثاني') || lowerTitle.contains('الهوس الثانى')) return 'AceZHsiBlvQ';
+    if (lowerTitle.contains('الهوس الأول') ||
+        lowerTitle.contains('الهوس الاول')) {
+      return 'o5CIYH07ur0';
+    }
+    if (lowerTitle.contains('الهوس الثاني') ||
+        lowerTitle.contains('الهوس الثانى')) {
+      return 'AceZHsiBlvQ';
+    }
     if (lowerTitle.contains('الهوس الثالث')) return 'mtAXMS_MSik';
     if (lowerTitle.contains('الهوس الرابع')) return 'j8oEiqEnDhM';
 
@@ -124,50 +171,26 @@ class CopticYouTubeRegistry {
     return 'https://www.youtube.com/results?search_query=$query';
   }
 
+  /// Returns ONLY verified recordings matching this specific hymn (never mixes
+  /// unrelated hymns into the cantor list).
   static List<CopticYouTubeCantor> getAvailableCantors({
     required String hymnTitle,
     required String defaultCantor,
     required String primaryVideoId,
     String primaryVideoTitle = '',
+    bool isExactMatch = true,
   }) {
-    final list = <CopticYouTubeCantor>[
+    if (!isExactMatch) {
+      return const [];
+    }
+    return [
       CopticYouTubeCantor(
         name: primaryVideoTitle.isNotEmpty
             ? primaryVideoTitle
-            : '$hymnTitle - $defaultCantor',
+            : '$hymnTitle — $defaultCantor',
         videoId: primaryVideoId,
-        description: 'التسجيل الأساسي المطابق للحن «$hymnTitle»',
+        description: 'التسجيل الموثّق المطابق للحن «$hymnTitle»',
       ),
     ];
-
-    const extras = <CopticYouTubeCantor>[
-      CopticYouTubeCantor(
-        name: 'المعلم إبراهيم عياد - لحن طاي شوري السنوي',
-        videoId: 'RIRb2ED0qvE',
-        description: 'رئيس شمامسة الكاتدرائية المرقسية بالعباسية',
-      ),
-      CopticYouTubeCantor(
-        name: 'المعلم إبراهيم عياد - القداس الباسيلي التعليمي',
-        videoId: 'RO-2RG5vVZo',
-        description: 'أداء تعليمي دقيق لصلوات وألحان القداس',
-      ),
-      CopticYouTubeCantor(
-        name: 'خورس الكلية الإكليريكية - يا كل الصفوف السمائيين',
-        videoId: 'zoMLL5Abtew',
-        description: 'ألحان القيامة والخماسين المقدسة',
-      ),
-      CopticYouTubeCantor(
-        name: 'المعلم إبراهيم عياد - الهيتينيات المقدسة',
-        videoId: 'SEFJNb_-JgE',
-        description: 'التسجيل الطقسي الكامل للهيتينيات',
-      ),
-    ];
-
-    for (final e in extras) {
-      if (e.videoId != primaryVideoId) {
-        list.add(e);
-      }
-    }
-    return list;
   }
 }

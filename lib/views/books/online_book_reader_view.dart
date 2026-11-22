@@ -3,17 +3,15 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/services/online_coptic_library_service.dart';
 import '../../core/services/security_guard_service.dart';
 import '../../core/services/speech_pronunciation_service.dart';
+import '../../core/theme/app_palette.dart';
 import '../../providers/theme_provider.dart';
 import '../liturgical/widgets/floating_church_bar.dart';
 
-/// Unified editorial reader for ANY online Orthodox book across all sources:
-/// - `in_app_chapters`: reads every chapter full-text right inside the app with offline caching & audio.
-/// - `christianlib_post` / `archive_org`: displays rich Arabic book summary, details,
-///   and direct PDF / Archive.org online reading & download buttons.
+/// Unified editorial reader for ANY online Orthodox book across all sources,
+/// 100% adaptive to Warm Parchment Daylight, Warm Charcoal Night, and AMOLED Church Mode.
 class OnlineBookReaderView extends StatefulWidget {
   final OnlineBookEntry book;
 
@@ -28,13 +26,11 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
   final SpeechPronunciationService _speech = SpeechPronunciationService();
   final ScrollController _scrollController = ScrollController();
 
-  // For in_app_chapters mode
   List<OnlineChapterLink> _chapters = [];
   int _chapterIdx = 0;
   List<String> _paragraphs = [];
   bool _isCached = false;
 
-  // For ChristianLib / Archive.org detail mode
   OnlineBookDetail? _detail;
 
   bool _loading = true;
@@ -65,11 +61,13 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
         final list = await _lib.fetchChapters(widget.book.url);
         if (!mounted) return;
         if (list.isEmpty) {
-          // Single-page book: load the page itself directly
-          final (paras, cached) = await _lib.fetchChapterParagraphs(widget.book.url);
+          final (paras, cached) =
+              await _lib.fetchChapterParagraphs(widget.book.url);
           if (!mounted) return;
           setState(() {
-            _chapters = [OnlineChapterLink(title: widget.book.title, url: widget.book.url)];
+            _chapters = [
+              OnlineChapterLink(title: widget.book.title, url: widget.book.url)
+            ];
             _paragraphs = paras;
             _isCached = cached;
             _loading = false;
@@ -85,7 +83,8 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
         if (!mounted) return;
         setState(() {
           _loading = false;
-          _error = 'تعذّر تحميل فصول الكتاب حالياً. يمكنك إعادة المحاولة أو فتحه مباشرة في المتصفح.';
+          _error =
+              'تعذّر تحميل فصول الكتاب حالياً. يمكنك إعادة المحاولة أو فتحه مباشرة في المتصفح.';
         });
       }
     } else {
@@ -102,7 +101,8 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
           _detail = OnlineBookDetail(
             title: widget.book.title,
             bodyText: widget.book.description,
-            downloadLinks: widget.book.pdfUrl.isNotEmpty ? [widget.book.pdfUrl] : [],
+            downloadLinks:
+                widget.book.pdfUrl.isNotEmpty ? [widget.book.pdfUrl] : [],
             webUrl: widget.book.url,
           );
           _loading = false;
@@ -120,7 +120,8 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
       _error = null;
     });
     try {
-      final (paras, cached) = await _lib.fetchChapterParagraphs(_chapters[idx].url);
+      final (paras, cached) =
+          await _lib.fetchChapterParagraphs(_chapters[idx].url);
       if (!mounted) return;
       setState(() {
         _paragraphs = paras;
@@ -144,7 +145,7 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'تم حجب هذا الرابط تلقائياً لأمانك (يجب أن يكون رابطاً مشفراً HTTPS).',
+              'تم حجب هذا الرابط تلقائياً لأمانك.',
               style: GoogleFonts.cairo(fontSize: 12),
             ),
           ),
@@ -159,6 +160,7 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
   }
 
   void _openChapterSheet() {
+    final p = context.palette;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -166,10 +168,10 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
       builder: (ctx) => Container(
         height: MediaQuery.of(ctx).size.height * 0.72,
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        decoration: const BoxDecoration(
-          color: AppColors.deepNavy,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-          border: Border(top: BorderSide(color: AppColors.hairline)),
+        decoration: BoxDecoration(
+          color: p.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+          border: Border(top: BorderSide(color: p.border)),
         ),
         child: Column(
           children: [
@@ -177,7 +179,7 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
               width: 38,
               height: 3.5,
               decoration: BoxDecoration(
-                color: AppColors.primaryGold.withValues(alpha: 0.4),
+                color: p.borderStrong,
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -186,8 +188,8 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
               'فهرس الكتاب (${_chapters.length} فصلاً)',
               style: GoogleFonts.amiri(
                 fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primaryGoldLight,
+                fontWeight: FontWeight.w700,
+                color: p.ink,
               ),
             ),
             const SizedBox(height: 10),
@@ -201,19 +203,15 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
                     dense: true,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(
-                        color: sel ? AppColors.primaryGold : AppColors.hairline,
-                      ),
+                      side: BorderSide(color: sel ? p.accent : p.border),
                     ),
-                    tileColor: sel
-                        ? AppColors.primaryGold.withValues(alpha: 0.14)
-                        : AppColors.cardNavy,
+                    tileColor: sel ? p.accentSoft : p.surfaceElevated,
                     title: Text(
                       _chapters[i].title,
                       style: GoogleFonts.cairo(
                         fontSize: 13,
-                        fontWeight: sel ? FontWeight.bold : FontWeight.w500,
-                        color: sel ? AppColors.primaryGoldLight : AppColors.textLight,
+                        fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                        color: sel ? p.accent : p.ink,
                       ),
                     ),
                     onTap: () {
@@ -232,32 +230,34 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     final fontScale = context.watch<ThemeProvider>().fontScale;
 
     return Scaffold(
-      backgroundColor: AppColors.deepNavy,
+      backgroundColor: p.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepNavy,
+        backgroundColor: p.background,
         elevation: 0,
         title: Text(
           widget.book.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: GoogleFonts.amiri(
-            fontWeight: FontWeight.bold,
-            fontSize: 19,
-            color: AppColors.primaryGoldLight,
+            fontWeight: FontWeight.w700,
+            fontSize: 20,
+            color: p.ink,
           ),
         ),
         actions: [
           if (_chapters.length > 1)
             IconButton(
-              icon: const Icon(Icons.format_list_bulleted_rounded, color: AppColors.primaryGold),
+              icon: Icon(Icons.format_list_bulleted_rounded, color: p.accent),
               tooltip: 'فهرس الفصول',
               onPressed: _openChapterSheet,
             ),
           IconButton(
-            icon: const Icon(Icons.open_in_browser_rounded, color: AppColors.primaryGoldLight, size: 20),
+            icon: Icon(Icons.open_in_browser_rounded,
+                color: p.inkMuted, size: 20),
             tooltip: 'فتح المصدر الأصلي',
             onPressed: () => _openExternal(widget.book.url),
           ),
@@ -270,11 +270,11 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const CircularProgressIndicator(color: AppColors.primaryGold, strokeWidth: 2),
+                  CircularProgressIndicator(color: p.accent, strokeWidth: 2),
                   const SizedBox(height: 12),
                   Text(
-                    'جاري فتح الكتاب وتجهيز القراءة...',
-                    style: GoogleFonts.cairo(fontSize: 12.5, color: AppColors.textMuted),
+                    'جارٍ فتح الكتاب وتجهيز القراءة...',
+                    style: GoogleFonts.cairo(fontSize: 12.5, color: p.inkMuted),
                   ),
                 ],
               ),
@@ -286,12 +286,14 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.menu_book_outlined, color: AppColors.textMuted, size: 42),
+                    Icon(Icons.menu_book_outlined,
+                        color: p.inkSubtle, size: 42),
                     const SizedBox(height: 12),
                     Text(
                       _error!,
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.cairo(fontSize: 13.5, color: AppColors.textLight, height: 1.6),
+                      style: GoogleFonts.cairo(
+                          fontSize: 13.5, color: p.ink, height: 1.6),
                     ),
                     const SizedBox(height: 16),
                     Wrap(
@@ -300,17 +302,20 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
                         ElevatedButton(
                           onPressed: _init,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryGold,
-                            foregroundColor: Colors.black,
+                            backgroundColor: p.accent,
+                            foregroundColor: p.onAccent,
                           ),
-                          child: Text('إعادة المحاولة', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+                          child: Text('إعادة المحاولة',
+                              style: GoogleFonts.cairo(
+                                  fontWeight: FontWeight.w700)),
                         ),
                         OutlinedButton(
                           onPressed: () => _openExternal(widget.book.url),
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: AppColors.hairline),
+                            side: BorderSide(color: p.border),
                           ),
-                          child: Text('فتح في المتصفح', style: GoogleFonts.cairo(color: AppColors.primaryGoldLight)),
+                          child: Text('فتح في المتصفح',
+                              style: GoogleFonts.cairo(color: p.accent)),
                         ),
                       ],
                     ),
@@ -319,27 +324,28 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
               ),
             )
           else if (widget.book.readerType == 'in_app_chapters')
-            _buildChaptersReader(fontScale)
+            _buildChaptersReader(p, fontScale)
           else
-            _buildExternalLibraryDetail(fontScale),
+            _buildExternalLibraryDetail(p, fontScale),
           const FloatingChurchBar(),
         ],
       ),
     );
   }
 
-  Widget _buildChaptersReader(double fontScale) {
-    final chapterTitle = _chapters.isNotEmpty ? _chapters[_chapterIdx].title : widget.book.title;
+  Widget _buildChaptersReader(AppPalette p, double fontScale) {
+    final chapterTitle =
+        _chapters.isNotEmpty ? _chapters[_chapterIdx].title : widget.book.title;
     return ListView(
       controller: _scrollController,
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 120),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
       children: [
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.cardNavy,
+            color: p.surfaceElevated,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.hairline),
+            border: Border.all(color: p.border),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -351,15 +357,15 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
                       widget.book.author,
                       style: GoogleFonts.cairo(
                         fontSize: 12,
-                        color: AppColors.primaryGold,
-                        fontWeight: FontWeight.w600,
+                        color: p.accent,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
                   if (_isCached)
                     Text(
-                      'محفوظ أوفلاين',
-                      style: GoogleFonts.cairo(fontSize: 10.5, color: AppColors.successGreen),
+                      'محفوظ للقراءة بدون إنترنت',
+                      style: GoogleFonts.cairo(fontSize: 10.5, color: p.success),
                     ),
                 ],
               ),
@@ -368,8 +374,8 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
                 chapterTitle,
                 style: GoogleFonts.amiri(
                   fontSize: 21 * fontScale,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textLight,
+                  fontWeight: FontWeight.w700,
+                  color: p.ink,
                   height: 1.4,
                 ),
               ),
@@ -387,10 +393,11 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
                   if (_chapters.length > 1)
                     TextButton.icon(
                       onPressed: _openChapterSheet,
-                      icon: const Icon(Icons.list_rounded, size: 16, color: AppColors.primaryGold),
+                      icon: Icon(Icons.list_rounded, size: 16, color: p.accent),
                       label: Text(
                         'فصل ${_chapterIdx + 1} من ${_chapters.length}',
-                        style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.primaryGoldLight),
+                        style:
+                            GoogleFonts.cairo(fontSize: 11.5, color: p.accent),
                       ),
                     ),
                 ],
@@ -399,15 +406,15 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
           ),
         ),
         const SizedBox(height: 18),
-        for (final p in _paragraphs)
+        for (final para in _paragraphs)
           Padding(
             padding: const EdgeInsets.only(bottom: 14),
             child: SelectableText(
-              p,
+              para,
               style: GoogleFonts.amiri(
                 fontSize: 19 * fontScale,
                 height: 1.9,
-                color: AppColors.textLight,
+                color: p.ink,
               ),
             ),
           ),
@@ -418,9 +425,12 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
             if (_chapterIdx > 0)
               OutlinedButton.icon(
                 onPressed: () => _loadChapter(_chapterIdx - 1),
-                icon: const Icon(Icons.arrow_back_rounded, size: 16, color: AppColors.primaryGold),
-                label: Text('الفصل السابق', style: GoogleFonts.cairo(color: AppColors.primaryGoldLight)),
-                style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.hairline)),
+                icon:
+                    Icon(Icons.arrow_back_rounded, size: 16, color: p.accent),
+                label: Text('الفصل السابق',
+                    style: GoogleFonts.cairo(color: p.accent)),
+                style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: p.border)),
               )
             else
               const SizedBox.shrink(),
@@ -428,10 +438,11 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
               ElevatedButton.icon(
                 onPressed: () => _loadChapter(_chapterIdx + 1),
                 icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                label: Text('الفصل التالي', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+                label: Text('الفصل التالي',
+                    style: GoogleFonts.cairo(fontWeight: FontWeight.w700)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryGold,
-                  foregroundColor: Colors.black,
+                  backgroundColor: p.accent,
+                  foregroundColor: p.onAccent,
                   elevation: 0,
                 ),
               )
@@ -443,20 +454,20 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
     );
   }
 
-  Widget _buildExternalLibraryDetail(double fontScale) {
+  Widget _buildExternalLibraryDetail(AppPalette p, double fontScale) {
     final det = _detail;
     final downloads = det?.downloadLinks ?? [];
     final isArchive = widget.book.readerType == 'archive_org';
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 110),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 110),
       children: [
         Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: AppColors.cardNavy,
+            color: p.surfaceElevated,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: AppColors.hairline),
+            border: Border.all(color: p.border),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -464,18 +475,18 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceNavy,
+                      color: p.accentSoft,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.3)),
                     ),
                     child: Text(
                       widget.book.source,
                       style: GoogleFonts.cairo(
                         fontSize: 10.5,
-                        color: AppColors.primaryGoldLight,
-                        fontWeight: FontWeight.w600,
+                        color: p.accent,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
@@ -486,8 +497,8 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
                 det?.title ?? widget.book.title,
                 style: GoogleFonts.amiri(
                   fontSize: 22 * fontScale,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textLight,
+                  fontWeight: FontWeight.w700,
+                  color: p.ink,
                   height: 1.4,
                 ),
               ),
@@ -496,13 +507,11 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
                 widget.book.author,
                 style: GoogleFonts.cairo(
                   fontSize: 13,
-                  color: AppColors.primaryGold,
-                  fontWeight: FontWeight.w600,
+                  color: p.accent,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 16),
-
-              // Primary Read / Download Actions
               if (downloads.isNotEmpty) ...[
                 for (int i = 0; i < downloads.take(3).length; i++) ...[
                   SizedBox(
@@ -510,23 +519,27 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
                     child: ElevatedButton.icon(
                       onPressed: () => _openExternal(downloads[i]),
                       icon: Icon(
-                        isArchive ? Icons.auto_stories_rounded : Icons.picture_as_pdf_rounded,
+                        isArchive
+                            ? Icons.auto_stories_rounded
+                            : Icons.picture_as_pdf_rounded,
                         size: 18,
                       ),
                       label: Text(
                         isArchive
-                            ? 'تصفح وقراءة الكتاب كاملاً (Archive Reader / PDF)'
+                            ? 'تصفح وقراءة الكتاب كاملاً (PDF)'
                             : (downloads.length == 1
                                 ? 'تحميل وقراءة الكتاب (PDF)'
-                                : 'رابط التحميل والقراءة #${i + 1} (PDF)'),
-                        style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 13),
+                                : 'رابط التحميل #${i + 1} (PDF)'),
+                        style: GoogleFonts.cairo(
+                            fontWeight: FontWeight.w700, fontSize: 13),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryGold,
-                        foregroundColor: Colors.black,
+                        backgroundColor: p.accent,
+                        foregroundColor: p.onAccent,
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
                   ),
@@ -537,19 +550,21 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: () => _openExternal(widget.book.url),
-                  icon: const Icon(Icons.open_in_new_rounded, size: 17, color: AppColors.primaryGold),
+                  icon:
+                      Icon(Icons.open_in_new_rounded, size: 17, color: p.accent),
                   label: Text(
                     'فتح صفحة الكتاب في المكتبة الأصلية',
                     style: GoogleFonts.cairo(
-                      color: AppColors.primaryGoldLight,
+                      color: p.accent,
                       fontWeight: FontWeight.w600,
                       fontSize: 12.5,
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.hairline),
+                    side: BorderSide(color: p.border),
                     padding: const EdgeInsets.symmetric(vertical: 11),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
@@ -560,12 +575,16 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
                   onPressed: () {
                     SharePlus.instance.share(
                       ShareParams(
-                        text: '${widget.book.title}\n${widget.book.author}\n${widget.book.url}\n\nمن تطبيق أرثوذكسيا',
+                        text:
+                            '${widget.book.title}\n${widget.book.author}\n${widget.book.url}\n\nمن تطبيق أرثوذكسيا',
                       ),
                     );
                   },
-                  icon: const Icon(Icons.share_outlined, size: 15, color: AppColors.textMuted),
-                  label: Text('مشاركة رابط الكتاب', style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 12)),
+                  icon:
+                      Icon(Icons.share_outlined, size: 15, color: p.inkMuted),
+                  label: Text('مشاركة رابط الكتاب',
+                      style:
+                          GoogleFonts.cairo(color: p.inkMuted, fontSize: 12)),
                 ),
               ),
             ],
@@ -577,8 +596,8 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
             'نبذة عن الكتاب ومحتوياته',
             style: GoogleFonts.cairo(
               fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: AppColors.primaryGoldLight,
+              fontWeight: FontWeight.w700,
+              color: p.accent,
             ),
           ),
           const SizedBox(height: 10),
@@ -587,7 +606,7 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
             style: GoogleFonts.amiri(
               fontSize: 18.5 * fontScale,
               height: 1.85,
-              color: AppColors.textLight,
+              color: p.ink,
             ),
           ),
         ],

@@ -86,6 +86,7 @@ flutter:
   assets:
     - assets/data/
     - assets/images/
+    - assets/images/saints/
 
   fonts:
     - family: Coptic

@@ -24,6 +24,15 @@ class AppPalette extends ThemeExtension<AppPalette> {
   final Color shadow;
   final bool isDark;
 
+  // Convenient semantic aliases used across editorial views
+  Color get background => canvas;
+  Color get surfaceElevated => surface;
+  Color get accentSoft => goldSoft;
+  Color get crimsonSoft => crimson.withValues(alpha: isDark ? 0.22 : 0.11);
+  Color get inkSubtle => inkMuted;
+  Color get borderStrong => goldBorder;
+  Color get success => sage;
+
   const AppPalette({
     required this.canvas,
     required this.surface,

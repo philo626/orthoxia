@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../../core/constants/app_colors.dart';
+import '../../core/theme/app_palette.dart';
 import '../../models/commentary_model.dart';
 import '../../providers/theme_provider.dart';
 import '../liturgical/widgets/floating_church_bar.dart';
@@ -26,33 +26,40 @@ class _CommentaryReaderViewState extends State<CommentaryReaderView> {
   @override
   void initState() {
     super.initState();
-    _currentChapterIndex = widget.initialChapterIndex.clamp(0, widget.commentary.chapters.length - 1);
+    _currentChapterIndex = widget.initialChapterIndex
+        .clamp(0, widget.commentary.chapters.length - 1);
   }
 
   @override
   Widget build(BuildContext context) {
-    final themeProv = Provider.of<ThemeProvider>(context);
-    final fontScale = themeProv.fontScale;
+    final p = context.palette;
+    final fontScale = Provider.of<ThemeProvider>(context).fontScale;
     final chapter = widget.commentary.chapters[_currentChapterIndex];
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: p.background,
       appBar: AppBar(
+        backgroundColor: p.background,
+        elevation: 0,
         title: Column(
           children: [
             Text(
               widget.commentary.bibleBookName,
-              style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 16),
+              style: GoogleFonts.amiri(
+                fontWeight: FontWeight.w700,
+                fontSize: 20,
+                color: p.ink,
+              ),
             ),
             Text(
               widget.commentary.commentator,
-              style: GoogleFonts.cairo(fontSize: 11, color: AppColors.primaryGoldLight),
+              style: GoogleFonts.cairo(fontSize: 11, color: p.accent),
             ),
           ],
         ),
         actions: [
           PopupMenuButton<int>(
-            icon: const Icon(Icons.format_list_bulleted_rounded, color: AppColors.primaryGold),
+            icon: Icon(Icons.format_list_bulleted_rounded, color: p.accent),
             tooltip: 'فهرس الأصحاحات',
             initialValue: _currentChapterIndex,
             onSelected: (idx) => setState(() => _currentChapterIndex = idx),
@@ -64,8 +71,12 @@ class _CommentaryReaderViewState extends State<CommentaryReaderView> {
                     entry.value.title,
                     style: GoogleFonts.cairo(
                       fontSize: 12,
-                      fontWeight: entry.key == _currentChapterIndex ? FontWeight.bold : FontWeight.normal,
-                      color: entry.key == _currentChapterIndex ? AppColors.primaryGold : null,
+                      fontWeight: entry.key == _currentChapterIndex
+                          ? FontWeight.w700
+                          : FontWeight.normal,
+                      color: entry.key == _currentChapterIndex
+                          ? p.accent
+                          : p.ink,
                     ),
                   ),
                 );
@@ -78,27 +89,26 @@ class _CommentaryReaderViewState extends State<CommentaryReaderView> {
       body: Stack(
         children: [
           SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 110),
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 110),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Chapter Title Box
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppColors.cardNavy,
+                    color: p.surfaceElevated,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.3)),
+                    border: Border.all(color: p.border),
                   ),
                   child: Column(
                     children: [
                       Text(
                         chapter.title,
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.cairo(
-                          fontSize: 17 * fontScale,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primaryGold,
+                        style: GoogleFonts.amiri(
+                          fontSize: 20 * fontScale,
+                          fontWeight: FontWeight.w700,
+                          color: p.accent,
                         ),
                       ),
                       if (chapter.introduction.isNotEmpty) ...[
@@ -108,7 +118,7 @@ class _CommentaryReaderViewState extends State<CommentaryReaderView> {
                           textAlign: TextAlign.center,
                           style: GoogleFonts.cairo(
                             fontSize: 13 * fontScale,
-                            color: AppColors.textLight.withValues(alpha: 0.9),
+                            color: p.inkMuted,
                             height: 1.6,
                           ),
                         ),
@@ -116,29 +126,26 @@ class _CommentaryReaderViewState extends State<CommentaryReaderView> {
                     ],
                   ),
                 ),
-
-                const SizedBox(height: 20),
-
-                // Verse by Verse breakdown
+                const SizedBox(height: 16),
                 for (var v in chapter.verses) ...[
                   Container(
-                    margin: const EdgeInsets.only(bottom: 16),
+                    margin: const EdgeInsets.only(bottom: 14),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.cardNavy,
+                      color: p.surfaceElevated,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                      border: Border.all(color: p.border),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Verse Scripture in Sacred Box
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: AppColors.surfaceNavy,
+                            color: p.accentSoft,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.3)),
+                            border: Border.all(
+                                color: p.accent.withValues(alpha: 0.3)),
                           ),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,15 +155,15 @@ class _CommentaryReaderViewState extends State<CommentaryReaderView> {
                                 height: 26,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: AppColors.primaryGold.withValues(alpha: 0.2),
+                                  color: p.accent,
                                 ),
                                 child: Center(
                                   child: Text(
                                     '${v.verseNumber}',
                                     style: GoogleFonts.cairo(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.primaryGold,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: p.onAccent,
                                     ),
                                   ),
                                 ),
@@ -165,10 +172,10 @@ class _CommentaryReaderViewState extends State<CommentaryReaderView> {
                               Expanded(
                                 child: Text(
                                   v.scriptureText,
-                                  style: GoogleFonts.cairo(
-                                    fontSize: 15 * fontScale,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.primaryGoldLight,
+                                  style: GoogleFonts.amiri(
+                                    fontSize: 17.5 * fontScale,
+                                    fontWeight: FontWeight.w700,
+                                    color: p.ink,
                                     height: 1.6,
                                   ),
                                 ),
@@ -176,51 +183,48 @@ class _CommentaryReaderViewState extends State<CommentaryReaderView> {
                             ],
                           ),
                         ),
-
                         const SizedBox(height: 14),
-
-                        // Patristic Commentary
                         Text(
                           'التفسير والتأمل الآبائي:',
                           style: GoogleFonts.cairo(
-                            fontSize: 13 * fontScale,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textMuted,
+                            fontSize: 12.5 * fontScale,
+                            fontWeight: FontWeight.w700,
+                            color: p.accent,
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           v.patristicCommentary,
-                          style: GoogleFonts.cairo(
-                            fontSize: 15 * fontScale,
-                            color: AppColors.textLight,
-                            height: 1.8,
+                          style: GoogleFonts.amiri(
+                            fontSize: 17.5 * fontScale,
+                            color: p.ink,
+                            height: 1.85,
                           ),
                         ),
-
-                        // Citation Pill
                         if (v.citation.isNotEmpty) ...[
                           const SizedBox(height: 10),
                           Align(
                             alignment: Alignment.centerLeft,
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: AppColors.sacredBurgundy.withValues(alpha: 0.25),
+                                color: p.surfaceMuted,
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.3)),
+                                border: Border.all(color: p.border),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.bookmark_added_rounded, size: 12, color: AppColors.primaryGold),
+                                  Icon(Icons.bookmark_added_rounded,
+                                      size: 12, color: p.accent),
                                   const SizedBox(width: 4),
                                   Text(
                                     v.citation,
                                     style: GoogleFonts.cairo(
-                                      fontSize: 10,
+                                      fontSize: 10.5,
                                       fontWeight: FontWeight.w600,
-                                      color: AppColors.primaryGoldLight,
+                                      color: p.inkMuted,
                                     ),
                                   ),
                                 ],
@@ -232,34 +236,38 @@ class _CommentaryReaderViewState extends State<CommentaryReaderView> {
                     ),
                   ),
                 ],
-
-                const SizedBox(height: 20),
-
-                // Navigation Buttons (Previous / Next Chapter)
+                const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     if (_currentChapterIndex > 0)
-                      TextButton.icon(
-                        onPressed: () {
-                          setState(() => _currentChapterIndex -= 1);
-                        },
-                        icon: const Icon(Icons.arrow_back_rounded, size: 16, color: AppColors.primaryGold),
-                        label: Text('الأصحاح السابق', style: GoogleFonts.cairo(color: AppColors.primaryGold)),
+                      OutlinedButton.icon(
+                        onPressed: () =>
+                            setState(() => _currentChapterIndex -= 1),
+                        icon: Icon(Icons.arrow_back_rounded,
+                            size: 16, color: p.accent),
+                        label: Text('الأصحاح السابق',
+                            style: GoogleFonts.cairo(color: p.accent)),
+                        style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: p.border)),
                       )
                     else
                       const SizedBox.shrink(),
-                    if (_currentChapterIndex < widget.commentary.chapters.length - 1)
+                    if (_currentChapterIndex <
+                        widget.commentary.chapters.length - 1)
                       ElevatedButton.icon(
-                        onPressed: () {
-                          setState(() => _currentChapterIndex += 1);
-                        },
-                        label: Text('الأصحاح التالي', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+                        onPressed: () =>
+                            setState(() => _currentChapterIndex += 1),
+                        label: Text('الأصحاح التالي',
+                            style:
+                                GoogleFonts.cairo(fontWeight: FontWeight.w700)),
                         icon: const Icon(Icons.arrow_forward_rounded, size: 16),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryGold,
-                          foregroundColor: Colors.black,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          backgroundColor: p.accent,
+                          foregroundColor: p.onAccent,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
                         ),
                       )
                     else
@@ -269,8 +277,6 @@ class _CommentaryReaderViewState extends State<CommentaryReaderView> {
               ],
             ),
           ),
-
-          // Floating Church Bar
           const FloatingChurchBar(),
         ],
       ),

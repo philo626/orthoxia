@@ -19,11 +19,13 @@ class AgpeyaPsalm {
 }
 
 class AgpeyaSection {
+  final String type;
   final String title;
   final String? content;
   final List<AgpeyaPsalm>? psalms;
 
   AgpeyaSection({
+    this.type = '',
     required this.title,
     this.content,
     this.psalms,
@@ -31,8 +33,9 @@ class AgpeyaSection {
 
   factory AgpeyaSection.fromJson(Map<String, dynamic> json) {
     return AgpeyaSection(
-      title: json['title'] ?? '',
-      content: json['content'],
+      type: (json['type'] ?? '').toString(),
+      title: (json['title'] ?? '').toString(),
+      content: json['content']?.toString(),
       psalms: json['psalms'] != null
           ? (json['psalms'] as List).map((p) => AgpeyaPsalm.fromJson(p)).toList()
           : null,
@@ -61,14 +64,14 @@ class AgpeyaHour {
 
   factory AgpeyaHour.fromJson(Map<String, dynamic> json) {
     return AgpeyaHour(
-      id: json['id'] ?? '',
-      nameAr: json['name_ar'] ?? '',
-      nameCoptic: json['name_coptic'] ?? '',
-      hourSymbol: json['hour_symbol'] ?? '',
-      theme: json['theme'] ?? '',
-      timeRange: json['time_range'] ?? '',
+      id: (json['id'] ?? '').toString(),
+      nameAr: (json['name_ar'] ?? '').toString(),
+      nameCoptic: (json['name_coptic'] ?? '').toString(),
+      hourSymbol: (json['hour_symbol'] ?? '').toString(),
+      theme: (json['theme'] ?? '').toString(),
+      timeRange: (json['time_range'] ?? '').toString(),
       sections: (json['sections'] as List? ?? [])
-          .map((s) => AgpeyaSection.fromJson(s))
+          .map((s) => AgpeyaSection.fromJson(Map<String, dynamic>.from(s)))
           .toList(),
     );
   }

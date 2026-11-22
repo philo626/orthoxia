@@ -16,13 +16,16 @@ service cloud.firestore {
       return val is string && val.size() >= minLen && val.size() <= maxLen;
     }
 
-    // 1. Public User Profiles (ONLY non-sensitive displayName & patronSaintId; ZERO confession notes!)
+    // 1. Public User Profiles (ONLY non-sensitive displayName, patronSaintId & optional Bible completedChapters; ZERO confession notes!)
     match /users/{uid} {
       allow read: if isOwner(uid);
       allow create, update: if isOwner(uid)
-        && request.resource.data.keys().hasOnly(['displayName', 'patronSaintId', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['displayName', 'patronSaintId', 'completedChapters', 'updatedAt'])
         && validString(request.resource.data.displayName, 1, 60)
-        && validString(request.resource.data.patronSaintId, 1, 60);
+        && validString(request.resource.data.patronSaintId, 1, 60)
+        && (!('completedChapters' in request.resource.data)
+            || (request.resource.data.completedChapters is list
+                && request.resource.data.completedChapters.size() <= 1500));
       allow delete: if isOwner(uid);
     }
 

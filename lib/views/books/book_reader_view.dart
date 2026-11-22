@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../../core/constants/app_colors.dart';
+import '../../core/services/reading_state_service.dart';
+import '../../core/services/speech_pronunciation_service.dart';
+import '../../core/theme/app_palette.dart';
 import '../../models/book_model.dart';
+import '../../providers/ai_companion_provider.dart';
 import '../../providers/books_provider.dart';
 import '../../providers/theme_provider.dart';
-import '../../providers/ai_companion_provider.dart';
 import '../liturgical/widgets/floating_church_bar.dart';
 
 class BookReaderView extends StatefulWidget {
@@ -24,31 +26,56 @@ class BookReaderView extends StatefulWidget {
 
 class _BookReaderViewState extends State<BookReaderView> {
   late int _currentChapterIndex;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    _currentChapterIndex = widget.initialChapterIndex.clamp(0, widget.book.chapters.length - 1);
+    _currentChapterIndex = widget.initialChapterIndex.clamp(
+      0,
+      widget.book.chapters.isEmpty ? 0 : widget.book.chapters.length - 1,
+    );
+    _recordProgress();
+  }
+
+  @override
+  void dispose() {
+    SpeechPronunciationService().stop();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _recordProgress() {
+    ReadingStateService().saveLastBook(
+      bookId: widget.book.id,
+      bookTitle: widget.book.title,
+      chapterIndex: _currentChapterIndex,
+    );
+  }
+
+  void _goToChapter(int idx) {
+    if (idx < 0 || idx >= widget.book.chapters.length) return;
+    SpeechPronunciationService().stop();
+    setState(() => _currentChapterIndex = idx);
+    _recordProgress();
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
   }
 
   void _askAiAboutChapter(BuildContext context, BookChapter chapter) {
     final aiProv = Provider.of<AiCompanionProvider>(context, listen: false);
-    final question = 'أريد شرحاً وتأملاً آبائياً حول "${widget.book.title} - ${chapter.title}":\n\n${chapter.content.substring(0, chapter.content.length > 300 ? 300 : chapter.content.length)}...';
+    final excerpt = chapter.content.length > 300
+        ? chapter.content.substring(0, 300)
+        : chapter.content;
+    final question = 'أريد شرحاً وتأملاً آبائياً حول "${widget.book.title} - ${chapter.title}":\n\n$excerpt';
     aiProv.sendMessage(question);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'تم توجيه السؤال إلى المساعد الآبائي بنجاح. يمكنك مراجعته في تبويب المساعد الروحي.',
-          style: GoogleFonts.cairo(),
-        ),
-        backgroundColor: AppColors.sacredBurgundy,
-        action: SnackBarAction(
-          label: 'فتح المساعد',
-          textColor: AppColors.primaryGold,
-          onPressed: () {
-            Navigator.pop(context); // Return to navigation
-          },
+          'تم إرسال الفصل للمساعد الآبائي — يمكنك قراءة الشرح في تبويب «اسأل».',
+          style: GoogleFonts.cairo(fontSize: 12.5),
         ),
       ),
     );
@@ -56,33 +83,47 @@ class _BookReaderViewState extends State<BookReaderView> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     final themeProv = Provider.of<ThemeProvider>(context);
     final booksProv = Provider.of<BooksProvider>(context);
     final fontScale = themeProv.fontScale;
+
+    if (widget.book.chapters.isEmpty) {
+      return Scaffold(
+        backgroundColor: p.canvas,
+        appBar: AppBar(title: Text(widget.book.title)),
+        body: Center(
+          child: Text('لا توجد فصول متاحة حالياً.', style: GoogleFonts.cairo(color: p.inkMuted)),
+        ),
+      );
+    }
+
     final chapter = widget.book.chapters[_currentChapterIndex];
     final isBookmarked = booksProv.isBookmarked(chapter.id);
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: p.canvas,
       appBar: AppBar(
+        backgroundColor: p.canvas,
+        foregroundColor: p.ink,
         title: Text(
           widget.book.title,
-          style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 16),
+          style: GoogleFonts.amiri(fontWeight: FontWeight.bold, fontSize: 20, color: p.ink),
         ),
         actions: [
           IconButton(
             icon: Icon(
               isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-              color: isBookmarked ? AppColors.primaryGold : AppColors.textLight,
+              color: isBookmarked ? p.accent : p.inkSecondary,
             ),
-            tooltip: 'حفظ إشارة مرجعية',
+            tooltip: 'حفظ علامة مرجعية',
             onPressed: () => booksProv.toggleBookmark(chapter.id),
           ),
           PopupMenuButton<int>(
-            icon: const Icon(Icons.format_list_bulleted_rounded, color: AppColors.primaryGold),
+            icon: Icon(Icons.format_list_bulleted_rounded, color: p.accent),
             tooltip: 'فهرس الفصول',
             initialValue: _currentChapterIndex,
-            onSelected: (idx) => setState(() => _currentChapterIndex = idx),
+            onSelected: _goToChapter,
             itemBuilder: (context) {
               return widget.book.chapters.asMap().entries.map((entry) {
                 return PopupMenuItem<int>(
@@ -90,157 +131,159 @@ class _BookReaderViewState extends State<BookReaderView> {
                   child: Text(
                     entry.value.title,
                     style: GoogleFonts.cairo(
-                      fontSize: 12,
+                      fontSize: 12.5,
                       fontWeight: entry.key == _currentChapterIndex ? FontWeight.bold : FontWeight.normal,
-                      color: entry.key == _currentChapterIndex ? AppColors.primaryGold : null,
+                      color: entry.key == _currentChapterIndex ? p.accent : p.ink,
                     ),
                   ),
                 );
               }).toList();
             },
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
         ],
       ),
       body: Stack(
         children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 110),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Header Chapter Info Box
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardNavy,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.3)),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        widget.book.author,
-                        style: GoogleFonts.cairo(
-                          fontSize: 12,
-                          color: AppColors.primaryGoldLight,
-                          fontWeight: FontWeight.w600,
-                        ),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 680),
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(22, 14, 22, 115),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Book Chapter Title Block
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: p.surface,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: p.border),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        chapter.title,
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.cairo(
-                          fontSize: 16 * fontScale,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primaryGold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // Chapter Content
-                Text(
-                  chapter.content,
-                  style: GoogleFonts.cairo(
-                    fontSize: 16 * fontScale,
-                    color: AppColors.textLight,
-                    height: 1.9,
-                  ),
-                ),
-
-                const SizedBox(height: 30),
-
-                // Button: Ask AI Companion about this chapter
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceNavy,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.3)),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      child: Column(
                         children: [
-                          const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryGold, size: 20),
-                          const SizedBox(width: 8),
                           Text(
-                            'المساعد الآبائي الذكي',
+                            widget.book.author,
                             style: GoogleFonts.cairo(
-                              fontSize: 14,
+                              fontSize: 12,
+                              color: p.accent,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.primaryGold,
                             ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            chapter.title,
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.amiri(
+                              fontSize: 22 * fontScale.clamp(0.85, 1.3),
+                              fontWeight: FontWeight.bold,
+                              color: p.ink,
+                              height: 1.35,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SpeechPlayStopButton(
+                            textToSpeak: '${chapter.title}. ${chapter.content}',
+                            label: chapter.title,
+                            playText: 'استماع للفصل',
+                            stopText: 'إيقاف القراءة',
+                            compact: true,
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'هل تريد شرحاً أو تأملاً آبائياً حول هذا الفصل؟',
-                        style: GoogleFonts.cairo(fontSize: 12, color: AppColors.textMuted),
-                      ),
-                      const SizedBox(height: 12),
-                      ElevatedButton.icon(
-                        onPressed: () => _askAiAboutChapter(context, chapter),
-                        icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
-                        label: Text(
-                          'اسأل المساعد الآبائي حول هذا الفصل',
-                          style: GoogleFonts.cairo(fontSize: 13, fontWeight: FontWeight.bold),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.sacredBurgundy,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                    ),
 
-                const SizedBox(height: 24),
+                    const SizedBox(height: 22),
 
-                // Navigation Buttons (Previous / Next Chapter)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    if (_currentChapterIndex > 0)
-                      TextButton.icon(
-                        onPressed: () {
-                          setState(() => _currentChapterIndex -= 1);
-                        },
-                        icon: const Icon(Icons.arrow_back_rounded, size: 16, color: AppColors.primaryGold),
-                        label: Text('الفصل السابق', style: GoogleFonts.cairo(color: AppColors.primaryGold)),
-                      )
-                    else
-                      const SizedBox.shrink(),
-                    if (_currentChapterIndex < widget.book.chapters.length - 1)
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          setState(() => _currentChapterIndex += 1);
-                        },
-                        label: Text('الفصل التالي', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
-                        icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryGold,
-                          foregroundColor: Colors.black,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                      )
-                    else
-                      const SizedBox.shrink(),
+                    // Fine-Printed Chapter Prose
+                    SelectableText(
+                      chapter.content,
+                      style: GoogleFonts.amiri(
+                        fontSize: 20 * fontScale,
+                        color: p.ink,
+                        height: 1.95,
+                      ),
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // Prev / Next Chapter Controls
+                    Row(
+                      children: [
+                        if (_currentChapterIndex > 0)
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _goToChapter(_currentChapterIndex - 1),
+                              icon: const Icon(Icons.arrow_forward_rounded, size: 17),
+                              label: const Text('الفصل السابق'),
+                            ),
+                          ),
+                        if (_currentChapterIndex > 0 &&
+                            _currentChapterIndex < widget.book.chapters.length - 1)
+                          const SizedBox(width: 10),
+                        if (_currentChapterIndex < widget.book.chapters.length - 1)
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _goToChapter(_currentChapterIndex + 1),
+                              icon: const Icon(Icons.arrow_back_rounded, size: 17),
+                              label: const Text('الفصل التالي'),
+                            ),
+                          ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Ask Patristic Companion Card
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: p.goldSoft,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: p.goldBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.forum_outlined, color: p.accent, size: 22),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'تأمل أعمق في هذا الفصل',
+                                  style: GoogleFonts.cairo(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: p.ink,
+                                  ),
+                                ),
+                                Text(
+                                  'اطلب شرحاً آبائياً مبسطاً لهذا النص',
+                                  style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                          OutlinedButton(
+                            onPressed: () => _askAiAboutChapter(context, chapter),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(0, 36),
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                            ),
+                            child: const Text('اسأل'),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
 
-          // Floating Church Bar (Brightness, Font scaling, AMOLED)
           const FloatingChurchBar(),
         ],
       ),

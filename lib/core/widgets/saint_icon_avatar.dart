@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../constants/app_colors.dart';
+import '../theme/app_palette.dart';
 import 'coptic_cross.dart';
 
 enum SaintAvatarShape { circle, arch }
 
 /// Renders an authentic Coptic/Orthodox saint icon portrait inside a restrained
-/// antique-gold liturgical frame (circular medallion or cathedral arch).
-/// Never falls back to emojis; gracefully falls back to a dignified sacred emblem offline.
+/// liturgical frame (circular medallion or cathedral arch), adapting seamlessly
+/// to both Warm Parchment Daylight and Charcoal Night themes.
 class SaintIconAvatar extends StatelessWidget {
   final String imageUrl;
   final double size;
@@ -35,28 +35,26 @@ class SaintIconAvatar extends StatelessWidget {
 
   void _openViewer(BuildContext context) {
     if (!enableFullViewer || imageUrl.isEmpty) return;
+    final p = context.palette;
     showDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.88),
+      barrierColor: Colors.black.withValues(alpha: 0.82),
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.cardNavy,
+            color: p.surface,
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: AppColors.primaryGold.withValues(alpha: 0.35),
-              width: 1,
-            ),
+            border: Border.all(color: p.goldBorder, width: 1),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Row(
                 children: [
-                  const CopticCross(size: 16),
+                  CopticCross(size: 16, color: p.isDark ? p.gold : p.accent),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -64,14 +62,14 @@ class SaintIconAvatar extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.amiri(
-                        fontSize: 19,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.primaryGoldLight,
+                        color: p.ink,
                       ),
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, color: AppColors.textMuted),
+                    icon: Icon(Icons.close_rounded, color: p.inkMuted),
                     onPressed: () => Navigator.pop(ctx),
                   ),
                 ],
@@ -87,7 +85,7 @@ class SaintIconAvatar extends StatelessWidget {
                     imageUrl,
                     headers: _imageHeaders,
                     fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => _buildFallback(180),
+                    errorBuilder: (_, _, _) => _buildFallback(p, 180),
                   ),
                 ),
               ),
@@ -97,8 +95,8 @@ class SaintIconAvatar extends StatelessWidget {
                   saintTitle!,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.cairo(
-                    fontSize: 12,
-                    color: AppColors.textMuted,
+                    fontSize: 12.5,
+                    color: p.inkSecondary,
                     height: 1.5,
                   ),
                 ),
@@ -110,21 +108,15 @@ class SaintIconAvatar extends StatelessWidget {
     );
   }
 
-  Widget _buildFallback(double dim) {
+  Widget _buildFallback(AppPalette p, double dim) {
     return Container(
       width: dim,
       height: dim,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF28221A), Color(0xFF15120F)],
-        ),
-      ),
+      color: p.goldSoft,
       child: Center(
         child: CopticCross(
-          size: (dim * 0.42).clamp(16.0, 48.0),
-          color: AppColors.primaryGold,
+          size: (dim * 0.40).clamp(16.0, 44.0),
+          color: p.gold,
         ),
       ),
     );
@@ -132,6 +124,7 @@ class SaintIconAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     final width = size;
     final height = shape == SaintAvatarShape.arch ? size * 1.24 : size;
     final radius = shape == SaintAvatarShape.arch
@@ -144,7 +137,7 @@ class SaintIconAvatar extends StatelessWidget {
         : BorderRadius.circular(size);
 
     final imageWidget = imageUrl.isEmpty
-        ? _buildFallback(width)
+        ? _buildFallback(p, width)
         : Image.network(
             imageUrl,
             headers: _imageHeaders,
@@ -157,7 +150,7 @@ class SaintIconAvatar extends StatelessWidget {
               if (wasSync) return child;
               return AnimatedOpacity(
                 opacity: frame == null ? 0.0 : 1.0,
-                duration: const Duration(milliseconds: 240),
+                duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOut,
                 child: child,
               );
@@ -167,16 +160,16 @@ class SaintIconAvatar extends StatelessWidget {
               return Container(
                 width: width,
                 height: height,
-                color: const Color(0xFF1F1C18),
+                color: p.surfaceSubtle,
                 child: Center(
                   child: CopticCross(
                     size: (width * 0.34).clamp(14.0, 28.0),
-                    color: AppColors.primaryGold.withValues(alpha: 0.45),
+                    color: p.gold.withValues(alpha: 0.5),
                   ),
                 ),
               );
             },
-            errorBuilder: (_, __, ___) => _buildFallback(width),
+            errorBuilder: (_, _, _) => _buildFallback(p, width),
           );
 
     final framed = Container(
@@ -184,11 +177,11 @@ class SaintIconAvatar extends StatelessWidget {
       height: height,
       decoration: BoxDecoration(
         borderRadius: radius,
-        color: const Color(0xFF1C1915),
+        color: p.surfaceSubtle,
         border: showBorder
             ? Border.all(
-                color: AppColors.primaryGold.withValues(alpha: 0.42),
-                width: size >= 70 ? 1.4 : 1.0,
+                color: p.goldBorder,
+                width: size >= 70 ? 1.3 : 1.0,
               )
             : null,
       ),

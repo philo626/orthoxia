@@ -1,33 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'core/constants/app_colors.dart';
 import 'core/services/coptic_calendar_service.dart';
 import 'core/services/firebase_service.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/patron_saint_service.dart';
 import 'core/services/speech_pronunciation_service.dart';
 import 'core/services/storage_service.dart';
-import 'providers/theme_provider.dart';
-import 'providers/audio_provider.dart';
-import 'providers/spiritual_tracker_provider.dart';
-import 'providers/prayer_wall_provider.dart';
+import 'core/theme/app_palette.dart';
+import 'core/theme/app_theme.dart';
 import 'providers/ai_companion_provider.dart';
-import 'providers/trivia_provider.dart';
-import 'providers/books_provider.dart';
+import 'providers/audio_provider.dart';
 import 'providers/bible_provider.dart';
-import 'providers/liturgy_provider.dart';
+import 'providers/books_provider.dart';
 import 'providers/church_mode_provider.dart';
+import 'providers/liturgy_provider.dart';
+import 'providers/prayer_wall_provider.dart';
+import 'providers/spiritual_tracker_provider.dart';
+import 'providers/theme_provider.dart';
+import 'providers/trivia_provider.dart';
 import 'views/onboarding/splash_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await StorageService().init();
-  await FirebaseService().initSafely();
-  await NotificationService().init();
-  await CopticCalendarService.ensureLectionaryLoaded();
-  await PatronSaintService.ensureLoaded();
+  await Future.wait([
+    FirebaseService().initSafely(),
+    NotificationService().init(),
+    CopticCalendarService.ensureLectionaryLoaded(),
+    PatronSaintService.ensureLoaded(),
+  ]);
 
   runApp(
     MultiProvider(
@@ -56,14 +60,26 @@ class OrthodoxApp extends StatelessWidget {
     final themeProv = Provider.of<ThemeProvider>(context);
     final churchMode = Provider.of<ChurchModeProvider>(context);
 
-    final baseTheme = themeProv.currentTheme;
     final activeTheme = churchMode.isChurchMode
-        ? baseTheme.copyWith(
-            scaffoldBackgroundColor: Colors.black,
-            cardColor: const Color(0xFF090909),
-            appBarTheme: baseTheme.appBarTheme.copyWith(backgroundColor: Colors.black),
-          )
-        : baseTheme;
+        ? AppTheme.getTheme(AppThemeMode.amoledChurch)
+        : themeProv.currentTheme;
+    final isDark = activeTheme.brightness == Brightness.dark;
+    final palette = activeTheme.extension<AppPalette>() ??
+        (isDark ? AppPalette.darkCharcoal : AppPalette.lightParchment);
+
+    SystemChrome.setSystemUIOverlayStyle(
+      isDark
+          ? SystemUiOverlayStyle.light.copyWith(
+              statusBarColor: Colors.transparent,
+              systemNavigationBarColor: palette.canvas,
+              systemNavigationBarIconBrightness: Brightness.light,
+            )
+          : SystemUiOverlayStyle.dark.copyWith(
+              statusBarColor: Colors.transparent,
+              systemNavigationBarColor: palette.surface,
+              systemNavigationBarIconBrightness: Brightness.dark,
+            ),
+    );
 
     return MaterialApp(
       title: 'أرثوذكسيا',
@@ -84,7 +100,7 @@ class OrthodoxApp extends StatelessWidget {
         return Stack(
           children: [
             child ?? const SizedBox.shrink(),
-            // Global Floating Stop Audio Pill whenever SpeechPronunciationService is active
+            // Adaptive Floating Stop Audio Pill whenever voice reading is active
             ValueListenableBuilder<bool>(
               valueListenable: speech.isSpeakingNotifier,
               builder: (context, speaking, _) {
@@ -96,34 +112,34 @@ class OrthodoxApp extends StatelessWidget {
                   child: Material(
                     color: Colors.transparent,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                       decoration: BoxDecoration(
-                        color: AppColors.cardNavy,
+                        color: palette.surface,
                         borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: AppColors.sacredBurgundy, width: 1.2),
+                        border: Border.all(color: palette.goldBorder, width: 1.1),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.55),
-                            blurRadius: 14,
-                            offset: const Offset(0, 4),
+                            color: palette.shadow.withValues(alpha: 0.3),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
                           ),
                         ],
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.volume_up_rounded, color: AppColors.primaryGold, size: 18),
+                          Icon(Icons.volume_up_rounded, color: palette.accent, size: 19),
                           const SizedBox(width: 8),
                           Expanded(
                             child: ValueListenableBuilder<String>(
                               valueListenable: speech.activeLabelNotifier,
-                              builder: (_, lbl, __) => Text(
-                                lbl.isNotEmpty ? 'جاري القراءة: $lbl' : 'جاري القراءة الصوتية...',
+                              builder: (_, lbl, _) => Text(
+                                lbl.isNotEmpty ? 'جاري القراءة: $lbl' : 'جاري القراءة الصوتية',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.cairo(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textLight,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: palette.ink,
                                 ),
                               ),
                             ),
@@ -132,18 +148,20 @@ class OrthodoxApp extends StatelessWidget {
                           ElevatedButton.icon(
                             onPressed: () => speech.stop(),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.sacredBurgundy,
+                              backgroundColor: palette.crimson,
                               foregroundColor: Colors.white,
                               elevation: 0,
-                              visualDensity: VisualDensity.compact,
+                              minimumSize: const Size(0, 34),
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
                             ),
-                            icon: const Icon(Icons.stop_rounded, size: 16),
+                            icon: const Icon(Icons.stop_rounded, size: 15),
                             label: Text(
-                              'إيقاف الصوت',
+                              'إيقاف',
                               style: GoogleFonts.cairo(
-                                fontSize: 11.5,
+                                fontSize: 12,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),

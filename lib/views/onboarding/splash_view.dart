@@ -1,12 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/services/storage_service.dart';
-import '../../core/widgets/coptic_cross.dart';
-import 'auth_view.dart';
+import '../../core/theme/app_palette.dart';
+import '../../core/widgets/brand_marks.dart';
 import '../main_navigation_shell.dart';
+import 'auth_view.dart';
 
 class SplashView extends StatefulWidget {
   const SplashView({super.key});
@@ -15,31 +14,49 @@ class SplashView extends StatefulWidget {
   State<SplashView> createState() => _SplashViewState();
 }
 
-class _SplashViewState extends State<SplashView> {
+class _SplashViewState extends State<SplashView> with SingleTickerProviderStateMixin {
   final StorageService _storage = StorageService();
+  late final AnimationController _fadeCtrl;
+  late final Animation<double> _opacity;
+  late final Animation<Offset> _slide;
 
   @override
   void initState() {
     super.initState();
+    _fadeCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 650),
+    );
+    _opacity = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOutCubic);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.04),
+      end: Offset.zero,
+    ).animate(_opacity);
+
+    _fadeCtrl.forward();
     _bootstrap();
+  }
+
+  @override
+  void dispose() {
+    _fadeCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _bootstrap() async {
     await _storage.init();
-    await Future.delayed(const Duration(milliseconds: 2200));
+    await Future.delayed(const Duration(milliseconds: 950));
     if (!mounted) return;
-    // Show AuthView unless the user has explicitly completed the new v2 login/Google sign-in
-    final next = _storage.isAuthV2Completed() ? const MainNavigationShell() : const AuthView();
+    final next = _storage.isAuthV2Completed()
+        ? const MainNavigationShell()
+        : const AuthView();
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 850),
+        transitionDuration: const Duration(milliseconds: 520),
         pageBuilder: (_, _, _) => next,
         transitionsBuilder: (_, anim, _, child) => FadeTransition(
           opacity: CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
-          child: ScaleTransition(
-            scale: Tween(begin: 1.04, end: 1.0).animate(anim),
-            child: child,
-          ),
+          child: child,
         ),
       ),
     );
@@ -47,62 +64,51 @@ class _SplashViewState extends State<SplashView> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            radius: 1.1,
-            colors: [Color(0xFF1C1710), Colors.black],
+      backgroundColor: p.canvas,
+      body: Stack(
+        children: [
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SubtleArchWatermark(height: 220),
           ),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const GlowingCrossHero(size: 120)
-                  .animate()
-                  .fadeIn(duration: 900.ms)
-                  .scale(
-                    begin: const Offset(0.6, 0.6),
-                    curve: Curves.easeOutBack,
-                    duration: 1100.ms,
-                  ),
-              const SizedBox(height: 4),
-              Text(
-                'أرثوذكسيا',
-                style: GoogleFonts.amiri(
-                  fontSize: 38,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primaryGoldLight,
-                  letterSpacing: 1.2,
+          Center(
+            child: FadeTransition(
+              opacity: _opacity,
+              child: SlideTransition(
+                position: _slide,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const OrthodoxEmblem(size: 88),
+                    const SizedBox(height: 22),
+                    Text(
+                      'أرثوذكسيا',
+                      style: GoogleFonts.amiri(
+                        fontSize: 38,
+                        fontWeight: FontWeight.bold,
+                        color: p.ink,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'الكنيسة في قلب يومك',
+                      style: GoogleFonts.cairo(
+                        fontSize: 13.5,
+                        color: p.inkSecondary,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
                 ),
-              )
-                  .animate()
-                  .fadeIn(delay: 600.ms, duration: 800.ms)
-                  .slideY(begin: 0.3, end: 0, curve: Curves.easeOutCubic)
-                  .then()
-                  .shimmer(duration: 1400.ms, color: Colors.white),
-              const SizedBox(height: 6),
-              Text(
-                'صلاتك وتراثك القبطي الأرثوذكسي في كل حين',
-                style: GoogleFonts.cairo(fontSize: 13, color: AppColors.textMuted),
-              ).animate().fadeIn(delay: 1000.ms, duration: 800.ms),
-              const SizedBox(height: 46),
-              SizedBox(
-                width: 120,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: const LinearProgressIndicator(
-                    minHeight: 2,
-                    backgroundColor: Color(0xFF2A241A),
-                    valueColor: AlwaysStoppedAnimation(AppColors.primaryGold),
-                  ),
-                ),
-              ).animate().fadeIn(delay: 1200.ms),
-            ],
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

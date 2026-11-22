@@ -1,25 +1,25 @@
-import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/services/coptic_calendar_service.dart';
 import '../../core/services/coptic_fast_service.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/services/patron_saint_service.dart';
 import '../../core/services/storage_service.dart';
+import '../../core/theme/app_palette.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/widgets/blessing_poster_studio_sheet.dart';
-import '../../core/widgets/coptic_cross.dart';
 import '../../core/widgets/luxe_widgets.dart';
 import '../../core/widgets/saint_icon_avatar.dart';
 import '../../models/katameros_model.dart';
 import '../../providers/church_mode_provider.dart';
 import '../../providers/liturgy_provider.dart';
+import '../../providers/theme_provider.dart';
 import '../bible/bible_explorer_view.dart';
 import '../books/books_library_view.dart';
+import '../community/prayer_wall_view.dart';
 import '../community/trivia_game_view.dart';
 import '../conscience/conscience_exam_view.dart';
 import '../coptic_academy/coptic_academy_view.dart';
@@ -51,27 +51,23 @@ class HomeDashboardView extends StatefulWidget {
 class _HomeDashboardViewState extends State<HomeDashboardView> {
   KatamerosDay? _katameros;
   bool _isLoading = true;
-  int _activeIconIndex = 0;
   int _verseIndex = 0;
-
-  final PageController _iconCarouselController = PageController(viewportFraction: 0.92);
-  Timer? _carouselTimer;
 
   static const List<Map<String, String>> _dailyVerses = [
     {
-      'text': 'اللهُ مَحَبَّةٌ، وَمَنْ يَثْبُتْ فِي الْمَحَبَّةِ يَثْبُتْ فِي اللهِ وَاللهُ فِيهِ.',
+      'text': 'اللهُ مَحَبَّةٌ، وَمَنْ يَثْبُتْ فِي الْمَحَبَّةِ يَثْبُتْ فِي اللهِ وَاللهُ فِيهِ.',
       'ref': '١ يوحنا ٤ : ١٦',
     },
     {
-      'text': 'أَنَا هُوَ نُورُ الْعَالَمِ، مَنْ يَتْبَعْنِي فَلاَ يَمْشِي فِي الظُّلْمَةِ بَلْ يَكُونُ لَهُ نُورُ الْحَيَاةِ.',
+      'text': 'أَنَا هُوَ نُورُ الْعَالَمِ، مَنْ يَتْبَعْنِي فَلاَ يَمْشِي فِي الظُّلْمَةِ بَلْ يَكُونُ لَهُ نُورُ الْحَيَاةِ.',
       'ref': 'يوحنا ٨ : ١٢',
     },
     {
-      'text': 'الرَّبُّ رَاعِيَّ فَلاَ يُعْوِزُنِي شَيْءٌ. فِي مَرَاعٍ خُضْرٍ يُرْبِضُنِي.',
+      'text': 'الرَّبُّ رَاعِيَّ فَلاَ يُعْوِزُنِي شَيْءٌ. فِي مَرَاعٍ خُضْرٍ يُرْبِضُنِي.',
       'ref': 'مزمور ٢٣ : ١ - ٢',
     },
     {
-      'text': 'تَعَالَوْا إِلَيَّ يَا جَمِيعَ الْمُتْعَبِينَ وَالثَّقِيلِي الأَحْمَالِ، وَأَنَا أُرِيحُكُمْ.',
+      'text': 'تَعَالَوْا إِلَيَّ يَا جَمِيعَ الْمُتْعَبِينَ وَالثَّقِيلِي الأَحْمَالِ، وَأَنَا أُرِيحُكُمْ.',
       'ref': 'متى ١١ : ٢٨',
     },
     {
@@ -80,145 +76,12 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
     },
   ];
 
-  static const List<Map<String, String>> _heroBanners = [
-    {
-      'image': 'assets/images/christ_pantocrator.jpg',
-      'title': 'أيها المسيح إلهنا ضابط الكل',
-      'subtitle': 'كيرياليسون • يا رب ارحم',
-    },
-    {
-      'image': 'assets/images/christ_good_shepherd.jpg',
-      'title': 'الرب راعيّ فلا يعوزني شيء',
-      'subtitle': 'المزمور الثالث والعشرون',
-    },
-    {
-      'image': 'assets/images/christ_resurrection.jpg',
-      'title': 'المسيح قام من بين الأموات',
-      'subtitle': 'بالموت داس الموت',
-    },
-    {
-      'image': 'assets/images/coptic_banner.jpg',
-      'title': 'تراث الكنيسة القبطية الأرثوذكسية',
-      'subtitle': 'الإيمان المسلّم مرة للقديسين',
-    },
-  ];
-
   @override
   void initState() {
     super.initState();
+    _verseIndex = DateTime.now().day % _dailyVerses.length;
     _loadData();
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAskNotificationPermission());
-    _carouselTimer = Timer.periodic(const Duration(seconds: 8), (_) {
-      if (!mounted || !_iconCarouselController.hasClients) return;
-      final next = (_activeIconIndex + 1) % _heroBanners.length;
-      _iconCarouselController.animateToPage(
-        next,
-        duration: const Duration(milliseconds: 650),
-        curve: Curves.easeOutCubic,
-      );
-    });
-  }
-
-  Future<void> _maybeAskNotificationPermission() async {
-    final storage = StorageService();
-    if (storage.isNotificationPromptShown()) return;
-    await storage.setNotificationPromptShown(true);
-    if (!mounted) return;
-
-    bool wantDailyVerse = true;
-    bool wantFamilyPrayer = false;
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlg) => AlertDialog(
-          backgroundColor: AppColors.cardNavy,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: AppColors.hairline),
-          ),
-          title: Row(
-            children: [
-              const Icon(Icons.notifications_none_rounded, color: AppColors.primaryGold, size: 22),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'آية اليوم وتذكير الصلاة',
-                  style: GoogleFonts.amiri(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                    color: AppColors.primaryGoldLight,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'اختر التنبيهات الهادئة التي ترغب بتفعيلها:',
-                style: GoogleFonts.cairo(fontSize: 13, color: AppColors.textLight),
-              ),
-              const SizedBox(height: 10),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                activeColor: AppColors.primaryGold,
-                checkColor: Colors.black,
-                value: wantDailyVerse,
-                onChanged: (v) => setDlg(() => wantDailyVerse = v ?? false),
-                title: Text('آية اليوم وقول شفيعك يومياً',
-                    style: GoogleFonts.cairo(fontSize: 13, color: AppColors.textLight)),
-                subtitle: Text('صباحاً الساعة ٨:٠٠ ص',
-                    style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textMuted)),
-              ),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                activeColor: AppColors.primaryGold,
-                checkColor: Colors.black,
-                value: wantFamilyPrayer,
-                onChanged: (v) => setDlg(() => wantFamilyPrayer = v ?? false),
-                title: Text('تذكير صلاة العائلة (اختياري)',
-                    style: GoogleFonts.cairo(fontSize: 13, color: AppColors.textLight)),
-                subtitle: Text('تذكير هادئ الساعة ٩:٠٠ مساءً ويمكن تعديله في أي وقت',
-                    style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textMuted)),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text('لاحقاً', style: GoogleFonts.cairo(color: AppColors.textMuted)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryGold,
-                foregroundColor: Colors.black,
-                elevation: 0,
-              ),
-              onPressed: () async {
-                Navigator.pop(ctx);
-                if (wantDailyVerse || wantFamilyPrayer) {
-                  await NotificationService().requestPermission();
-                }
-                await storage.setDailyVerseNotificationEnabled(wantDailyVerse);
-                await storage.setFamilyPrayerReminderEnabled(wantFamilyPrayer);
-                await NotificationService().syncScheduledNotifications();
-              },
-              child: Text('حفظ', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _carouselTimer?.cancel();
-    _iconCarouselController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -237,6 +100,153 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
     }
   }
 
+  /// Resolves the current canonical Agpeya hour & peaceful artwork by wall-clock time.
+  ({String hourTitle, String subtitle, String imageAsset}) _currentLiturgicalMoment() {
+    final h = DateTime.now().hour;
+    if (h >= 5 && h < 9) {
+      return (
+        hourTitle: 'صلاة باكر',
+        subtitle: 'بداية يومك بشكر الله ومزامير الصباح',
+        imageAsset: 'assets/images/christ_good_shepherd.jpg',
+      );
+    } else if (h >= 9 && h < 12) {
+      return (
+        hourTitle: 'صلاة الساعة الثالثة',
+        subtitle: 'تذكار حلول الروح القدس على التلاميذ',
+        imageAsset: 'assets/images/christ_pantocrator.jpg',
+      );
+    } else if (h >= 12 && h < 15) {
+      return (
+        hourTitle: 'صلاة الساعة السادسة',
+        subtitle: 'تذكار صلب رب المجد في منتصف النهار',
+        imageAsset: 'assets/images/christ_pantocrator.jpg',
+      );
+    } else if (h >= 15 && h < 17) {
+      return (
+        hourTitle: 'صلاة الساعة التاسعة',
+        subtitle: 'وقفة صلاة وتأمل عند المساء',
+        imageAsset: 'assets/images/christ_good_shepherd.jpg',
+      );
+    } else if (h >= 17 && h < 20) {
+      return (
+        hourTitle: 'صلاة الغروب',
+        subtitle: 'بداية اليوم القبطي الجديد بعشية هادئة',
+        imageAsset: 'assets/images/christ_resurrection.jpg',
+      );
+    } else if (h >= 20 && h < 23) {
+      return (
+        hourTitle: 'صلاة النوم',
+        subtitle: 'سلام المساء وتسليم اليوم بين يدي الرب',
+        imageAsset: 'assets/images/christ_resurrection.jpg',
+      );
+    }
+    return (
+      hourTitle: 'صلاة نصف الليل',
+      subtitle: 'سهر هادئ وتسبيح مع الكنيسة',
+      imageAsset: 'assets/images/christ_resurrection.jpg',
+    );
+  }
+
+  String _timeGreeting() {
+    final storage = StorageService();
+    final hasName = storage.hasCustomUserName();
+    final firstName = hasName ? storage.getUserName().split(' ').first : '';
+    final h = DateTime.now().hour;
+    final prefix = (h >= 5 && h < 12)
+        ? 'صباح النور'
+        : (h >= 12 && h < 17)
+            ? 'سلام ونعمة'
+            : 'مساء الخير';
+    return firstName.isNotEmpty ? '$prefix يا $firstName' : prefix;
+  }
+
+  Future<void> _maybeAskNotificationPermission() async {
+    final storage = StorageService();
+    if (storage.isNotificationPromptShown()) return;
+    await storage.setNotificationPromptShown(true);
+    if (!mounted) return;
+
+    bool wantDailyVerse = true;
+    bool wantFamilyPrayer = false;
+    final p = context.palette;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          backgroundColor: p.surface,
+          title: Text(
+            'آية اليوم وتذكير الصلاة',
+            style: GoogleFonts.amiri(
+              fontWeight: FontWeight.bold,
+              fontSize: 22,
+              color: p.ink,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'اختر التنبيهات الهادئة التي تناسب يومك:',
+                style: GoogleFonts.cairo(fontSize: 13, color: p.inkSecondary),
+              ),
+              const SizedBox(height: 10),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                activeColor: p.accent,
+                checkColor: p.onAccent,
+                value: wantDailyVerse,
+                onChanged: (v) => setDlg(() => wantDailyVerse = v ?? false),
+                title: Text(
+                  'آية اليوم وقول شفيعك',
+                  style: GoogleFonts.cairo(fontSize: 13.5, fontWeight: FontWeight.w600, color: p.ink),
+                ),
+                subtitle: Text(
+                  'صباحاً الساعة ٨:٠٠ ص',
+                  style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkMuted),
+                ),
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                activeColor: p.accent,
+                checkColor: p.onAccent,
+                value: wantFamilyPrayer,
+                onChanged: (v) => setDlg(() => wantFamilyPrayer = v ?? false),
+                title: Text(
+                  'تذكير صلاة العائلة',
+                  style: GoogleFonts.cairo(fontSize: 13.5, fontWeight: FontWeight.w600, color: p.ink),
+                ),
+                subtitle: Text(
+                  'مساءً الساعة ٩:٠٠ م (اختياري)',
+                  style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkMuted),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('لاحقاً', style: GoogleFonts.cairo(color: p.inkMuted)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                if (wantDailyVerse || wantFamilyPrayer) {
+                  await NotificationService().requestPermission();
+                }
+                await storage.setDailyVerseNotificationEnabled(wantDailyVerse);
+                await storage.setFamilyPrayerReminderEnabled(wantFamilyPrayer);
+                await NotificationService().syncScheduledNotifications();
+              },
+              child: const Text('حفظ'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _openLiturgy(BuildContext context, String id) async {
     final prov = context.read<LiturgyProvider>();
     await prov.loadLiturgies();
@@ -247,42 +257,34 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
 
   void _openPersonalGuarded(BuildContext context, String label, Widget page) {
     if (StorageService().isGuestMode()) {
+      final p = context.palette;
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          backgroundColor: AppColors.cardNavy,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-            side: const BorderSide(color: AppColors.hairline),
-          ),
+          backgroundColor: p.surface,
           title: Text(
-            'قسم شخصي محمي ($label)',
-            style: GoogleFonts.cairo(
+            'قسم شخصي خاص ($label)',
+            style: GoogleFonts.amiri(
               fontWeight: FontWeight.bold,
-              color: AppColors.primaryGoldLight,
-              fontSize: 15,
+              color: p.ink,
+              fontSize: 21,
             ),
           ),
           content: Text(
-            'أنت في وضع الزائر. لحفظ وتشفير مذكرة الاعتراف وسجل الجهاد الروحي على جهازك، يُرجى تسجيل الدخول أولاً.',
-            style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 13),
+            'أنت تتصفح الآن كزائر. لحفظ مذكرة الاعتراف وسجل جهادك الروحي بخصوصية على جهازك، يُرجى تسجيل الدخول أولاً.',
+            style: GoogleFonts.cairo(color: p.inkSecondary, fontSize: 13, height: 1.55),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text('لاحقاً', style: GoogleFonts.cairo(color: AppColors.textMuted)),
+              child: Text('لاحقاً', style: GoogleFonts.cairo(color: p.inkMuted)),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryGold,
-                foregroundColor: Colors.black,
-                elevation: 0,
-              ),
               onPressed: () {
                 Navigator.pop(ctx);
                 Navigator.push(context, luxeRoute(const AuthView()));
               },
-              child: Text('تسجيل الدخول', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+              child: const Text('تسجيل الدخول'),
             ),
           ],
         ),
@@ -292,45 +294,98 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
     Navigator.push(context, luxeRoute(page));
   }
 
-  void _showQuickMenuSheet(BuildContext context) {
-    final churchMode = context.read<ChurchModeProvider>();
+  void _showFastingInfoSheet(BuildContext context, CopticFastStatus fast) {
+    final p = context.palette;
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.deepNavy,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        side: BorderSide(color: AppColors.hairline),
-      ),
+      backgroundColor: p.surface,
       builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+        padding: const EdgeInsets.fromLTRB(22, 14, 22, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: p.border,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              fast.title,
+              style: GoogleFonts.amiri(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: p.ink,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              fast.degree,
+              style: GoogleFonts.cairo(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: p.accent,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              fast.abstinenceGuide,
+              style: GoogleFonts.cairo(
+                fontSize: 13.5,
+                color: p.inkSecondary,
+                height: 1.6,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showQuickMenuSheet(BuildContext context) {
+    final churchMode = context.read<ChurchModeProvider>();
+    final p = context.palette;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: p.surface,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 38,
-              height: 3.5,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
-                color: AppColors.primaryGold.withValues(alpha: 0.4),
+                color: p.border,
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
             const SizedBox(height: 14),
             Text(
-              'أدوات الخلوة والإعدادات',
+              'أدوات الخلوة والخصوصية',
               style: GoogleFonts.amiri(
-                fontSize: 20,
+                fontSize: 21,
                 fontWeight: FontWeight.bold,
-                color: AppColors.primaryGoldLight,
+                color: p.ink,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             ListTile(
-              leading: const Icon(Icons.nightlight_outlined, color: AppColors.primaryGold),
-              title: Text('وضع الكنيسة (خفوت الإضاءة)',
-                  style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 13.5)),
+              leading: Icon(Icons.nightlight_outlined, color: p.accent),
+              title: Text(
+                'وضع الكنيسة (تعتيم هادئ)',
+                style: GoogleFonts.cairo(color: p.ink, fontSize: 14, fontWeight: FontWeight.w600),
+              ),
               trailing: Switch(
                 value: churchMode.isChurchMode,
-                activeThumbColor: AppColors.primaryGold,
+                activeThumbColor: p.accent,
                 onChanged: (_) {
                   churchMode.toggleChurchMode();
                   Navigator.pop(context);
@@ -338,39 +393,44 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.lock_outline_rounded, color: AppColors.primaryGold),
-              title: Text('مذكرة الاعتراف الشخصية المشفرة',
-                  style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 13.5)),
+              leading: Icon(Icons.lock_outline_rounded, color: p.accent),
+              title: Text(
+                'مذكرة الاعتراف الشخصية',
+                style: GoogleFonts.cairo(color: p.ink, fontSize: 14, fontWeight: FontWeight.w600),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 _openPersonalGuarded(context, 'مذكرة الاعتراف', const ConscienceExamView());
               },
             ),
             ListTile(
-              leading: const Icon(Icons.insights_rounded, color: AppColors.primaryGold),
-              title: Text('متتبع الجهاد الروحي اليومي',
-                  style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 13.5)),
+              leading: Icon(Icons.insights_outlined, color: p.accent),
+              title: Text(
+                'متتبع الجهاد الروحي',
+                style: GoogleFonts.cairo(color: p.ink, fontSize: 14, fontWeight: FontWeight.w600),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 _openPersonalGuarded(context, 'متتبع الجهاد الروحي', const SpiritualTrackerView());
               },
             ),
             ListTile(
-              leading: const Icon(Icons.emoji_events_outlined, color: AppColors.primaryGold),
-              title: Text('المسابقات الأرثوذكسية',
-                  style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 13.5)),
+              leading: Icon(Icons.volunteer_activism_outlined, color: p.accent),
+              title: Text(
+                'حائط صلاة الكنيسة',
+                style: GoogleFonts.cairo(color: p.ink, fontSize: 14, fontWeight: FontWeight.w600),
+              ),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  luxeRoute(const TitledPage(title: 'المسابقات الأرثوذكسية', child: TriviaGameView())),
-                );
+                Navigator.push(context, luxeRoute(const PrayerWallView()));
               },
             ),
             ListTile(
-              leading: const Icon(Icons.privacy_tip_outlined, color: AppColors.primaryGold),
-              title: Text('سياسة الخصوصية وأمان البيانات',
-                  style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 13.5)),
+              leading: Icon(Icons.shield_outlined, color: p.accent),
+              title: Text(
+                'الخصوصية وأمان بياناتك',
+                style: GoogleFonts.cairo(color: p.ink, fontSize: 14, fontWeight: FontWeight.w600),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(context, luxeRoute(const PrivacyPolicyView()));
@@ -384,171 +444,262 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
+    final themeProv = context.watch<ThemeProvider>();
+
     if (_isLoading || _katameros == null) {
-      return const Scaffold(
-        backgroundColor: AppColors.deepNavy,
+      return Scaffold(
+        backgroundColor: p.canvas,
         body: Center(
-          child: CircularProgressIndicator(color: AppColors.primaryGold, strokeWidth: 2),
+          child: CircularProgressIndicator(color: p.accent, strokeWidth: 2),
         ),
       );
     }
 
     final copticToday = CopticCalendarService.todayLiturgical();
     final fast = CopticFastService.getTodayFastStatus();
+    final moment = _currentLiturgicalMoment();
     final currentVerse = _dailyVerses[_verseIndex % _dailyVerses.length];
     final saint = PatronSaintService.getSaintById(StorageService().getPatronSaintId());
     final dailyQuote = PatronSaintService.getDailyQuote(saint.id);
     final saintImgUrl = PatronSaintService.getImageUrlForSaint(saint);
 
-    final practices = <Map<String, dynamic>>[
-      {
-        'title': 'خلوة الـ ٥ دقائق',
-        'sub': 'آية ومزمور وإرشاد آبائي حسب حالتك',
-        'icon': Icons.spa_outlined,
-        'onTap': () => Navigator.push(context, luxeRoute(const SpiritualPrescriptionView())),
-      },
-      {
-        'title': 'القطمارس اليومي',
-        'sub': 'قراءات البولس والكاثوليكون والإنجيل',
-        'icon': Icons.menu_book_outlined,
-        'onTap': () => Navigator.push(context, luxeRoute(KatamerosView(katameros: _katameros!))),
-      },
-      {
-        'title': 'المسبحة القبطية',
-        'sub': 'صلاة يسوع وعداد الحبات والمطانيات',
-        'icon': Icons.radio_button_checked_rounded,
-        'onTap': () => Navigator.push(context, luxeRoute(const CopticPrayerRopeView())),
-      },
-      {
-        'title': 'اذكرهم يا رب',
-        'sub': 'قائمة أحبائك والمرضى والراقدين بالاسم',
-        'icon': Icons.edit_note_rounded,
-        'onTap': () => Navigator.push(context, luxeRoute(const RememberThemView())),
-      },
-      {
-        'title': 'التسبحة والبصخة',
-        'sub': 'الإبصلمودية وحاسبة الأعياد القبطية',
-        'icon': Icons.auto_stories_outlined,
-        'onTap': () => Navigator.push(context, luxeRoute(const TasbehaPaschaView())),
-      },
-      {
-        'title': 'الطقوس والأسرار',
-        'sub': 'اللقان والسجدة والإكليل والقنديل',
-        'icon': Icons.church_outlined,
-        'onTap': () => Navigator.push(context, luxeRoute(const ChurchSacramentsRitesView())),
-      },
-      {
-        'title': 'المسابقات القبطية',
-        'sub': 'أسئلة في الكتاب المقدس والطقس والسنكسار',
-        'icon': Icons.emoji_events_outlined,
-        'onTap': () => Navigator.push(
-              context,
-              luxeRoute(const TitledPage(title: 'المسابقات الأرثوذكسية', child: TriviaGameView())),
-            ),
-      },
+    // Unique devotional companions (zero duplication with the 8-pillar grid)
+    final spiritualTools = <({String title, String sub, IconData icon, VoidCallback onTap})>[
+      (
+        title: 'خلوة ٥ دقائق',
+        sub: 'آية ومزمور وصلاة لقلبك الآن',
+        icon: Icons.spa_outlined,
+        onTap: () => Navigator.push(context, luxeRoute(const SpiritualPrescriptionView())),
+      ),
+      (
+        title: 'المسبحة القبطية',
+        sub: 'صلاة يسوع وعداد المطانيات',
+        icon: Icons.radio_button_checked_rounded,
+        onTap: () => Navigator.push(context, luxeRoute(const CopticPrayerRopeView())),
+      ),
+      (
+        title: 'اذكرهم يا رب',
+        sub: 'دفتر صلاتك لأحبائك بالاسم',
+        icon: Icons.edit_note_rounded,
+        onTap: () => Navigator.push(context, luxeRoute(const RememberThemView())),
+      ),
+      (
+        title: 'حائط الصلاة',
+        sub: 'اطلب صلاة وصلِّ مع إخوتك',
+        icon: Icons.volunteer_activism_outlined,
+        onTap: () => Navigator.push(context, luxeRoute(const PrayerWallView())),
+      ),
+      (
+        title: 'التسبحة والبصخة',
+        sub: 'الإبصلمودية وحاسبة الأعياد',
+        icon: Icons.auto_stories_outlined,
+        onTap: () => Navigator.push(context, luxeRoute(const TasbehaPaschaView())),
+      ),
+      (
+        title: 'الطقوس والأسرار',
+        sub: 'اللقان والسجدة والإكليل والقنديل',
+        icon: Icons.church_outlined,
+        onTap: () => Navigator.push(context, luxeRoute(const ChurchSacramentsRitesView())),
+      ),
+      (
+        title: 'المسابقات القبطية',
+        sub: 'اختبر معرفتك الكتابية والطقسية',
+        icon: Icons.emoji_events_outlined,
+        onTap: () => Navigator.push(
+          context,
+          luxeRoute(const TitledPage(title: 'المسابقات القبطية', child: TriviaGameView())),
+        ),
+      ),
     ];
 
     return Scaffold(
-      backgroundColor: AppColors.deepNavy,
+      backgroundColor: p.canvas,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(0, 8, 0, 108),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 1. Minimalist Editorial Masthead
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-                child: Row(
-                  children: [
-                    const CopticCross(size: 22),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'أرثوذكسيا',
-                            style: GoogleFonts.amiri(
-                              fontSize: 23,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primaryGoldLight,
-                              height: 1.1,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 680),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(0, 10, 0, 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 1. Personal Warm Masthead + Compact Date/Fast Strip
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _timeGreeting(),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.amiri(
+                                      fontSize: 26,
+                                      fontWeight: FontWeight.bold,
+                                      color: p.ink,
+                                      height: 1.15,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          '${copticToday.formatted} • ${copticToday.seasonName}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.cairo(
+                                            fontSize: 12,
+                                            color: p.inkSecondary,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      GestureDetector(
+                                        onTap: () => _showFastingInfoSheet(context, fast),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: p.goldSoft,
+                                            borderRadius: BorderRadius.circular(20),
+                                            border: Border.all(color: p.goldBorder, width: 0.8),
+                                          ),
+                                          child: Text(
+                                            !fast.isFastingToday
+                                                ? 'فطار'
+                                                : (fast.fishAllowed ? 'صوم بسمك' : 'صوم نباتي'),
+                                            style: GoogleFonts.cairo(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.bold,
+                                              color: p.gold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          Text(
-                            '${copticToday.formatted} • ${copticToday.seasonName}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.cairo(
-                              fontSize: 11,
-                              color: AppColors.textMuted,
+                            const SizedBox(width: 8),
+                            LuxeCircleButton(
+                              icon: Icons.search_rounded,
+                              size: 38,
+                              tooltip: 'بحث شامل',
+                              onTap: () => Navigator.push(context, luxeRoute(const GlobalSearchView())),
                             ),
-                          ),
-                        ],
-                      ),
+                            const SizedBox(width: 8),
+                            LuxeCircleButton(
+                              icon: p.isDark ? Icons.wb_sunny_outlined : Icons.dark_mode_outlined,
+                              size: 38,
+                              tooltip: p.isDark ? 'الوضع النهاري' : 'الوضع الليلي',
+                              onTap: () {
+                                themeProv.setThemeMode(
+                                  p.isDark ? AppThemeMode.lightParchment : AppThemeMode.darkGold,
+                                );
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            LuxeCircleButton(
+                              icon: Icons.tune_rounded,
+                              size: 38,
+                              tooltip: 'أدوات الخلوة',
+                              onTap: () => _showQuickMenuSheet(context),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    LuxeCircleButton(
-                      icon: Icons.search_rounded,
-                      size: 38,
-                      onTap: () => Navigator.push(context, luxeRoute(const GlobalSearchView())),
-                    ),
-                    const SizedBox(width: 8),
-                    LuxeCircleButton(
-                      icon: Icons.menu_rounded,
-                      size: 38,
-                      onTap: () => _showQuickMenuSheet(context),
-                    ),
-                  ],
-                ),
-              ),
+                  ),
 
-              // 2. Sacred Iconography Editorial Hero
-              SizedBox(
-                height: 196,
-                child: PageView.builder(
-                  controller: _iconCarouselController,
-                  itemCount: _heroBanners.length,
-                  onPageChanged: (idx) => setState(() => _activeIconIndex = idx),
-                  itemBuilder: (context, index) {
-                    final banner = _heroBanners[index];
-                    return GestureDetector(
+                  // 2. Live Liturgical "صلاة الآن" Sacred Hero Card
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: PressScale(
+                      scale: 0.985,
                       onTap: () => Navigator.push(
                         context,
-                        luxeRoute(const ChristIconsGalleryView()),
+                        luxeRoute(const TitledPage(title: 'الأجبية المقدسة', child: AgpeyaView())),
                       ),
                       child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 5),
+                        height: 196,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: AppColors.primaryGold.withValues(alpha: 0.25),
-                            width: 0.9,
-                          ),
+                          borderRadius: BorderRadius.circular(22),
+                          boxShadow: [
+                            BoxShadow(
+                              color: p.shadow.withValues(alpha: p.isDark ? 0.45 : 0.16),
+                              blurRadius: 18,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
                         ),
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(19),
+                          borderRadius: BorderRadius.circular(22),
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              SafeAssetImage(banner['image']!, fit: BoxFit.cover),
+                              SafeAssetImage(moment.imageAsset, fit: BoxFit.cover),
                               Container(
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
                                     begin: Alignment.topCenter,
                                     end: Alignment.bottomCenter,
-                                    stops: const [0.35, 1.0],
+                                    stops: const [0.18, 1.0],
                                     colors: [
-                                      Colors.transparent,
+                                      Colors.black.withValues(alpha: 0.12),
                                       Colors.black.withValues(alpha: 0.82),
                                     ],
                                   ),
                                 ),
                               ),
+                              // Quiet corner button to browse Sacred Icons Gallery
                               Positioned(
-                                right: 16,
-                                left: 16,
-                                bottom: 14,
+                                top: 12,
+                                left: 12,
+                                child: GestureDetector(
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    luxeRoute(const ChristIconsGalleryView()),
+                                  ),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: 0.42),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: Colors.white.withValues(alpha: 0.22),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.collections_outlined, size: 13, color: Colors.white),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          'الأيقونات',
+                                          style: GoogleFonts.cairo(
+                                            fontSize: 11,
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                right: 18,
+                                left: 18,
+                                bottom: 16,
                                 child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
@@ -558,45 +709,48 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Text(
-                                            banner['title']!,
+                                            'حان وقت الصلاة',
+                                            style: GoogleFonts.cairo(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: const Color(0xFFEBD6A8),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            moment.hourTitle,
                                             style: GoogleFonts.amiri(
-                                              fontSize: 20,
+                                              fontSize: 24,
                                               fontWeight: FontWeight.bold,
-                                              color: AppColors.textLight,
-                                              height: 1.2,
+                                              color: Colors.white,
+                                              height: 1.15,
                                             ),
                                           ),
                                           Text(
-                                            banner['subtitle']!,
+                                            moment.subtitle,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                             style: GoogleFonts.cairo(
-                                              fontSize: 11,
-                                              color: AppColors.primaryGoldLight,
+                                              fontSize: 11.5,
+                                              color: Colors.white.withValues(alpha: 0.85),
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                    GestureDetector(
-                                      onTap: () => Navigator.push(
-                                        context,
-                                        luxeRoute(KatamerosView(katameros: _katameros!)),
+                                    const SizedBox(width: 10),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(14),
                                       ),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-                                        decoration: BoxDecoration(
-                                          color: Colors.black.withValues(alpha: 0.55),
-                                          borderRadius: BorderRadius.circular(20),
-                                          border: Border.all(
-                                            color: AppColors.primaryGold.withValues(alpha: 0.45),
-                                          ),
-                                        ),
-                                        child: Text(
-                                          'قراءات اليوم',
-                                          style: GoogleFonts.cairo(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppColors.primaryGoldLight,
-                                          ),
+                                      child: Text(
+                                        'ابدأ الآن',
+                                        style: GoogleFonts.cairo(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: const Color(0xFF1F1A15),
                                         ),
                                       ),
                                     ),
@@ -607,454 +761,505 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                           ),
                         ),
                       ),
-                    );
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              // Minimalist hairline pagination indicator
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(_heroBanners.length, (i) {
-                  final active = i == _activeIconIndex;
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 240),
-                    margin: const EdgeInsets.symmetric(horizontal: 3),
-                    width: active ? 20 : 6,
-                    height: 3,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(2),
-                      color: active
-                          ? AppColors.primaryGold
-                          : Colors.white.withValues(alpha: 0.2),
                     ),
-                  );
-                }),
-              ),
-
-              const SizedBox(height: 18),
-
-              // 3. Editorial Scripture of the Day Ribbon (Book-Quote Aesthetic)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(14, 14, 16, 14),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardNavy,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.hairline),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'آية اليوم',
-                            style: GoogleFonts.cairo(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primaryGold,
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            currentVerse['ref']!,
-                            style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textMuted),
-                          ),
-                          const SizedBox(width: 8),
-                          GestureDetector(
-                            onTap: () {
-                              BlessingPosterStudioSheet.show(
-                                context,
-                                title: 'آية اليوم',
-                                bodyText: currentVerse['text']!,
-                                reference: currentVerse['ref']!,
-                              );
-                            },
-                            child: const Padding(
-                              padding: EdgeInsets.all(4),
-                              child: Icon(Icons.photo_camera_back_outlined,
-                                  size: 17, color: AppColors.primaryGoldLight),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          GestureDetector(
-                            onTap: () {
-                              HapticFeedback.selectionClick();
-                              setState(() => _verseIndex = (_verseIndex + 1) % _dailyVerses.length);
-                            },
-                            child: const Padding(
-                              padding: EdgeInsets.all(4),
-                              child: Icon(Icons.refresh_rounded,
-                                  size: 17, color: AppColors.textMuted),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.only(right: 12),
-                        decoration: const BoxDecoration(
-                          border: Border(
-                            right: BorderSide(color: AppColors.primaryGold, width: 2.2),
-                          ),
-                        ),
-                        child: Text(
-                          '«${currentVerse['text']!}»',
-                          style: GoogleFonts.amiri(
-                            fontSize: 19,
-                            height: 1.65,
-                            color: AppColors.textLight,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
 
-              const SizedBox(height: 20),
+                  const SizedBox(height: 12),
 
-              // 4. Core 8 Pillars Architectural Grid (2 rows × 4 calm tiles)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18),
-                child: Column(
-                  children: [
-                    Row(
+                  // 2b. Clean Paired Daily Readings Pills (Katameros + Synaxarium)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
                       children: [
                         Expanded(
-                          child: GoldIconTile(
-                            icon: Icons.church_outlined,
-                            label: 'القداسات',
-                            onTap: () => _openLiturgy(context, 'liturgy_basil'),
-                          ),
-                        ),
-                        Expanded(
-                          child: GoldIconTile(
-                            icon: Icons.menu_book_outlined,
-                            label: 'الكتاب المقدس',
-                            onTap: () => Navigator.push(
-                              context,
-                              luxeRoute(const BibleExplorerView()),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: GoldIconTile(
-                            icon: Icons.schedule_outlined,
-                            label: 'الأجبية',
-                            onTap: () => Navigator.push(
-                              context,
-                              luxeRoute(
-                                const TitledPage(title: 'الأجبية المقدسة', child: AgpeyaView()),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: GoldIconTile(
-                            icon: Icons.graphic_eq_rounded,
-                            label: 'الألحان',
-                            onTap: () => widget.onNavigateTab(2),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: GoldIconTile(
+                          child: _quickDailyStrip(
+                            p: p,
                             icon: Icons.auto_stories_outlined,
-                            label: 'الكتب والتفاسير',
+                            title: 'قراءات اليوم',
+                            subtitle: 'القطمارس اليومي',
                             onTap: () => Navigator.push(
                               context,
-                              luxeRoute(const BooksLibraryView()),
+                              luxeRoute(KatamerosView(katameros: _katameros!)),
                             ),
                           ),
                         ),
+                        const SizedBox(width: 10),
                         Expanded(
-                          child: GoldIconTile(
+                          child: _quickDailyStrip(
+                            p: p,
                             icon: Icons.history_edu_outlined,
-                            label: 'السنكسار',
+                            title: 'سنكسار اليوم',
+                            subtitle: CopticCalendarService.isAfterVespers()
+                                ? 'قراءة الغد (بعد العشية)'
+                                : copticToday.formatted,
                             onTap: () => Navigator.push(
                               context,
                               luxeRoute(const SynaxariumDailyView()),
                             ),
                           ),
                         ),
-                        Expanded(
-                          child: GoldIconTile(
-                            icon: Icons.portrait_outlined,
-                            label: 'شفيعي',
-                            onTap: () async {
-                              await Navigator.push(context, luxeRoute(const MyPatronSaintView()));
-                              if (mounted) setState(() {});
-                            },
-                          ),
-                        ),
-                        Expanded(
-                          child: GoldIconTile(
-                            icon: Icons.translate_rounded,
-                            label: 'القبطي',
-                            onTap: () => Navigator.push(
-                              context,
-                              luxeRoute(const CopticAcademyView()),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // 3. Core 8 Pillars Grid (2 rows × 4 calm adaptive tiles)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: GoldIconTile(
+                                icon: Icons.church_outlined,
+                                label: 'القداسات',
+                                onTap: () => _openLiturgy(context, 'liturgy_basil'),
+                              ),
                             ),
-                          ),
+                            Expanded(
+                              child: GoldIconTile(
+                                icon: Icons.menu_book_outlined,
+                                label: 'الكتاب المقدس',
+                                onTap: () => Navigator.push(
+                                  context,
+                                  luxeRoute(const BibleExplorerView()),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: GoldIconTile(
+                                icon: Icons.schedule_outlined,
+                                label: 'الأجبية',
+                                onTap: () => Navigator.push(
+                                  context,
+                                  luxeRoute(
+                                    const TitledPage(title: 'الأجبية المقدسة', child: AgpeyaView()),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: GoldIconTile(
+                                icon: Icons.graphic_eq_rounded,
+                                label: 'الألحان',
+                                onTap: () => widget.onNavigateTab(2),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: GoldIconTile(
+                                icon: Icons.local_library_outlined,
+                                label: 'الكتب والتفاسير',
+                                onTap: () => Navigator.push(
+                                  context,
+                                  luxeRoute(const BooksLibraryView()),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: GoldIconTile(
+                                icon: Icons.history_edu_outlined,
+                                label: 'السنكسار',
+                                onTap: () => Navigator.push(
+                                  context,
+                                  luxeRoute(const SynaxariumDailyView()),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: GoldIconTile(
+                                icon: Icons.portrait_outlined,
+                                label: 'شفيعي',
+                                onTap: () async {
+                                  await Navigator.push(context, luxeRoute(const MyPatronSaintView()));
+                                  if (mounted) setState(() {});
+                                },
+                              ),
+                            ),
+                            Expanded(
+                              child: GoldIconTile(
+                                icon: Icons.translate_rounded,
+                                label: 'القبطي',
+                                onTap: () => Navigator.push(
+                                  context,
+                                  luxeRoute(const CopticAcademyView()),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ).animate().fadeIn(duration: 320.ms),
+                  ),
 
-              const SizedBox(height: 22),
+                  const SizedBox(height: 24),
 
-              // 5. Personal Patron Saint Portrait Card (Real Cathedral-Arch Icon Portrait!)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(18),
-                  onTap: () async {
-                    await Navigator.push(context, luxeRoute(const MyPatronSaintView()));
-                    if (mounted) setState(() {});
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: AppColors.cardNavy,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: AppColors.primaryGold.withValues(alpha: 0.25),
+                  // 4. Book-Printed "آية اليوم" Editorial Card
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 18, 16),
+                      decoration: BoxDecoration(
+                        color: p.surface,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: p.border),
+                        boxShadow: p.isDark
+                            ? null
+                            : [
+                                BoxShadow(
+                                  color: p.shadow,
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
                       ),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SaintIconAvatar(
-                          imageUrl: saintImgUrl,
-                          size: 64,
-                          shape: SaintAvatarShape.arch,
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
                             children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      saint.shortName,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: GoogleFonts.amiri(
-                                        fontSize: 19,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.primaryGoldLight,
-                                      ),
-                                    ),
-                                  ),
-                                  Text(
-                                    'شفيعي',
-                                    style: GoogleFonts.cairo(
-                                      fontSize: 10.5,
-                                      color: AppColors.textMuted,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 2),
-                                  const Icon(Icons.chevron_left_rounded,
-                                      size: 16, color: AppColors.primaryGold),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
                               Text(
-                                '«${dailyQuote.quote}»',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.amiri(
-                                  fontSize: 16,
-                                  height: 1.5,
-                                  color: AppColors.textLight,
+                                'آية اليوم',
+                                style: GoogleFonts.cairo(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: p.accent,
                                 ),
                               ),
-                              const SizedBox(height: 6),
+                              const SizedBox(width: 8),
                               Text(
-                                'تصفّح معرض كل قديسي الكنيسة وأقوالهم اليومية',
-                                style: GoogleFonts.cairo(
-                                  fontSize: 10.5,
-                                  color: AppColors.textMuted,
+                                '• ${currentVerse['ref']!}',
+                                style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkMuted),
+                              ),
+                              const Spacer(),
+                              GestureDetector(
+                                onTap: () {
+                                  BlessingPosterStudioSheet.show(
+                                    context,
+                                    title: 'آية اليوم',
+                                    bodyText: currentVerse['text']!,
+                                    reference: currentVerse['ref']!,
+                                  );
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(4),
+                                  child: Icon(
+                                    Icons.ios_share_rounded,
+                                    size: 18,
+                                    color: p.inkSecondary,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              GestureDetector(
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  setState(() => _verseIndex = (_verseIndex + 1) % _dailyVerses.length);
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(4),
+                                  child: Icon(
+                                    Icons.refresh_rounded,
+                                    size: 18,
+                                    color: p.inkMuted,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.only(right: 14),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                right: BorderSide(color: p.gold, width: 2.5),
+                              ),
+                            ),
+                            child: Text(
+                              '«${currentVerse['text']!}»',
+                              style: GoogleFonts.amiri(
+                                fontSize: 20,
+                                height: 1.7,
+                                color: p.ink,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // 5. Personal Patron Saint Companion Card
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: PressScale(
+                      scale: 0.985,
+                      onTap: () async {
+                        await Navigator.push(context, luxeRoute(const MyPatronSaintView()));
+                        if (mounted) setState(() {});
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: p.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: p.border),
+                          boxShadow: p.isDark
+                              ? null
+                              : [
+                                  BoxShadow(
+                                    color: p.shadow,
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            SaintIconAvatar(
+                              imageUrl: saintImgUrl,
+                              size: 62,
+                              shape: SaintAvatarShape.arch,
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          saint.shortName,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.amiri(
+                                            fontSize: 19,
+                                            fontWeight: FontWeight.bold,
+                                            color: p.ink,
+                                          ),
+                                        ),
+                                      ),
+                                      Text(
+                                        'شفيعي',
+                                        style: GoogleFonts.cairo(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: p.accent,
+                                        ),
+                                      ),
+                                      Icon(
+                                        Icons.chevron_left_rounded,
+                                        size: 16,
+                                        color: p.accent,
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    '«${dailyQuote.quote}»',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.amiri(
+                                      fontSize: 16,
+                                      height: 1.5,
+                                      color: p.inkSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // 6. Curated Horizontal "حياتك الروحية" Shelf (Zero duplicates)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'حياتك الروحية',
+                          style: GoogleFonts.amiri(
+                            fontSize: 21,
+                            fontWeight: FontWeight.bold,
+                            color: p.ink,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => widget.onNavigateTab(1),
+                          child: Text(
+                            'كل الصلوات',
+                            style: GoogleFonts.cairo(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: p.accent,
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // 6. Calm Liturgical Fasting Status Strip (Zero emojis)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceNavy,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.hairline),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        fast.isFastingToday ? Icons.spa_outlined : Icons.wb_sunny_outlined,
-                        color: AppColors.primaryGold,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              fast.title,
-                              style: GoogleFonts.cairo(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textLight,
-                              ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 118,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      itemCount: spiritualTools.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 10),
+                      itemBuilder: (_, idx) {
+                        final tool = spiritualTools[idx];
+                        return PressScale(
+                          scale: 0.97,
+                          onTap: tool.onTap,
+                          child: Container(
+                            width: 152,
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: p.surface,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: p.border),
+                              boxShadow: p.isDark
+                                  ? null
+                                  : [
+                                      BoxShadow(
+                                        color: p.shadow,
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
                             ),
-                            Text(
-                              '${fast.degree} • ${fast.abstinenceGuide}',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.cairo(
-                                fontSize: 11,
-                                color: AppColors.textMuted,
-                                height: 1.4,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.cardNavy,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.hairline),
-                        ),
-                        child: Text(
-                          !fast.isFastingToday
-                              ? 'فطار'
-                              : (fast.fishAllowed ? 'يُسمح بالسمك' : 'صوم نباتي'),
-                          style: GoogleFonts.cairo(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primaryGoldLight,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 22),
-
-              // 7. Compact Horizontal "خلوة اليوم والصلوات" Shelf
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'خلوة اليوم والطقوس',
-                      style: GoogleFonts.amiri(
-                        fontSize: 19,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primaryGoldLight,
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => widget.onNavigateTab(3),
-                      child: Text(
-                        'عرض كل الصلوات',
-                        style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.textMuted),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                height: 118,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  itemCount: practices.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 10),
-                  itemBuilder: (_, idx) {
-                    final p = practices[idx];
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(16),
-                      onTap: p['onTap'] as VoidCallback,
-                      child: Container(
-                        width: 158,
-                        padding: const EdgeInsets.all(13),
-                        decoration: BoxDecoration(
-                          color: AppColors.cardNavy,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.hairline),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Icon(p['icon'] as IconData, color: AppColors.primaryGold, size: 22),
-                            Column(
+                            child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
-                                  p['title'] as String,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.cairo(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.textLight,
-                                  ),
+                                Icon(
+                                  tool.icon,
+                                  color: p.isDark ? p.gold : p.accent,
+                                  size: 22,
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  p['sub'] as String,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.cairo(
-                                    fontSize: 10.5,
-                                    color: AppColors.textMuted,
-                                    height: 1.3,
-                                  ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      tool.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.cairo(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: p.ink,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      tool.sub,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.cairo(
+                                        fontSize: 10.5,
+                                        color: p.inkSecondary,
+                                        height: 1.35,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _quickDailyStrip({
+    required AppPalette p,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return PressScale(
+      scale: 0.98,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+        decoration: BoxDecoration(
+          color: p.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: p.border),
+          boxShadow: p.isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: p.shadow,
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: p.goldSoft,
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(icon, size: 19, color: p.isDark ? p.gold : p.accent),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.cairo(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.bold,
+                      color: p.ink,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.cairo(
+                      fontSize: 10.5,
+                      color: p.inkMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

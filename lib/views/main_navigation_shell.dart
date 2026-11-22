@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../core/constants/app_colors.dart';
-import '../core/widgets/coptic_cross.dart';
+import '../core/theme/app_palette.dart';
 import '../providers/audio_provider.dart';
-import 'home/home_dashboard_view.dart';
-import 'liturgical/liturgical_hub_view.dart';
-import 'hymns/hymns_library_view.dart';
 import 'ai_companion/ai_companion_view.dart';
+import 'home/home_dashboard_view.dart';
+import 'hymns/hymns_library_view.dart';
+import 'liturgical/liturgical_hub_view.dart';
 import 'profile/profile_settings_view.dart';
 
 class MainNavigationShell extends StatefulWidget {
@@ -28,16 +27,17 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     final screens = [
       HomeDashboardView(onNavigateTab: _navigateToTab),
-      const AiCompanionView(),
-      const HymnsLibraryView(),
       const LiturgicalHubView(),
+      const HymnsLibraryView(),
+      const AiCompanionView(),
       const ProfileSettingsView(),
     ];
 
     return Scaffold(
-      extendBody: true,
+      backgroundColor: p.canvas,
       body: IndexedStack(
         index: _currentIndex,
         children: screens,
@@ -47,16 +47,13 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           final isAudioPlaying = audioProv.isPlaying;
           return Container(
             decoration: BoxDecoration(
-              color: AppColors.deepNavy.withValues(alpha: 0.97),
-              border: const Border(
-                top: BorderSide(
-                  color: AppColors.hairline,
-                  width: 0.9,
-                ),
+              color: p.surface,
+              border: Border(
+                top: BorderSide(color: p.border, width: 0.9),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.5),
+                  color: p.shadow,
                   blurRadius: 16,
                   offset: const Offset(0, -4),
                 ),
@@ -67,64 +64,43 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 640),
                 child: SizedBox(
-                  height: 66,
+                  height: 64,
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       _buildNavTab(
+                        p: p,
                         index: 0,
                         icon: Icons.home_outlined,
+                        activeIcon: Icons.home_rounded,
                         label: 'الرئيسية',
                       ),
                       _buildNavTab(
+                        p: p,
                         index: 1,
-                        icon: Icons.auto_stories_outlined,
-                        label: 'الهيئة الآبائية',
-                      ),
-                      // Center Refined Antique-Gold Coptic Medallion
-                      GestureDetector(
-                        onTap: () {
-                          HapticFeedback.mediumImpact();
-                          if (isAudioPlaying && _currentIndex == 2) {
-                            audioProv.pause();
-                          } else {
-                            _navigateToTab(2);
-                          }
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 240),
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _currentIndex == 2 ? AppColors.primaryGold : AppColors.cardNavy,
-                            border: Border.all(
-                              color: AppColors.primaryGold.withValues(alpha: 0.7),
-                              width: 1.2,
-                            ),
-                          ),
-                          child: Center(
-                            child: isAudioPlaying
-                                ? Icon(
-                                    Icons.pause_rounded,
-                                    color: _currentIndex == 2 ? const Color(0xFF1A140B) : AppColors.primaryGoldLight,
-                                    size: 24,
-                                  )
-                                : CopticCross(
-                                    size: 22,
-                                    color: _currentIndex == 2 ? const Color(0xFF1A140B) : AppColors.primaryGoldLight,
-                                  ),
-                          ),
-                        ),
-                      ),
-                      _buildNavTab(
-                        index: 3,
                         icon: Icons.menu_book_outlined,
-                        label: 'القداسات',
+                        activeIcon: Icons.menu_book_rounded,
+                        label: 'الصلوات',
                       ),
                       _buildNavTab(
+                        p: p,
+                        index: 2,
+                        icon: Icons.music_note_outlined,
+                        activeIcon: Icons.graphic_eq_rounded,
+                        label: 'الألحان',
+                        liveDot: isAudioPlaying,
+                      ),
+                      _buildNavTab(
+                        p: p,
+                        index: 3,
+                        icon: Icons.forum_outlined,
+                        activeIcon: Icons.forum_rounded,
+                        label: 'اسأل',
+                      ),
+                      _buildNavTab(
+                        p: p,
                         index: 4,
                         icon: Icons.person_outline_rounded,
+                        activeIcon: Icons.person_rounded,
                         label: 'حسابي',
                       ),
                     ],
@@ -139,11 +115,15 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   }
 
   Widget _buildNavTab({
+    required AppPalette p,
     required int index,
     required IconData icon,
+    required IconData activeIcon,
     required String label,
+    bool liveDot = false,
   }) {
     final selected = _currentIndex == index;
+    final activeColor = p.accent;
     return Expanded(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -151,29 +131,37 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Top gold indicator line on active tab (matches video bottom bar)
             AnimatedContainer(
-              duration: const Duration(milliseconds: 240),
-              width: selected ? 28 : 0,
-              height: 2.5,
-              margin: const EdgeInsets.only(bottom: 6),
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
               decoration: BoxDecoration(
-                color: AppColors.primaryGold,
-                borderRadius: BorderRadius.circular(2),
-                boxShadow: selected
-                    ? [
-                        BoxShadow(
-                          color: AppColors.primaryGold.withValues(alpha: 0.6),
-                          blurRadius: 8,
-                        ),
-                      ]
-                    : null,
+                color: selected ? p.accent.withValues(alpha: p.isDark ? 0.16 : 0.1) : Colors.transparent,
+                borderRadius: BorderRadius.circular(20),
               ),
-            ),
-            Icon(
-              icon,
-              size: 22,
-              color: selected ? AppColors.primaryGoldLight : AppColors.textMuted,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(
+                    selected ? activeIcon : icon,
+                    size: 22,
+                    color: selected ? activeColor : p.inkMuted,
+                  ),
+                  if (liveDot)
+                    Positioned(
+                      top: -2,
+                      left: -3,
+                      child: Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          color: p.crimson,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
             const SizedBox(height: 3),
             Text(
@@ -181,9 +169,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.cairo(
-                fontSize: 10.5,
-                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                color: selected ? AppColors.primaryGoldLight : AppColors.textMuted,
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                color: selected ? activeColor : p.inkMuted,
               ),
             ),
           ],

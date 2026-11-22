@@ -17,21 +17,22 @@ class StorageService {
     await _encryption.init();
   }
 
-  // Theme Preference
+  // Theme Preference (defaults to Warm Parchment daylight aesthetic, 1-tap toggle to Night)
   AppThemeMode getThemeMode() {
-    final modeStr = _prefs?.getString('theme_mode') ?? 'darkGold';
+    final modeStr = _prefs?.getString('theme_mode_v2') ?? 'lightParchment';
     switch (modeStr) {
       case 'amoledChurch':
         return AppThemeMode.amoledChurch;
-      case 'lightParchment':
-        return AppThemeMode.lightParchment;
-      default:
+      case 'darkGold':
         return AppThemeMode.darkGold;
+      case 'lightParchment':
+      default:
+        return AppThemeMode.lightParchment;
     }
   }
 
   Future<void> setThemeMode(AppThemeMode mode) async {
-    await _prefs?.setString('theme_mode', mode.name);
+    await _prefs?.setString('theme_mode_v2', mode.name);
   }
 
   // Font Size Scale (1.0 default)

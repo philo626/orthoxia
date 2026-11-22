@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/constants/app_colors.dart';
+import 'package:provider/provider.dart';
 import '../../core/services/firebase_service.dart';
 import '../../core/services/patron_saint_service.dart';
 import '../../core/services/security_guard_service.dart';
 import '../../core/services/storage_service.dart';
-import '../../core/widgets/coptic_cross.dart';
+import '../../core/theme/app_palette.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/brand_marks.dart';
 import '../../core/widgets/saint_icon_avatar.dart';
+import '../../providers/theme_provider.dart';
 import '../main_navigation_shell.dart';
 import '../profile/privacy_policy_view.dart';
 
@@ -28,9 +30,13 @@ class _AuthViewState extends State<AuthView> {
   final _passCtrl = TextEditingController();
 
   late String _selectedSaintId;
-  bool _isLogin = false; // Default to quick account creation so user clearly sees Name field!
+  int _step = 0; // 0 = Clean Sign-In / Sign-Up, 1 = Serene Personalization (Name + Patron Saint)
+  bool _isLogin = true;
   bool _obscure = true;
   bool _busy = false;
+  bool _pendingGuest = false;
+  String? _pendingEmail;
+  String? _pendingPhone;
   String? _errorMsg;
 
   @override
@@ -50,26 +56,54 @@ class _AuthViewState extends State<AuthView> {
     super.dispose();
   }
 
-  Future<void> _completeEntry({
+  void _proceedToPersonalization({
     required bool guest,
-    required String resolvedName,
+    String? resolvedName,
     String? email,
     String? phone,
-  }) async {
-    final finalName = resolvedName.trim().isNotEmpty ? resolvedName.trim() : 'صديق أرثوذكسيا';
-    await _storage.setUserName(finalName);
-    if (email != null && email.trim().isNotEmpty) {
-      await _storage.setUserEmail(email.trim());
+  }) {
+    if (resolvedName != null && resolvedName.trim().isNotEmpty) {
+      _nameCtrl.text = resolvedName.trim();
     }
-    if (phone != null && phone.trim().isNotEmpty) {
-      await _storage.setUserPhone(phone.trim());
+    _pendingGuest = guest;
+    _pendingEmail = email;
+    _pendingPhone = phone;
+
+    // If returning user already personalized before and logged in again, enter directly
+    if (_storage.isOnboardingCompleted() && !guest && _nameCtrl.text.trim().isNotEmpty) {
+      _finalizeAndEnter();
+      return;
+    }
+
+    setState(() {
+      _busy = false;
+      _errorMsg = null;
+      _step = 1;
+    });
+  }
+
+  Future<void> _finalizeAndEnter() async {
+    setState(() => _busy = true);
+    final rawName = SecurityGuardService.sanitizeText(
+      _nameCtrl.text,
+      maxLength: 60,
+      allowNewlines: false,
+    );
+    final finalName = rawName.isNotEmpty ? rawName : 'صديق أرثوذكسيا';
+
+    await _storage.setUserName(finalName);
+    if (_pendingEmail != null && _pendingEmail!.trim().isNotEmpty) {
+      await _storage.setUserEmail(_pendingEmail!.trim());
+    }
+    if (_pendingPhone != null && _pendingPhone!.trim().isNotEmpty) {
+      await _storage.setUserPhone(_pendingPhone!.trim());
     }
     await _storage.setPatronSaintId(_selectedSaintId);
-    await _storage.setGuestMode(guest);
+    await _storage.setGuestMode(_pendingGuest);
     await _storage.setOnboardingCompleted(true);
     await _storage.setAuthV2Completed(true);
 
-    if (!guest) {
+    if (!_pendingGuest) {
       await _firebase.syncPublicProfile(
         displayName: finalName,
         patronSaintId: _selectedSaintId,
@@ -79,21 +113,26 @@ class _AuthViewState extends State<AuthView> {
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 550),
+        transitionDuration: const Duration(milliseconds: 450),
         pageBuilder: (_, _, _) => const MainNavigationShell(),
-        transitionsBuilder: (_, a, _, child) => FadeTransition(opacity: a, child: child),
+        transitionsBuilder: (_, a, _, child) => FadeTransition(
+          opacity: CurvedAnimation(parent: a, curve: Curves.easeOutCubic),
+          child: child,
+        ),
       ),
     );
   }
 
   Future<void> _submitEmailAuth() async {
-    HapticFeedback.mediumImpact();
+    HapticFeedback.lightImpact();
+    FocusScope.of(context).unfocus();
+
     final name = _nameCtrl.text.trim();
     final email = _emailCtrl.text.trim();
     final pass = _passCtrl.text;
 
     if (!_isLogin && name.isEmpty) {
-      setState(() => _errorMsg = 'من فضلك اكتب اسمك أولاً ليرحب بك التطبيق باسمك.');
+      setState(() => _errorMsg = 'من فضلك اكتب اسمك أولاً.');
       return;
     }
     if (email.isEmpty || !email.contains('@')) {
@@ -132,7 +171,7 @@ class _AuthViewState extends State<AuthView> {
       return;
     }
 
-    await _completeEntry(
+    _proceedToPersonalization(
       guest: false,
       resolvedName: res.displayName ?? name,
       email: res.email ?? email,
@@ -140,7 +179,8 @@ class _AuthViewState extends State<AuthView> {
   }
 
   Future<void> _handleGoogleSignIn() async {
-    HapticFeedback.mediumImpact();
+    HapticFeedback.lightImpact();
+    FocusScope.of(context).unfocus();
     setState(() {
       _busy = true;
       _errorMsg = null;
@@ -150,108 +190,135 @@ class _AuthViewState extends State<AuthView> {
       final res = await _firebase.signInWithGoogle();
       if (!mounted) return;
       if (res.success) {
-        final chosenName = _nameCtrl.text.trim().isNotEmpty
-            ? _nameCtrl.text.trim()
-            : (res.displayName ?? '');
-        await _completeEntry(
+        _proceedToPersonalization(
           guest: false,
-          resolvedName: chosenName,
+          resolvedName: res.displayName ?? _nameCtrl.text.trim(),
           email: res.email,
         );
         return;
-      } else {
-        setState(() {
-          _busy = false;
-          _errorMsg = res.message;
-        });
-        return;
       }
+      setState(() {
+        _busy = false;
+        _errorMsg = res.message;
+      });
+      return;
     }
 
-    // Graceful sheet if google-services.json isn't added yet
-    setState(() => _busy = false);
-    if (!mounted) return;
-    _showQuickGoogleNameSheet();
+    setState(() {
+      _busy = false;
+      _errorMsg = 'تعذر الاتصال بخدمة Google حالياً. يمكنك الدخول بالبريد الإلكتروني أو المتابعة كزائر.';
+    });
   }
 
-  void _showQuickGoogleNameSheet() {
-    final gNameCtrl = TextEditingController(text: _nameCtrl.text.trim());
-    final gEmailCtrl = TextEditingController();
+  void _showForgotPasswordSheet() {
+    final resetCtrl = TextEditingController(text: _emailCtrl.text.trim());
+    bool sending = false;
+    String? feedback;
+    bool isSuccess = false;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(22, 16, 22, 24),
-          decoration: BoxDecoration(
-            color: const Color(0xFF161619),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.45)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(4),
+      builder: (ctx) {
+        final p = ctx.palette;
+        return StatefulBuilder(
+          builder: (ctx, setSheet) => Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(22, 14, 22, 26),
+              decoration: BoxDecoration(
+                color: p.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+                border: Border(top: BorderSide(color: p.border)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: p.border,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'استعادة كلمة المرور',
+                    style: GoogleFonts.amiri(
+                      fontSize: 23,
+                      fontWeight: FontWeight.bold,
+                      color: p.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'أدخل بريدك الإلكتروني المسجّل وسنرسل لك رابطاً لتعيين كلمة مرور جديدة.',
+                    style: GoogleFonts.cairo(fontSize: 13, color: p.inkSecondary, height: 1.5),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: resetCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    style: GoogleFonts.cairo(color: p.ink, fontSize: 14),
+                    decoration: const InputDecoration(
+                      hintText: 'البريد الإلكتروني',
+                      prefixIcon: Icon(Icons.mail_outline_rounded, size: 20),
+                    ),
+                  ),
+                  if (feedback != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: (isSuccess ? p.sage : p.danger).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        feedback!,
+                        style: GoogleFonts.cairo(
+                          fontSize: 12.5,
+                          color: isSuccess ? p.sage : p.danger,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: sending
+                        ? null
+                        : () async {
+                            setSheet(() {
+                              sending = true;
+                              feedback = null;
+                            });
+                            final res = await _firebase.sendPasswordResetEmail(resetCtrl.text);
+                            if (!ctx.mounted) return;
+                            setSheet(() {
+                              sending = false;
+                              isSuccess = res.success;
+                              feedback = res.message;
+                            });
+                          },
+                    child: sending
+                        ? SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: p.onAccent),
+                          )
+                        : const Text('إرسال رابط الاستعادة'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 14),
-              Text(
-                'الدخول السريع بحساب Google',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.cairo(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primaryGoldLight,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'أدخل اسمك وبريدك الجيميل (تُفعّل المزامنة السحابية تلقائياً فور ربط ملف Firebase)',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.textMuted),
-              ),
-              const SizedBox(height: 14),
-              _pillField(ctrl: gNameCtrl, hint: 'اكتب اسمك هنا...', icon: Icons.person_outline_rounded),
-              const SizedBox(height: 10),
-              _pillField(
-                ctrl: gEmailCtrl,
-                hint: 'بريدك الإلكتروني (example@gmail.com)',
-                icon: Icons.email_outlined,
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _completeEntry(
-                    guest: false,
-                    resolvedName: gNameCtrl.text.trim(),
-                    email: gEmailCtrl.text.trim(),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryGold,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-                child: Text('متابعة الدخول', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -266,448 +333,750 @@ class _AuthViewState extends State<AuthView> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheet) => Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(22, 16, 22, 24),
-            decoration: BoxDecoration(
-              color: const Color(0xFF161619),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-              border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.45)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'تسجيل الدخول برقم الهاتف (OTP)',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.cairo(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryGoldLight,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (sheetErr != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Text(
-                      sheetErr!,
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.cairo(fontSize: 12, color: Colors.redAccent),
+      builder: (ctx) {
+        final p = ctx.palette;
+        return StatefulBuilder(
+          builder: (ctx, setSheet) => Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(22, 14, 22, 26),
+              decoration: BoxDecoration(
+                color: p.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+                border: Border(top: BorderSide(color: p.border)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: p.border,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                     ),
                   ),
-                _pillField(
-                  ctrl: phoneCtrl,
-                  hint: '+2010xxxxxxxx',
-                  icon: Icons.phone_android_rounded,
-                  keyboardType: TextInputType.phone,
-                ),
-                if (verificationId != null) ...[
-                  const SizedBox(height: 10),
-                  _pillField(
-                    ctrl: otpCtrl,
-                    hint: 'أدخل رمز التحقق (٦ أرقام)',
-                    icon: Icons.sms_outlined,
-                    keyboardType: TextInputType.number,
+                  const SizedBox(height: 18),
+                  Text(
+                    'الدخول برقم الهاتف',
+                    style: GoogleFonts.amiri(
+                      fontSize: 23,
+                      fontWeight: FontWeight.bold,
+                      color: p.ink,
+                    ),
                   ),
-                ],
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: sending
-                      ? null
-                      : () async {
-                          if (verificationId == null) {
-                            setSheet(() {
-                              sending = true;
-                              sheetErr = null;
-                            });
-                            await _firebase.verifyPhoneNumber(
-                              phoneNumber: phoneCtrl.text.trim(),
-                              onCodeSent: (vId) => setSheet(() {
-                                verificationId = vId;
-                                sending = false;
-                              }),
-                              onError: (err) => setSheet(() {
-                                sheetErr = err;
-                                sending = false;
-                              }),
-                              onAutoVerified: (res) {
-                                Navigator.pop(ctx);
-                                _completeEntry(
-                                  guest: false,
-                                  resolvedName: _nameCtrl.text.trim(),
-                                  phone: phoneCtrl.text.trim(),
-                                );
-                              },
-                            );
-                          } else {
-                            setSheet(() => sending = true);
-                            final res = await _firebase.confirmPhoneOtp(
-                              verificationId: verificationId!,
-                              smsCode: otpCtrl.text.trim(),
-                              displayName: _nameCtrl.text.trim(),
-                              phoneNumber: phoneCtrl.text.trim(),
-                            );
-                            if (res.success) {
-                              if (ctx.mounted) Navigator.pop(ctx);
-                              await _completeEntry(
-                                guest: false,
-                                resolvedName: _nameCtrl.text.trim(),
-                                phone: phoneCtrl.text.trim(),
+                  const SizedBox(height: 6),
+                  Text(
+                    verificationId == null
+                        ? 'سنرسل رسالة نصية تحتوي على رمز تحقق مكوّن من ٦ أرقام.'
+                        : 'أدخل رمز التحقق الذي وصلك على ${phoneCtrl.text.trim()}',
+                    style: GoogleFonts.cairo(fontSize: 13, color: p.inkSecondary),
+                  ),
+                  const SizedBox(height: 14),
+                  if (sheetErr != null)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: p.danger.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        sheetErr!,
+                        style: GoogleFonts.cairo(fontSize: 12.5, color: p.danger),
+                      ),
+                    ),
+                  TextField(
+                    controller: phoneCtrl,
+                    enabled: verificationId == null,
+                    keyboardType: TextInputType.phone,
+                    style: GoogleFonts.cairo(color: p.ink, fontSize: 14.5),
+                    decoration: const InputDecoration(
+                      hintText: '+2010xxxxxxxx',
+                      prefixIcon: Icon(Icons.phone_outlined, size: 20),
+                    ),
+                  ),
+                  if (verificationId != null) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: otpCtrl,
+                      keyboardType: TextInputType.number,
+                      maxLength: 6,
+                      style: GoogleFonts.cairo(color: p.ink, fontSize: 16, letterSpacing: 4),
+                      decoration: const InputDecoration(
+                        counterText: '',
+                        hintText: 'رمز التحقق',
+                        prefixIcon: Icon(Icons.sms_outlined, size: 20),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: sending
+                        ? null
+                        : () async {
+                            if (verificationId == null) {
+                              setSheet(() {
+                                sending = true;
+                                sheetErr = null;
+                              });
+                              await _firebase.verifyPhoneNumber(
+                                phoneNumber: phoneCtrl.text.trim(),
+                                onCodeSent: (vId) {
+                                  if (!ctx.mounted) return;
+                                  setSheet(() {
+                                    verificationId = vId;
+                                    sending = false;
+                                  });
+                                },
+                                onError: (err) {
+                                  if (!ctx.mounted) return;
+                                  setSheet(() {
+                                    sheetErr = err;
+                                    sending = false;
+                                  });
+                                },
+                                onAutoVerified: (_) {
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                  _proceedToPersonalization(
+                                    guest: false,
+                                    phone: phoneCtrl.text.trim(),
+                                  );
+                                },
                               );
                             } else {
-                              setSheet(() {
-                                sending = false;
-                                sheetErr = res.message;
-                              });
+                              setSheet(() => sending = true);
+                              final res = await _firebase.confirmPhoneOtp(
+                                verificationId: verificationId!,
+                                smsCode: otpCtrl.text.trim(),
+                                displayName: _nameCtrl.text.trim(),
+                                phoneNumber: phoneCtrl.text.trim(),
+                              );
+                              if (!ctx.mounted) return;
+                              if (res.success) {
+                                Navigator.pop(ctx);
+                                _proceedToPersonalization(
+                                  guest: false,
+                                  phone: phoneCtrl.text.trim(),
+                                );
+                              } else {
+                                setSheet(() {
+                                  sending = false;
+                                  sheetErr = res.message;
+                                });
+                              }
                             }
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryGold,
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          },
+                    child: sending
+                        ? SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: p.onAccent),
+                          )
+                        : Text(verificationId == null ? 'إرسال الرمز' : 'تأكيد الدخول'),
                   ),
-                  child: Text(
-                    verificationId == null ? 'إرسال رمز التحقق' : 'تأكيد الدخول',
-                    style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
+    final themeProv = context.watch<ThemeProvider>();
+
     return Scaffold(
-      backgroundColor: AppColors.deepNavy,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(22, 20, 22, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Top Brand Header
-              Center(
+      backgroundColor: p.canvas,
+      body: Stack(
+        children: [
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SubtleArchWatermark(height: 170),
+          ),
+          SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
                 child: Column(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.primaryGold.withValues(alpha: 0.14),
-                        border: Border.all(color: AppColors.primaryGold, width: 1.5),
+                    // Quiet top bar: subtle Day/Night switch + back on Step 2
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 10, 20, 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          if (_step == 1)
+                            IconButton(
+                              onPressed: () => setState(() => _step = 0),
+                              icon: Icon(Icons.arrow_forward_rounded, color: p.ink),
+                              tooltip: 'رجوع',
+                            )
+                          else
+                            const SizedBox(width: 40),
+                          TextButton.icon(
+                            onPressed: () {
+                              HapticFeedback.selectionClick();
+                              themeProv.setThemeMode(
+                                p.isDark ? AppThemeMode.lightParchment : AppThemeMode.darkGold,
+                              );
+                            },
+                            style: TextButton.styleFrom(
+                              foregroundColor: p.inkSecondary,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            ),
+                            icon: Icon(
+                              p.isDark ? Icons.wb_sunny_outlined : Icons.dark_mode_outlined,
+                              size: 17,
+                            ),
+                            label: Text(
+                              p.isDark ? 'الوضع النهاري' : 'الوضع الليلي',
+                              style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
                       ),
-                      child: const CopticCross(size: 34),
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'أهلاً بك في أرثوذكسيا',
-                      style: GoogleFonts.cairo(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primaryGoldLight,
+
+                    Expanded(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 360),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        child: _step == 0
+                            ? _buildAuthStep(p)
+                            : _buildPersonalizeStep(p),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'رفيقك اليومي للقداس والسنكسار والأجبية وشفيعك الشخصي',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.cairo(fontSize: 12.5, color: AppColors.textMuted),
                     ),
                   ],
                 ),
-              ).animate().fadeIn(duration: 350.ms),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-              const SizedBox(height: 22),
-
-              // 1. User's Own Name Field (Always prominent & editable!)
+  Widget _buildAuthStep(AppPalette p) {
+    return SingleChildScrollView(
+      key: const ValueKey('auth_step_0'),
+      padding: const EdgeInsets.fromLTRB(22, 8, 22, 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Brand Identity
+          Column(
+            children: [
+              const OrthodoxEmblem(size: 68),
+              const SizedBox(height: 14),
               Text(
-                'اسمك الشخصي (سيظهر للترحيب بك في التطبيق):',
-                style: GoogleFonts.cairo(
-                  fontSize: 13,
+                'أرثوذكسيا',
+                style: GoogleFonts.amiri(
+                  fontSize: 32,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.primaryGoldLight,
+                  color: p.ink,
+                  height: 1.15,
                 ),
               ),
-              const SizedBox(height: 8),
-              _pillField(
-                ctrl: _nameCtrl,
-                hint: 'اكتب اسمك هنا (مثال: كيرلس، مريم...)',
-                icon: Icons.person_rounded,
-              ),
-
-              const SizedBox(height: 18),
-
-              // 2. Choose Personal Patron Saint (شفيعك الشخصي)
+              const SizedBox(height: 4),
               Text(
-                'اختر شفيعك الشخصي (لتصلك أقواله يومياً):',
+                'صلواتك اليومية، القداس الإلهي، والكتاب المقدس',
+                textAlign: TextAlign.center,
                 style: GoogleFonts.cairo(
                   fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primaryGoldLight,
+                  color: p.inkSecondary,
                 ),
               ),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 44,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: PatronSaintService.saints.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 8),
-                  itemBuilder: (context, idx) {
-                    final s = PatronSaintService.saints[idx];
-                    final sel = s.id == _selectedSaintId;
-                    return ChoiceChip(
-                      showCheckmark: false,
-                      avatar: SaintIconAvatar(
-                        imageUrl: PatronSaintService.getImageUrlForSaint(s),
-                        size: 24,
-                        shape: SaintAvatarShape.circle,
-                        showBorder: false,
-                      ),
-                      label: Text(
-                        s.shortName,
-                        style: GoogleFonts.cairo(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: sel ? Colors.black : AppColors.textLight,
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // Main Elevated Auth Surface
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: p.surface,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: p.border),
+              boxShadow: [
+                BoxShadow(
+                  color: p.shadow,
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 1. Authentic One-Tap Google Sign-In
+                OutlinedButton(
+                  onPressed: _busy ? null : _handleGoogleSignIn,
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: p.isDark ? p.surfaceSubtle : Colors.white,
+                    foregroundColor: p.ink,
+                    side: BorderSide(color: p.border, width: 1.1),
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const GoogleLogoMark(size: 20),
+                      const SizedBox(width: 10),
+                      Flexible(
+                        child: Text(
+                          'المتابعة بحساب Google',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.cairo(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: p.ink,
+                          ),
                         ),
                       ),
-                      selected: sel,
-                      selectedColor: AppColors.primaryGold,
-                      backgroundColor: AppColors.cardNavy,
-                      side: BorderSide(color: sel ? AppColors.primaryGold : AppColors.hairline),
-                      onSelected: (_) {
-                        HapticFeedback.selectionClick();
-                        setState(() => _selectedSaintId = s.id);
-                      },
-                    );
-                  },
+                    ],
+                  ),
                 ),
-              ),
 
-              const SizedBox(height: 20),
+                const SizedBox(height: 18),
 
-              // 3. Login / Register Mode Toggle
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: AppColors.cardNavy,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white10),
-                ),
-                child: Row(
+                // Subtle Divider
+                Row(
                   children: [
-                    Expanded(
-                      child: _modeTab('إنشاء حساب جديد', !_isLogin, () => setState(() => _isLogin = false)),
+                    Expanded(child: Divider(color: p.border)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        'أو بالبريد الإلكتروني',
+                        style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkMuted),
+                      ),
                     ),
-                    Expanded(
-                      child: _modeTab('تسجيل الدخول', _isLogin, () => setState(() => _isLogin = true)),
-                    ),
+                    Expanded(child: Divider(color: p.border)),
                   ],
                 ),
-              ),
 
-              const SizedBox(height: 14),
+                const SizedBox(height: 16),
 
-              if (_errorMsg != null)
+                // Smooth Segmented Switcher (Login / Create Account)
                 Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: Colors.redAccent.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
+                    color: p.surfaceSubtle,
+                    borderRadius: BorderRadius.circular(13),
                   ),
-                  child: Text(
-                    _errorMsg!,
-                    style: GoogleFonts.cairo(fontSize: 12, color: Colors.redAccent),
-                  ),
-                ),
-
-              _pillField(
-                ctrl: _emailCtrl,
-                hint: 'البريد الإلكتروني',
-                icon: Icons.email_outlined,
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 10),
-              _pillField(
-                ctrl: _passCtrl,
-                hint: _isLogin ? 'كلمة المرور' : 'كلمة المرور (٨ أحرف + أرقام)',
-                icon: Icons.lock_outline_rounded,
-                obscure: _obscure,
-                suffix: IconButton(
-                  icon: Icon(
-                    _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                    color: AppColors.textMuted,
-                    size: 19,
-                  ),
-                  onPressed: () => setState(() => _obscure = !_obscure),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Primary Submit Button
-              ElevatedButton(
-                onPressed: _busy ? null : _submitEmailAuth,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryGold,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                child: _busy
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.black),
-                      )
-                    : Text(
-                        _isLogin ? 'تسجيل الدخول عبر Firebase' : 'إنشاء حساب والبدء الآن',
-                        style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 14.5),
-                      ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // Social / OTP Buttons Row
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _busy ? null : _handleGoogleSignIn,
-                      icon: const Icon(Icons.g_mobiledata_rounded, size: 24, color: AppColors.primaryGold),
-                      label: Text('حساب Google', style: GoogleFonts.cairo(color: Colors.white, fontSize: 12.5)),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 11),
-                        side: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.4)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _busy ? null : _showPhoneOtpSheet,
-                      icon: const Icon(Icons.phone_android_rounded, size: 18, color: AppColors.primaryGold),
-                      label: Text('رقم الهاتف OTP', style: GoogleFonts.cairo(color: Colors.white, fontSize: 12.5)),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 11),
-                        side: BorderSide(color: AppColors.primaryGold.withValues(alpha: 0.4)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
-              // Guest Mode Entry (Respects user's entered name!)
-              TextButton.icon(
-                onPressed: _busy
-                    ? null
-                    : () => _completeEntry(
-                          guest: true,
-                          resolvedName: _nameCtrl.text.trim(),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _segmentedTab(
+                          p: p,
+                          label: 'تسجيل الدخول',
+                          active: _isLogin,
+                          onTap: () => setState(() {
+                            _isLogin = true;
+                            _errorMsg = null;
+                          }),
                         ),
-                icon: const Icon(Icons.explore_outlined, color: AppColors.primaryGoldLight, size: 18),
-                label: Text(
-                  'تصفح التطبيق مباشرة بدون حساب (وضع الزائر)',
-                  style: GoogleFonts.cairo(
-                    color: AppColors.primaryGoldLight,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
+                      ),
+                      Expanded(
+                        child: _segmentedTab(
+                          p: p,
+                          label: 'حساب جديد',
+                          active: !_isLogin,
+                          onTap: () => setState(() {
+                            _isLogin = false;
+                            _errorMsg = null;
+                          }),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                if (_errorMsg != null)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 14),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: p.danger.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: p.danger.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline_rounded, size: 17, color: p.danger),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _errorMsg!,
+                            style: GoogleFonts.cairo(fontSize: 12.5, color: p.danger),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // Name field ONLY when registering
+                if (!_isLogin) ...[
+                  TextField(
+                    controller: _nameCtrl,
+                    textInputAction: TextInputAction.next,
+                    style: GoogleFonts.cairo(color: p.ink, fontSize: 14),
+                    decoration: const InputDecoration(
+                      hintText: 'الاسم الكامل',
+                      prefixIcon: Icon(Icons.person_outline_rounded, size: 20),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                TextField(
+                  controller: _emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  style: GoogleFonts.cairo(color: p.ink, fontSize: 14),
+                  decoration: const InputDecoration(
+                    hintText: 'البريد الإلكتروني',
+                    prefixIcon: Icon(Icons.mail_outline_rounded, size: 20),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                TextField(
+                  controller: _passCtrl,
+                  obscureText: _obscure,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _submitEmailAuth(),
+                  style: GoogleFonts.cairo(color: p.ink, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: _isLogin ? 'كلمة المرور' : 'كلمة المرور (٨ أحرف بحروف وأرقام)',
+                    prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                        color: p.inkMuted,
+                        size: 20,
+                      ),
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                    ),
+                  ),
+                ),
+
+                if (_isLogin)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      onPressed: _busy ? null : _showForgotPasswordSheet,
+                      style: TextButton.styleFrom(
+                        foregroundColor: p.accent,
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        'نسيت كلمة المرور؟',
+                        style: GoogleFonts.cairo(fontSize: 12.5, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  )
+                else
+                  const SizedBox(height: 14),
+
+                const SizedBox(height: 8),
+
+                ElevatedButton(
+                  onPressed: _busy ? null : _submitEmailAuth,
+                  child: _busy
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2.2, color: p.onAccent),
+                        )
+                      : Text(_isLogin ? 'تسجيل الدخول' : 'إنشاء الحساب'),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          // Quiet Secondary Actions Row (Phone OTP + Guest)
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _busy ? null : _showPhoneOtpSheet,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 44),
+                    backgroundColor: p.surface,
+                  ),
+                  icon: Icon(Icons.phone_outlined, size: 17, color: p.inkSecondary),
+                  label: Text(
+                    'برقم الهاتف',
+                    style: GoogleFonts.cairo(fontSize: 13, color: p.ink),
                   ),
                 ),
               ),
-
-              const SizedBox(height: 6),
-
-              // Privacy Policy Link (Google Play compliance)
-              Center(
-                child: TextButton(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const PrivacyPolicyView()),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _busy
+                      ? null
+                      : () => _proceedToPersonalization(guest: true),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 44),
+                    backgroundColor: p.surface,
                   ),
-                  child: Text(
-                    'سياسة الخصوصية وأمان مذكرات الاعتراف (AES-256-GCM محلياً)',
-                    style: GoogleFonts.cairo(
-                      fontSize: 11,
-                      color: AppColors.textMuted,
-                      decoration: TextDecoration.underline,
-                    ),
+                  icon: Icon(Icons.arrow_back_rounded, size: 17, color: p.inkSecondary),
+                  label: Text(
+                    'متابعة كزائر',
+                    style: GoogleFonts.cairo(fontSize: 13, color: p.ink),
                   ),
                 ),
               ),
             ],
           ),
-        ),
+
+          const SizedBox(height: 18),
+
+          // Calm Human Privacy Footer
+          Center(
+            child: GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PrivacyPolicyView()),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                child: Text(
+                  'بياناتك ومذكراتك محفوظة بخصوصية تامة • سياسة الخصوصية',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.cairo(
+                    fontSize: 11.5,
+                    color: p.inkMuted,
+                    decoration: TextDecoration.underline,
+                    decorationColor: p.inkMuted.withValues(alpha: 0.5),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _modeTab(String label, bool active, VoidCallback onTap) {
+  Widget _buildPersonalizeStep(AppPalette p) {
+    final featuredSaints = PatronSaintService.saints.take(14).toList();
+
+    return SingleChildScrollView(
+      key: const ValueKey('auth_step_1'),
+      padding: const EdgeInsets.fromLTRB(22, 12, 22, 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'أهلاً بك في أرثوذكسيا',
+            style: GoogleFonts.amiri(
+              fontSize: 30,
+              fontWeight: FontWeight.bold,
+              color: p.ink,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'خطوة سريعة لنخصّص لك التحية اليومية وأقوال شفيعك الشخصي.',
+            style: GoogleFonts.cairo(fontSize: 13.5, color: p.inkSecondary, height: 1.55),
+          ),
+
+          const SizedBox(height: 24),
+
+          Text(
+            'كيف نحب أن نناديك؟',
+            style: GoogleFonts.cairo(
+              fontSize: 13.5,
+              fontWeight: FontWeight.bold,
+              color: p.ink,
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _nameCtrl,
+            style: GoogleFonts.cairo(color: p.ink, fontSize: 14.5),
+            decoration: const InputDecoration(
+              hintText: 'مثال: كيرلس، مريم، مينا...',
+              prefixIcon: Icon(Icons.person_outline_rounded, size: 20),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'اختر شفيعك الشخصي',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.cairo(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.bold,
+                    color: p.ink,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'يمكنك تغييره لاحقاً',
+                style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkMuted),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          SizedBox(
+            height: 144,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: featuredSaints.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              itemBuilder: (context, idx) {
+                final s = featuredSaints[idx];
+                final selected = s.id == _selectedSaintId;
+                return GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() => _selectedSaintId = s.id);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 106,
+                    padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
+                    decoration: BoxDecoration(
+                      color: selected ? p.goldSoft : p.surface,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: selected ? p.accent : p.border,
+                        width: selected ? 1.6 : 1,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            SaintIconAvatar(
+                              imageUrl: PatronSaintService.getImageUrlForSaint(s),
+                              size: 62,
+                              shape: SaintAvatarShape.arch,
+                              showBorder: true,
+                            ),
+                            if (selected)
+                              Positioned(
+                                top: -4,
+                                left: -4,
+                                child: Container(
+                                  width: 20,
+                                  height: 20,
+                                  decoration: BoxDecoration(
+                                    color: p.accent,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.check_rounded,
+                                    size: 13,
+                                    color: p.onAccent,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          s.shortName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.cairo(
+                            fontSize: 11.5,
+                            fontWeight: selected ? FontWeight.bold : FontWeight.w600,
+                            color: selected ? p.accent : p.ink,
+                            height: 1.25,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          const SizedBox(height: 32),
+
+          ElevatedButton(
+            onPressed: _busy ? null : _finalizeAndEnter,
+            child: _busy
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2.2, color: p.onAccent),
+                  )
+                : const Text('البدء الآن'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _segmentedTab({
+    required AppPalette p,
+    required String label,
+    required bool active,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 9),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: active ? AppColors.primaryGold : Colors.transparent,
-          borderRadius: BorderRadius.circular(11),
+          color: active ? p.surface : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: active && !p.isDark
+              ? [
+                  BoxShadow(
+                    color: p.shadow,
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
         child: Text(
           label,
           textAlign: TextAlign.center,
           style: GoogleFonts.cairo(
-            fontSize: 12.5,
-            fontWeight: FontWeight.bold,
-            color: active ? Colors.black : AppColors.textMuted,
+            fontSize: 13,
+            fontWeight: active ? FontWeight.bold : FontWeight.w600,
+            color: active ? p.ink : p.inkMuted,
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _pillField({
-    required TextEditingController ctrl,
-    required String hint,
-    required IconData icon,
-    bool obscure = false,
-    TextInputType? keyboardType,
-    Widget? suffix,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.cardNavy,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.25)),
-      ),
-      child: TextField(
-        controller: ctrl,
-        obscureText: obscure,
-        keyboardType: keyboardType,
-        style: GoogleFonts.cairo(color: Colors.white, fontSize: 13.5),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 13),
-          prefixIcon: Icon(icon, color: AppColors.primaryGold, size: 20),
-          suffixIcon: suffix,
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         ),
       ),
     );

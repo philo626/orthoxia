@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../constants/app_colors.dart';
+import '../theme/app_palette.dart';
 
-/// Scales down on press with haptic feedback (micro-interaction).
+/// Scales down gently on press with light haptic feedback.
 class PressScale extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
   final double scale;
-  const PressScale({super.key, required this.child, this.onTap, this.scale = 0.94});
+  const PressScale({super.key, required this.child, this.onTap, this.scale = 0.96});
 
   @override
   State<PressScale> createState() => _PressScaleState();
@@ -32,8 +32,8 @@ class _PressScaleState extends State<PressScale> {
             },
       child: AnimatedScale(
         scale: _down ? widget.scale : 1.0,
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOutBack,
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOutCubic,
         child: widget.child,
       ),
     );
@@ -45,33 +45,49 @@ class SafeAssetImage extends StatelessWidget {
   final String path;
   final BoxFit fit;
   final IconData fallbackIcon;
-  const SafeAssetImage(this.path, {super.key, this.fit = BoxFit.cover, this.fallbackIcon = Icons.church_rounded});
+  const SafeAssetImage(
+    this.path, {
+    super.key,
+    this.fit = BoxFit.cover,
+    this.fallbackIcon = Icons.church_outlined,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return Image.asset(
       path,
       fit: fit,
-      errorBuilder: (_, __, ___) => Container(
-        decoration: const BoxDecoration(gradient: AppColors.obsidianCard),
+      errorBuilder: (_, _, _) => Container(
+        color: p.surfaceSubtle,
         alignment: Alignment.center,
-        child: Icon(fallbackIcon, color: AppColors.primaryGold, size: 30),
+        child: Icon(fallbackIcon, color: p.gold, size: 28),
       ),
     );
   }
 }
 
-/// Small dark circular icon button used in headers.
+/// Adaptive circular icon button used in top bars.
 class LuxeCircleButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
   final bool badge;
   final double size;
-  const LuxeCircleButton({super.key, required this.icon, this.onTap, this.badge = false, this.size = 40});
+  final String? tooltip;
+
+  const LuxeCircleButton({
+    super.key,
+    required this.icon,
+    this.onTap,
+    this.badge = false,
+    this.size = 40,
+    this.tooltip,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return PressScale(
+    final p = context.palette;
+    final button = PressScale(
       onTap: onTap,
       child: Stack(
         clipBehavior: Clip.none,
@@ -81,10 +97,19 @@ class LuxeCircleButton extends StatelessWidget {
             height: size,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.black.withValues(alpha: 0.45),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              color: p.surface,
+              border: Border.all(color: p.border, width: 1),
+              boxShadow: p.isDark
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: p.shadow,
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
             ),
-            child: Icon(icon, color: AppColors.primaryGoldLight, size: size * 0.5),
+            child: Icon(icon, color: p.ink, size: size * 0.48),
           ),
           if (badge)
             Positioned(
@@ -93,47 +118,69 @@ class LuxeCircleButton extends StatelessWidget {
               child: Container(
                 width: 8,
                 height: 8,
-                decoration: const BoxDecoration(color: Color(0xFFE5533D), shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: p.crimson,
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
         ],
       ),
     );
+    if (tooltip != null) {
+      return Tooltip(message: tooltip!, child: button);
+    }
+    return button;
   }
 }
 
-/// Editorial matte-basalt icon tile with delicate antique-gold hairline border.
+/// Adaptive editorial icon tile (warm paper in daylight, warm charcoal at night).
 class GoldIconTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  const GoldIconTile({super.key, required this.icon, required this.label, required this.onTap});
+  final Color? iconColor;
+
+  const GoldIconTile({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.iconColor,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return PressScale(
       onTap: onTap,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 58,
-            height: 58,
+            width: 56,
+            height: 56,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              color: AppColors.cardNavy,
-              border: Border.all(
-                color: AppColors.primaryGold.withValues(alpha: 0.24),
-                width: 0.9,
-              ),
+              color: p.surface,
+              border: Border.all(color: p.border, width: 1),
+              boxShadow: p.isDark
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: p.shadow,
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
             ),
             child: Icon(
               icon,
-              size: 26,
-              color: AppColors.primaryGoldLight,
+              size: 24,
+              color: iconColor ?? (p.isDark ? p.gold : p.accent),
             ),
           ),
-          const SizedBox(height: 7),
+          const SizedBox(height: 8),
           Text(
             label,
             maxLines: 1,
@@ -142,7 +189,7 @@ class GoldIconTile extends StatelessWidget {
             style: GoogleFonts.cairo(
               fontSize: 11.5,
               fontWeight: FontWeight.w600,
-              color: AppColors.textLight,
+              color: p.ink,
             ),
           ),
         ],
@@ -151,40 +198,51 @@ class GoldIconTile extends StatelessWidget {
   }
 }
 
-/// Editorial horizontal list card with subtle hairline frame and clean typography.
+/// Adaptive editorial horizontal list card.
 class ThumbListCard extends StatelessWidget {
   final String image;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
   final IconData fallbackIcon;
+
   const ThumbListCard({
     super.key,
     required this.image,
     required this.title,
     required this.subtitle,
     required this.onTap,
-    this.fallbackIcon = Icons.church_rounded,
+    this.fallbackIcon = Icons.church_outlined,
   });
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return PressScale(
-      scale: 0.98,
+      scale: 0.985,
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.cardNavy,
+          color: p.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.hairline, width: 0.9),
+          border: Border.all(color: p.border, width: 1),
+          boxShadow: p.isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: p.shadow,
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
         ),
         child: Row(
           children: [
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -192,14 +250,22 @@ class ThumbListCard extends StatelessWidget {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.amiri(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textLight),
+                      style: GoogleFonts.amiri(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: p.ink,
+                      ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       subtitle,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.textMuted, height: 1.45),
+                      style: GoogleFonts.cairo(
+                        fontSize: 11.5,
+                        color: p.inkSecondary,
+                        height: 1.45,
+                      ),
                     ),
                   ],
                 ),
@@ -207,7 +273,11 @@ class ThumbListCard extends StatelessWidget {
             ),
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: SizedBox(width: 72, height: 64, child: SafeAssetImage(image, fallbackIcon: fallbackIcon)),
+              child: SizedBox(
+                width: 72,
+                height: 64,
+                child: SafeAssetImage(image, fallbackIcon: fallbackIcon),
+              ),
             ),
           ],
         ),
@@ -216,7 +286,7 @@ class ThumbListCard extends StatelessWidget {
   }
 }
 
-/// Wraps body-only screens with a luxe app bar when pushed as a route.
+/// Adaptive page scaffold wrapper for pushed sub-views.
 class TitledPage extends StatelessWidget {
   final String title;
   final Widget child;
@@ -224,29 +294,38 @@ class TitledPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return Scaffold(
-      backgroundColor: AppColors.deepNavy,
+      backgroundColor: p.canvas,
       appBar: AppBar(
-        backgroundColor: AppColors.deepNavy,
-        title: Text(title, style: GoogleFonts.amiri(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.primaryGoldLight)),
+        backgroundColor: p.canvas,
+        foregroundColor: p.ink,
+        title: Text(
+          title,
+          style: GoogleFonts.amiri(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: p.ink,
+          ),
+        ),
       ),
       body: child,
     );
   }
 }
 
-/// Fade + slide route used across the app.
+/// Smooth subtle fade + slide transition used across the app.
 Route<T> luxeRoute<T>(Widget page) {
   return PageRouteBuilder<T>(
-    transitionDuration: const Duration(milliseconds: 480),
-    reverseTransitionDuration: const Duration(milliseconds: 320),
-    pageBuilder: (_, __, ___) => page,
-    transitionsBuilder: (_, a, __, child) {
+    transitionDuration: const Duration(milliseconds: 360),
+    reverseTransitionDuration: const Duration(milliseconds: 260),
+    pageBuilder: (_, _, _) => page,
+    transitionsBuilder: (_, a, _, child) {
       final curved = CurvedAnimation(parent: a, curve: Curves.easeOutCubic);
       return FadeTransition(
         opacity: curved,
         child: SlideTransition(
-          position: Tween(begin: const Offset(0, 0.05), end: Offset.zero).animate(curved),
+          position: Tween(begin: const Offset(0, 0.03), end: Offset.zero).animate(curved),
           child: child,
         ),
       );

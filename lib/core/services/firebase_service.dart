@@ -119,7 +119,7 @@ class FirebaseService {
         isCloudBacked: false,
         displayName: displayName,
         email: email,
-        message: 'تم الحفظ محلياً (أضف ملف google-services.json لتفعيل المزامنة السحابية)',
+        message: 'تم حفظ بياناتك بنجاح على جهازك.',
       );
     }
 
@@ -152,7 +152,7 @@ class FirebaseService {
         uid: cred.user?.uid,
         displayName: resolvedName,
         email: cred.user?.email ?? email,
-        message: isLogin ? 'تم تسجيل الدخول بنجاح عبر Firebase' : 'تم إنشاء حسابك بنجاح عبر Firebase',
+        message: isLogin ? 'أهلاً بعودتك إلى أرثوذكسيا.' : 'تم إنشاء حسابك بنجاح.',
       );
     } on FirebaseAuthException catch (e) {
       return FirebaseAuthResult(
@@ -295,6 +295,65 @@ class FirebaseService {
         success: false,
         isCloudBacked: true,
         message: _arabicAuthError(e.code),
+      );
+    }
+  }
+
+  /// Sends a password reset link to the user's registered email address.
+  Future<FirebaseAuthResult> sendPasswordResetEmail(String email) async {
+    final trimmed = email.trim();
+    if (trimmed.isEmpty || !trimmed.contains('@')) {
+      return const FirebaseAuthResult(
+        success: false,
+        isCloudBacked: false,
+        message: 'يرجى كتابة بريدك الإلكتروني بشكل صحيح أولاً.',
+      );
+    }
+    if (!SecurityGuardService().allowAction(
+      'auth_pwd_reset',
+      cooldown: const Duration(seconds: 20),
+      maxPerWindow: 4,
+      window: const Duration(minutes: 10),
+    )) {
+      return const FirebaseAuthResult(
+        success: false,
+        isCloudBacked: true,
+        message: 'تم إرسال طلب استعادة مؤخراً. يرجى الانتظار قليلاً قبل إعادة المحاولة.',
+      );
+    }
+    if (!_isInitialized) {
+      return const FirebaseAuthResult(
+        success: false,
+        isCloudBacked: false,
+        message: 'تعذر الاتصال بالخادم حالياً. تأكد من اتصالك بالإنترنت.',
+      );
+    }
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: trimmed);
+      return const FirebaseAuthResult(
+        success: true,
+        isCloudBacked: true,
+        message: 'إذا كان البريد مسجلاً لدينا، ستصلك رسالة استعادة كلمة المرور خلال لحظات.',
+      );
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        // Anti-enumeration: identical reassuring response
+        return const FirebaseAuthResult(
+          success: true,
+          isCloudBacked: true,
+          message: 'إذا كان البريد مسجلاً لدينا، ستصلك رسالة استعادة كلمة المرور خلال لحظات.',
+        );
+      }
+      return FirebaseAuthResult(
+        success: false,
+        isCloudBacked: true,
+        message: _arabicAuthError(e.code),
+      );
+    } catch (_) {
+      return const FirebaseAuthResult(
+        success: false,
+        isCloudBacked: true,
+        message: 'تعذر إرسال رابط الاستعادة حالياً. حاول مرة أخرى.',
       );
     }
   }

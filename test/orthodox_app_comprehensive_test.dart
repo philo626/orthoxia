@@ -16,6 +16,8 @@ import 'package:orthodox_app/core/services/online_coptic_library_service.dart';
 import 'package:orthodox_app/core/services/patron_saint_service.dart';
 import 'package:orthodox_app/core/services/security_guard_service.dart';
 import 'package:orthodox_app/core/services/storage_service.dart';
+import 'package:orthodox_app/core/theme/app_palette.dart';
+import 'package:orthodox_app/core/theme/app_theme.dart';
 import 'package:orthodox_app/models/spiritual_tracker_model.dart';
 import 'package:orthodox_app/providers/books_provider.dart';
 import 'package:orthodox_app/providers/church_mode_provider.dart';
@@ -28,6 +30,7 @@ import 'package:orthodox_app/views/liturgical/church_sacraments_rites_view.dart'
 import 'package:orthodox_app/views/liturgical/remember_them_view.dart';
 import 'package:orthodox_app/views/liturgical/tasbeha_pascha_view.dart';
 import 'package:orthodox_app/views/liturgies/liturgy_reader_view.dart';
+import 'package:orthodox_app/views/onboarding/auth_view.dart';
 import 'package:orthodox_app/views/synaxarium/my_patron_saint_view.dart';
 import 'package:orthodox_app/views/synaxarium/synaxarium_daily_view.dart';
 
@@ -480,6 +483,46 @@ void main() {
         await progress.toggleChapterCompleted('mt', 1);
       });
       expect(progress.isChapterCompleted('mt', 1), isTrue);
+    });
+
+    testWidgets('Redesigned AuthView & Adaptive Parchment/Dark Themes render cleanly without developer jargon', (tester) async {
+      await tester.runAsync(() async {
+        SharedPreferences.setMockInitialValues({});
+        await StorageService().init();
+        await PatronSaintService.ensureLoaded();
+      });
+
+      final lightTheme = AppTheme.getTheme(AppThemeMode.lightParchment);
+      final darkTheme = AppTheme.getTheme(AppThemeMode.darkGold);
+      expect(lightTheme.extension<AppPalette>()?.isDark, isFalse);
+      expect(darkTheme.extension<AppPalette>()?.isDark, isTrue);
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [ChangeNotifierProvider(create: (_) => ThemeProvider())],
+          child: MaterialApp(
+            theme: lightTheme,
+            home: const Directionality(
+              textDirection: TextDirection.rtl,
+              child: AuthView(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('المتابعة بحساب Google'), findsOneWidget);
+      expect(find.text('نسيت كلمة المرور؟'), findsOneWidget);
+      expect(find.textContaining('Firebase'), findsNothing);
+      expect(find.textContaining('AES-256'), findsNothing);
+
+      // Step 2: Tap Guest to verify smooth personalization transition
+      await tester.ensureVisible(find.text('متابعة كزائر'));
+      await tester.tap(find.text('متابعة كزائر'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('اختر شفيعك الشخصي'), findsOneWidget);
     });
   });
 }

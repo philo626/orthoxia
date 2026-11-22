@@ -31,7 +31,9 @@ class AiApiConfig {
       case AiProviderType.groq:
         return 'Groq (Llama 3.3)';
       case AiProviderType.customProxy:
-        return 'خادم مخصص';
+        return customModel == 'orthoxia-cloud'
+            ? 'سحابة أرثوذكسيا'
+            : 'خادم مخصص';
     }
   }
 }
@@ -83,6 +85,24 @@ class AiTheologyService {
   static const _cfgEndpointKey = 'ai_provider_endpoint_v1';
   static const _cfgModelKey = 'ai_provider_model_v1';
 
+  /// Built-in Cloudflare Worker Proxy URL (keeps Gemini/Groq API keys 100% hidden on Cloudflare).
+  /// Once deployed at `https://orthoxia-ai.<your-subdomain>.workers.dev`, paste it here so ALL users
+  /// get live Coptic Orthodox AI automatically with zero API key setup.
+  static const String builtInCloudflareWorkerUrl = '';
+  static const String builtInClientHeaderToken = '';
+
+  static AiApiConfig _builtInDefaultConfig() {
+    if (builtInCloudflareWorkerUrl.startsWith('https://')) {
+      return const AiApiConfig(
+        provider: AiProviderType.customProxy,
+        customEndpoint: builtInCloudflareWorkerUrl,
+        apiKey: builtInClientHeaderToken,
+        customModel: 'orthoxia-cloud',
+      );
+    }
+    return const AiApiConfig();
+  }
+
   static List<dynamic>? _booksCache;
   static List<dynamic>? _bibleCache;
   static Map<String, dynamic>? _lectionaryCache;
@@ -91,23 +111,30 @@ class AiTheologyService {
   static Future<AiApiConfig> loadConfig() async {
     if (_cachedConfig != null) return _cachedConfig!;
     try {
-      final pStr = await _secureStorage.read(key: _cfgProviderKey) ?? 'gemini';
-      final apiKey = await _secureStorage.read(key: _cfgApiKeyKey) ?? '';
-      final endpoint = await _secureStorage.read(key: _cfgEndpointKey) ?? '';
-      final model = await _secureStorage.read(key: _cfgModelKey) ?? '';
+      final pStr = await _secureStorage.read(key: _cfgProviderKey) ?? '';
+      final apiKey = (await _secureStorage.read(key: _cfgApiKeyKey) ?? '').trim();
+      final endpoint = (await _secureStorage.read(key: _cfgEndpointKey) ?? '').trim();
+      final model = (await _secureStorage.read(key: _cfgModelKey) ?? '').trim();
+
+      if (pStr.isEmpty && apiKey.isEmpty && endpoint.isEmpty) {
+        _cachedConfig = _builtInDefaultConfig();
+        return _cachedConfig!;
+      }
+
       final provider = AiProviderType.values.firstWhere(
         (e) => e.name == pStr,
         orElse: () => AiProviderType.gemini,
       );
-      _cachedConfig = AiApiConfig(
+      final userCfg = AiApiConfig(
         provider: provider,
-        apiKey: apiKey.trim(),
-        customEndpoint: endpoint.trim(),
-        customModel: model.trim(),
+        apiKey: apiKey,
+        customEndpoint: endpoint,
+        customModel: model,
       );
+      _cachedConfig = userCfg.isConfigured ? userCfg : _builtInDefaultConfig();
       return _cachedConfig!;
     } catch (_) {
-      return const AiApiConfig();
+      return _builtInDefaultConfig();
     }
   }
 
@@ -126,8 +153,9 @@ class AiTheologyService {
   }
 
   static Future<void> clearConfig() async {
-    _cachedConfig = const AiApiConfig();
+    _cachedConfig = _builtInDefaultConfig();
     try {
+      await _secureStorage.delete(key: _cfgProviderKey);
       await _secureStorage.delete(key: _cfgApiKeyKey);
       await _secureStorage.delete(key: _cfgEndpointKey);
       await _secureStorage.delete(key: _cfgModelKey);
@@ -541,6 +569,9 @@ class AiTheologyService {
     final headers = <String, String>{'Content-Type': 'application/json'};
     if (cfg.apiKey.isNotEmpty) {
       headers['Authorization'] = 'Bearer ${cfg.apiKey}';
+      if (cfg.provider == AiProviderType.customProxy) {
+        headers['X-Orthoxia-Client'] = cfg.apiKey;
+      }
     }
 
     final res = await http

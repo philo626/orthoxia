@@ -40,13 +40,47 @@ function setCorsHeaders(res) {
   res.setHeader('Cache-Control', 'no-store');
 }
 
+let cachedDiscoveredModel = null;
+let cachedDiscoveredAt = 0;
+
+async function discoverLatestFlashModel(apiKey) {
+  const now = Date.now();
+  if (cachedDiscoveredModel && now - cachedDiscoveredAt < 3600_000) {
+    return cachedDiscoveredModel;
+  }
+  try {
+    const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+      headers: { 'x-goog-api-key': apiKey },
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const list = Array.isArray(data?.models) ? data.models : [];
+    const usable = list
+      .filter(
+        (m) =>
+          Array.isArray(m.supportedGenerationMethods) &&
+          m.supportedGenerationMethods.includes('generateContent') &&
+          typeof m.name === 'string' &&
+          m.name.includes('gemini') &&
+          m.name.includes('flash') &&
+          !m.name.includes('image') &&
+          !m.name.includes('tts') &&
+          !m.name.includes('audio') &&
+          !m.name.includes('thinking'),
+      )
+      .map((m) => m.name.replace(/^models\//, ''));
+    if (usable.length > 0) {
+      // Prefer highest version number (descending lexicographical works cleanly for gemini-3.8 > gemini-3.5 > gemini-2.5)
+      usable.sort().reverse();
+      cachedDiscoveredModel = usable[0];
+      cachedDiscoveredAt = now;
+      return cachedDiscoveredModel;
+    }
+  } catch (_) {}
+  return null;
+}
+
 async function callGemini(apiKey, userMessages) {
-  const models = [
-    'gemini-2.5-flash',
-    'gemini-2.5-flash-lite',
-    'gemini-flash-latest',
-    'gemini-2.0-flash',
-  ];
   const contents = [];
 
   for (const m of userMessages) {
@@ -70,53 +104,65 @@ async function callGemini(apiKey, userMessages) {
     },
   });
 
+  const candidateModels = [
+    ...(cachedDiscoveredModel ? [cachedDiscoveredModel] : []),
+    'gemini-3.8-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-flash-latest',
+    'gemini-2.5-flash',
+  ];
+
+  const tried = new Set();
   const errors = [];
-  for (const model of models) {
-    const attempts = [
-      {
-        label: `aiStudio/${model}`,
-        url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      },
-      {
-        label: `vertex/${model}`,
-        url: `https://aiplatform.googleapis.com/v1/publishers/google/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
-        headers: { 'Content-Type': 'application/json' },
-      },
-    ];
 
-    for (const a of attempts) {
-      try {
-        const resp = await fetch(a.url, {
-          method: 'POST',
-          headers: a.headers,
-          body: payload,
-        });
+  async function tryModel(model) {
+    if (!model || tried.has(model)) return null;
+    tried.add(model);
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
+        body: payload,
+      });
 
-        if (resp.ok) {
-          const data = await resp.json();
-          const parts = data?.candidates?.[0]?.content?.parts || [];
-          const text = parts
-            .map((p) => (typeof p?.text === 'string' ? p.text : ''))
-            .join('\n')
-            .trim();
-          if (text) return { text, model };
-        } else {
-          let msg = '';
-          try {
-            const errJson = await resp.json();
-            msg = String(errJson?.error?.message || '').slice(0, 140);
-          } catch (_) {}
-          errors.push(`${a.label}:${resp.status}(${msg})`);
-          // If 403/401 on first model, no need to spam same host repeatedly
-          if (errors.length >= 4) break;
-        }
-      } catch (_) {
-        errors.push(`${a.label}:net`);
+      if (resp.ok) {
+        const data = await resp.json();
+        const parts = data?.candidates?.[0]?.content?.parts || [];
+        const text = parts
+          .map((p) => (typeof p?.text === 'string' ? p.text : ''))
+          .join('\n')
+          .trim();
+        if (text) return { text, model };
+      } else {
+        let msg = '';
+        try {
+          const errJson = await resp.json();
+          msg = String(errJson?.error?.message || '').slice(0, 140);
+        } catch (_) {}
+        errors.push(`${model}:${resp.status}(${msg})`);
       }
+    } catch (_) {
+      errors.push(`${model}:net`);
     }
-    if (errors.length >= 4) break;
+    return null;
   }
+
+  for (const model of candidateModels) {
+    const hit = await tryModel(model);
+    if (hit) return hit;
+  }
+
+  // Future-proof auto-discovery: query Google's active models list if static names change again
+  const discovered = await discoverLatestFlashModel(apiKey);
+  if (discovered) {
+    const hit = await tryModel(discovered);
+    if (hit) return hit;
+  }
+
   return { error: errors.join(' | ') };
 }
 

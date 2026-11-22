@@ -41,7 +41,12 @@ function setCorsHeaders(res) {
 }
 
 async function callGemini(apiKey, userMessages) {
-  const models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+  const models = [
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-flash-latest',
+    'gemini-2.0-flash',
+  ];
   const contents = [];
 
   for (const m of userMessages) {
@@ -65,22 +70,26 @@ async function callGemini(apiKey, userMessages) {
     },
   });
 
-  // Supports both classic AIza... keys and modern 2026 AQ.... keys (AI Studio + Vertex Express)
   const errors = [];
   for (const model of models) {
-    const endpoints = [
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
-      `https://aiplatform.googleapis.com/v1/publishers/google/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    const attempts = [
+      {
+        label: `aiStudio/${model}`,
+        url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      },
+      {
+        label: `vertex/${model}`,
+        url: `https://aiplatform.googleapis.com/v1/publishers/google/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        headers: { 'Content-Type': 'application/json' },
+      },
     ];
 
-    for (const url of endpoints) {
+    for (const a of attempts) {
       try {
-        const resp = await fetch(url, {
+        const resp = await fetch(a.url, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': apiKey,
-          },
+          headers: a.headers,
           body: payload,
         });
 
@@ -93,14 +102,22 @@ async function callGemini(apiKey, userMessages) {
             .trim();
           if (text) return { text, model };
         } else {
-          errors.push(`${model}:${resp.status}`);
+          let msg = '';
+          try {
+            const errJson = await resp.json();
+            msg = String(errJson?.error?.message || '').slice(0, 140);
+          } catch (_) {}
+          errors.push(`${a.label}:${resp.status}(${msg})`);
+          // If 403/401 on first model, no need to spam same host repeatedly
+          if (errors.length >= 4) break;
         }
-      } catch (err) {
-        errors.push(`${model}:net`);
+      } catch (_) {
+        errors.push(`${a.label}:net`);
       }
     }
+    if (errors.length >= 4) break;
   }
-  return { error: errors.join(', ') };
+  return { error: errors.join(' | ') };
 }
 
 async function callGroq(apiKey, userMessages) {

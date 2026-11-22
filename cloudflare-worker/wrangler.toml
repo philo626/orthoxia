@@ -1,4 +1,4 @@
-name = "orthoxia-ai"
+name = "orthoxia"
 main = "src/index.js"
 compatibility_date = "2025-05-01"
 workers_dev = true

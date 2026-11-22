@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -515,10 +516,13 @@ void main() {
       expect(find.text('المكتبة الشاملة'), findsOneWidget);
 
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Directionality(
-            textDirection: TextDirection.rtl,
-            child: TasbehaPaschaView(),
+        MultiProvider(
+          providers: [ChangeNotifierProvider(create: (_) => ThemeProvider())],
+          child: const MaterialApp(
+            home: Directionality(
+              textDirection: TextDirection.rtl,
+              child: TasbehaPaschaView(),
+            ),
           ),
         ),
       );
@@ -561,10 +565,13 @@ void main() {
       expect(find.text('خلوة هادئة لقلبك'), findsOneWidget);
 
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Directionality(
-            textDirection: TextDirection.rtl,
-            child: ChurchSacramentsRitesView(),
+        MultiProvider(
+          providers: [ChangeNotifierProvider(create: (_) => ThemeProvider())],
+          child: const MaterialApp(
+            home: Directionality(
+              textDirection: TextDirection.rtl,
+              child: ChurchSacramentsRitesView(),
+            ),
           ),
         ),
       );
@@ -608,6 +615,7 @@ void main() {
 
       expect(find.text('المتابعة بحساب Google'), findsOneWidget);
       expect(find.text('نسيت كلمة المرور؟'), findsOneWidget);
+      expect(find.text('برقم الهاتف'), findsNothing);
       expect(find.textContaining('Firebase'), findsNothing);
       expect(find.textContaining('AES-256'), findsNothing);
 
@@ -617,6 +625,46 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.text('اختر شفيعك الشخصي'), findsOneWidget);
+    });
+
+    test('Windows-1256 Tafsir decoder, Complete Tasbeha/Pascha/Rites JSON, and Multi-Provider AI API config', () {
+      // 1. Verify Windows-1256 Arabic decoding (root fix for st-takla.org "***" bug!)
+      // "تفسير" in CP1256 = [0xCA, 0xDD, 0xD3, 0xED, 0xD1]
+      final decoded = OnlineCopticLibraryService.decodeWindows1256(
+        Uint8List.fromList([0xCA, 0xDD, 0xD3, 0xED, 0xD1]),
+      );
+      expect(decoded, 'تفسير');
+      expect(decoded.contains('\uFFFD'), isFalse);
+
+      // 2. Verify Complete Tasbeha (12 parts), 7-Day Pascha, and 18 Fixed Feasts
+      final tp = jsonDecode(File('assets/data/tasbeha_pascha_complete.json').readAsStringSync()) as Map<String, dynamic>;
+      final tasbeha = tp['tasbeha'] as List;
+      final pascha = tp['pascha_days'] as List;
+      final feasts = tp['fixed_feasts'] as List;
+      expect(tasbeha.length, 12);
+      expect(pascha.length, 7);
+      expect(feasts.length, 18);
+      final stripDiacritics = RegExp(r'[\u064B-\u065F\u0670]');
+      final hoos1 = tasbeha.firstWhere((s) => s['id'] == 'hoos_1');
+      expect('${hoos1['arabic']}'.replaceAll(stripDiacritics, ''), contains('أرنم للرب'));
+      final hoos2 = tasbeha.firstWhere((s) => s['id'] == 'hoos_2');
+      expect('${hoos2['arabic']}'.replaceAll(stripDiacritics, ''), contains('لأن إلى الأبد رحمته'));
+
+      // 3. Verify Complete 8 Church Sacraments & Rites
+      final rites = jsonDecode(File('assets/data/sacraments_rites_complete.json').readAsStringSync()) as List;
+      expect(rites.length, 8);
+      final totalSections = rites.fold<int>(0, (sum, r) => sum + ((r['sections'] as List).length));
+      expect(totalSections, greaterThanOrEqualTo(25));
+
+      // 4. Verify Real Multi-Provider AI API Config (Gemini / Groq / Custom Proxy)
+      const emptyCfg = AiApiConfig();
+      expect(emptyCfg.isConfigured, isFalse);
+      const geminiCfg = AiApiConfig(provider: AiProviderType.gemini, apiKey: 'AIzaTestKey1234567890');
+      expect(geminiCfg.isConfigured, isTrue);
+      expect(geminiCfg.providerDisplayName, contains('Gemini'));
+      const groqCfg = AiApiConfig(provider: AiProviderType.groq, apiKey: 'gsk_TestKey1234567890');
+      expect(groqCfg.isConfigured, isTrue);
+      expect(groqCfg.providerDisplayName, contains('Groq'));
     });
   });
 }

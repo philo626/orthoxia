@@ -17,8 +17,15 @@ import 'online_tafsir_reader_view.dart';
 /// - Comprehensive Multi-Source Internet Library Search
 class BooksLibraryView extends StatefulWidget {
   final int initialTabIndex;
+  final bool embedded;
+  final int? singleTabIndex;
 
-  const BooksLibraryView({super.key, this.initialTabIndex = 0});
+  const BooksLibraryView({
+    super.key,
+    this.initialTabIndex = 0,
+    this.embedded = false,
+    this.singleTabIndex,
+  });
 
   @override
   State<BooksLibraryView> createState() => _BooksLibraryViewState();
@@ -114,6 +121,13 @@ class _BooksLibraryViewState extends State<BooksLibraryView>
   }
 
   void _jumpToWebSearch(String query) {
+    if (widget.singleTabIndex != null) {
+      Navigator.push(
+        context,
+        luxeRoute(const BooksLibraryView(initialTabIndex: 2)),
+      );
+      return;
+    }
     _tabController.animateTo(2);
     _webSearchCtrl.text = query;
     _runLiveInternetSearch(query);
@@ -123,6 +137,21 @@ class _BooksLibraryViewState extends State<BooksLibraryView>
   Widget build(BuildContext context) {
     final p = context.palette;
     final booksProv = context.watch<BooksProvider>();
+
+    if (widget.embedded && widget.singleTabIndex != null) {
+      if (_loadingCatalogs) {
+        return Center(child: CircularProgressIndicator(color: p.accent, strokeWidth: 2));
+      }
+      final idx = widget.singleTabIndex!.clamp(0, 2);
+      return Material(
+        color: p.canvas,
+        child: idx == 0
+            ? _buildReadableBooksTab(p, booksProv)
+            : idx == 1
+                ? _buildTafsirTab(p)
+                : _buildComprehensiveWebTab(p),
+      );
+    }
 
     return Scaffold(
       backgroundColor: p.canvas,
@@ -229,20 +258,49 @@ class _BooksLibraryViewState extends State<BooksLibraryView>
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
                 children: [
-                  // 1. Offline Classics Visual Hardcover Shelf (ALWAYS INSTANT & RICH!)
-                  if (offlineBooks.isNotEmpty) ...[
+                  // 1. REAL Full-Chapter Complete Orthodox Books FIRST (98 books, decoded cleanly in Arabic!)
+                  if (filteredOnline.isNotEmpty) ...[
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'مكتبة الآباء والكلاسيكيات (${offlineBooks.length} كتاباً أوفلاين)',
-                          style: GoogleFonts.amiri(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: p.ink,
+                        Expanded(
+                          child: Text(
+                            'كتب أرثوذكسية كاملة الفصول (${filteredOnline.length} كتاباً)',
+                            style: GoogleFonts.amiri(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: p.ink,
+                            ),
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'تُفتح فصلاً بفصل بالكامل داخل التطبيق وتُحفظ تلقائياً للقراءة بدون إنترنت.',
+                      style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkMuted),
+                    ),
+                    const SizedBox(height: 10),
+                    for (int i = 0; i < filteredOnline.length; i++) ...[
+                      _buildOnlineBookCard(
+                        p,
+                        filteredOnline[i],
+                        _clothSpineColors[i % _clothSpineColors.length],
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    const SizedBox(height: 18),
+                  ],
+
+                  // 2. Quick Offline Reading Selections (when no internet inside church)
+                  if (offlineBooks.isNotEmpty) ...[
+                    Text(
+                      'مختارات آبائية سريعة بدون إنترنت (${offlineBooks.length})',
+                      style: GoogleFonts.amiri(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: p.ink,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     GridView.builder(
@@ -262,27 +320,6 @@ class _BooksLibraryViewState extends State<BooksLibraryView>
                       },
                     ),
                     const SizedBox(height: 24),
-                  ],
-
-                  // 2. Full-Chapter Online Books
-                  if (filteredOnline.isNotEmpty) ...[
-                    Text(
-                      'كتب أرثوذكسية كاملة الفصول (${filteredOnline.length} كتاباً)',
-                      style: GoogleFonts.amiri(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: p.ink,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    for (int i = 0; i < filteredOnline.length; i++) ...[
-                      _buildOnlineBookCard(
-                        p,
-                        filteredOnline[i],
-                        _clothSpineColors[(i + 2) % _clothSpineColors.length],
-                      ),
-                      const SizedBox(height: 10),
-                    ],
                   ],
 
                   if (filteredOnline.isEmpty && offlineBooks.isEmpty)

@@ -347,6 +347,7 @@ class _ProfileSettingsViewState extends State<ProfileSettingsView> {
       backgroundColor: p.background,
       appBar: AppBar(
         backgroundColor: p.background,
+        foregroundColor: p.ink,
         elevation: 0,
         title: Text(
           'حسابي والإعدادات',

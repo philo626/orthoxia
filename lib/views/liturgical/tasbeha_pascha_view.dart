@@ -1,12 +1,26 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/constants/app_colors.dart';
+import 'package:provider/provider.dart';
 import '../../core/services/coptic_calendar_service.dart';
+import '../../core/services/speech_pronunciation_service.dart';
+import '../../core/theme/app_palette.dart';
 import '../../core/widgets/coptic_cross.dart';
+import '../../providers/theme_provider.dart';
 
+/// Complete Coptic Orthodox Midnight Praise (الإبصلمودية السنوية الكاملة),
+/// Full 7-Day Holy Week Pascha (البصخة المقدسة مع عداد ١٢ مرة ثوك تي تي جوم),
+/// and All Major/Minor/Saints + Movable Feasts Calculator.
 class TasbehaPaschaView extends StatefulWidget {
   final int initialTab;
-  const TasbehaPaschaView({super.key, this.initialTab = 0});
+  final bool embedded;
+
+  const TasbehaPaschaView({
+    super.key,
+    this.initialTab = 0,
+    this.embedded = false,
+  });
 
   @override
   State<TasbehaPaschaView> createState() => _TasbehaPaschaViewState();
@@ -17,6 +31,16 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
   late TabController _tabController;
   int _selectedYear = DateTime.now().year;
 
+  bool _loading = true;
+  List<Map<String, dynamic>> _tasbehaSections = [];
+  List<Map<String, dynamic>> _paschaDays = [];
+  List<Map<String, dynamic>> _fixedFeasts = [];
+
+  int _selectedTasbehaIdx = 0;
+  int _selectedPaschaDayIdx = 0;
+  int _thokCount = 0; // Interactive 12x Thok Te Ti Gom counter
+  String _feastFilter = 'movable'; // 'movable' | 'major' | 'minor' | 'saints'
+
   @override
   void initState() {
     super.initState();
@@ -25,218 +49,58 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
       vsync: this,
       initialIndex: widget.initialTab.clamp(0, 2),
     );
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final raw = await rootBundle
+          .loadString('assets/data/tasbeha_pascha_complete.json');
+      final map = jsonDecode(raw) as Map<String, dynamic>;
+      _tasbehaSections = (map['tasbeha'] as List? ?? [])
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      _paschaDays = (map['pascha_days'] as List? ?? [])
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      _fixedFeasts = (map['fixed_feasts'] as List? ?? [])
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
   void dispose() {
+    SpeechPronunciationService().stop();
     _tabController.dispose();
     super.dispose();
   }
 
-  static const List<Map<String, String>> _tasbehaParts = [
-    {
-      'title': '١. تين ثينو (قوموا يا بني النور)',
-      'coptic': 'Ⲧⲉⲛⲑⲏⲛⲟⲩ ⲉ̀ⲡ̀ϣⲱⲓ ⲛⲓϣⲏⲣⲓ ⲛ̀ⲧⲉ ⲡⲓⲟⲩⲱⲓⲛⲓ',
-      'arabized': 'تين ثينو إيبشوي ني شيري إنتيه بي أوؤيني، إنتين هوس إيبشويس إنتيه ني جوم.',
-      'arabic': 'قوموا يا بني النور لنسبح رب القوات، لكي ينعم علينا بخلاص نفوسنا. عندما نقف أمامك جسدياً انزع من عقولنا نوم الغفلة.',
-    },
-    {
-      'title': '٢. الهوس الأول (تسبحة موسى النبي - خروج ١٥)',
-      'coptic': 'Ⲙⲁⲣⲉⲛϩⲱⲥ ⲉ̀Ⲡ̀ϭⲟⲓⲥ ϫⲉ ϧⲉⲛ ⲟⲩⲱ̀ⲟⲩ ⲅⲁⲣ ⲁϥϭⲓⲱ̀ⲟⲩ',
-      'arabized': 'مارين هوس إيبشويس جيه خين أوؤؤ غار أف تشي أوؤ... تين هوس إيروك أوه تين إزمو إيروك.',
-      'arabic': 'فلنسبح الرب لأنه بالمجد قد تمجد، الفرس وراكبه طرحهما في البحر. معيناً وساتراً صار لي للخلاص، هذا هو إلهي فأمجده إله أبي فأرفعه.',
-    },
-    {
-      'title': '٣. الهوس الثاني (مزمور ١٣٦ - اشكروا الرب)',
-      'coptic': 'Ⲟⲩⲱⲛϩ ⲉ̀ⲃⲟⲗ ⲙ̀Ⲡ̀ϭⲟⲓⲥ ϫⲉ ⲟⲩⲭ̀ⲣⲏⲥⲧⲟⲥ ⲡⲉ: Ⲁⲗⲗⲏⲗⲟⲩⲓⲁ',
-      'arabized': 'أوؤنه إيفول إم إبشويس جيه أو إخريستوس بيه، ألليلويا، جيه بيف ناي شوب شا إينيه.',
-      'arabic': 'اشكروا الرب لأنه صالح ألليلويا، لأن إلى الأبد رحمته. اشكروا إله الآلهة، اشكروا رب الأرباب، الصانع العجائب العظام وحده، لأن إلى الأبد رحمته.',
-    },
-    {
-      'title': '٤. الهوس الثالث (تسبحة الثلاثة فتية القديسين)',
-      'coptic': 'Ⲕ̀ⲥ̀ⲙⲁⲣⲱⲟⲩⲧ Ⲡ̀ϭⲟⲓⲥ Ⲫ̀ⲛⲟⲩϯ ⲛ̀ⲧⲉ ⲛⲉⲛⲓⲟϯ',
-      'arabized': 'إك إزماروؤت إبشويس إفنوتي إنتيه نين يوتي، أوه إك إزمامات أوه إك إتشوسي شا ني إينيه.',
-      'arabic': 'مبارك أنت أيها الرب إله آبائنا، ومتزايد بركة ومتزايد علواً إلى الأبد. باركي الرب يا جميع أعمال الرب، سبحيه وزيديه علواً إلى الآباد.',
-    },
-    {
-      'title': '٥. مجمع القديسين بالتسبحة (شفاعة السمائيين)',
-      'coptic': 'Ⲁⲣⲓⲡ̀ⲣⲉⲥⲃⲉⲩⲓⲛ ⲉ̀ϩ̀ⲣⲏⲓ ⲉ̀ϫⲱⲛ ⲱ̀ ⲧⲉⲛϭⲟⲓⲥ ⲛ̀ⲛⲏⲃ ⲧⲏⲣⲉⲛ Ϯⲑⲉⲟ̀ⲧⲟⲕⲟⲥ',
-      'arabized': 'أريبريسفيفين إيه إهري إيجون أوتين شويس إن نيب تيرين تي ثيؤطوكوس، ماريا إثماف إمبين سوتير.',
-      'arabic': 'اشفعي فينا يا سيدتنا كلنا السيدة والدة الإله مريم أم مخلصنا، ليغفر لنا خطايانا. اشفعوا فينا يا رؤساء الملائكة الأطهار والشهداء والأبرار.',
-    },
-    {
-      'title': '٦. الهوس الرابع (المزامير ١٤٨ و ١٤٩ و ١٥٠)',
-      'coptic': 'Ⲥ̀ⲙⲟⲩ ⲉ̀Ⲫ̀ⲛⲟⲩϯ ϧⲉⲛ ⲛⲏⲉⲑⲟⲩⲁⲃ ⲧⲏⲣⲟⲩ ⲛ̀ⲧⲁϥ',
-      'arabized': 'إزمو إيه إفنوتي خين ني إثؤواب تيرو إنتاف: ألليلويا. كل نسمة فلتسبح اسم الرب إلهنا.',
-      'arabic': 'سبحوا الله في جميع قديسيه، سبحوه في فلك قوته، سبحوه على مقدرته، سبحوه ككثرة عظمته. كل نسمة فلتسبح اسم الرب إلهنا.',
-    },
-  ];
-
-  static const List<Map<String, String>> _paschaParts = [
-    {
-      'title': 'تسبحة البصخة المقدسة (ثوك تي تي جوم)',
-      'coptic': 'Ⲑⲱⲕ ⲧⲉ ϯϫⲟⲙ ⲛⲉⲙ ⲡⲓⲱ̀ⲟⲩ ⲛⲉⲙ ⲡⲓⲥ̀ⲙⲟⲩ ⲛⲉⲙ ⲡⲓⲁ̀ⲙⲁϩⲓ ϣⲁ ⲉ̀ⲛⲉϩ Ⲁ̀ⲙⲏⲛ',
-      'arabized': 'ثوك تي تي جوم، نيم بي أوؤ، نيم بي إزمو، نيم بي أماهي شا إينيه أمين. إممانوئيل بين نوتي بين أورو.',
-      'arabic': 'لك القوة والمجد والبركة والعزة إلى الأبد آمين. عمانوئيل إلهنا وملكنا. يا ربي يسوع المسيح مخلصي الصالح، قوتي وتسبحتي هو الرب وقد صار لي خلاصاً مقدساً. (تُقال ١٢ مرة في كل ساعة من ساعات البصخة النهارية والليلية).',
-    },
-    {
-      'title': 'لحن بيك إثرونوس (الجمعة العظيمة - الساعة السادسة)',
-      'coptic': 'Ⲡⲉⲕⲑ̀ⲣⲟⲛⲟⲥ Ⲫ̀ⲛⲟⲩϯ ϣⲁ ⲉ̀ⲛⲉϩ ⲛ̀ⲧⲉ ⲡⲓⲉ̀ⲛⲉϩ',
-      'arabized': 'بيك إثرونوس إفنوتي شا إينيه إنتيه بي إينيه، إبش فوت إمبي سوتين بيه إبش فوت إنتيه تيك ميت أورو.',
-      'arabic': 'كرسيك يا الله إلى دهر الدهور، قضيب الاستقامة هو قضيب ملكك. لأنك أحببت البر وأبغضت الإثم، من أجل هذا مسحك الله إلهك بدهن البهجة أفضل من رفقائك.',
-    },
-    {
-      'title': 'أمانة اللص اليمين (الجمعة العظيمة - الساعة التاسعة)',
-      'coptic': 'Ⲁ̀ⲣⲓⲡⲁⲙⲉⲩⲓ ⲱ̀ Ⲡⲁϭⲟⲓⲥ ⲁⲕϣⲁⲛⲓ̀ ϧⲉⲛ ⲧⲉⲕⲙⲉⲧⲟⲩⲣⲟ',
-      'arabized': 'أريباميفي أو باشويس أكشان إي خين تيك ميت أورو... أريباميفي أو با أورو، أريباميفي أو با سوتير.',
-      'arabic': 'اذكرني يا رب متى جئت في ملكوتك. اذكرني يا قدوس متى جئت في ملكوتك. اذكرني يا سيد متى جئت في ملكوتك.',
-    },
-    {
-      'title': 'لحن غولغوثا (الساعة الثانية عشرة - الدفن المقدس)',
-      'coptic': 'Ⲅⲟⲗⲅⲟⲑⲁ ⲙ̀ⲙⲉⲧϩⲉⲃⲣⲉⲟⲥ ⲡⲓⲕ̀ⲣⲁⲛⲓⲟⲛ ⲙ̀ⲙⲉⲧⲟⲩⲉⲓⲛⲓⲛ',
-      'arabized': 'غولغوثا إم ميت هيبريؤس، بي إكرانيون إم ميت أوينين، بي ما إيطاف إيشك إينخيتف باشويس إيسوس بي إخريستوس.',
-      'arabic': 'الجلجثة بالعبرانية، الإكرانيون باليونانية، الموضع الذي صُلبت فيه يا ربي يسوع المسيح. بسطت يديك الطاهرتين فصُلب معك لصان عن يمينك وعن يسارك وأنت كائن في الوسط أيها المخلص الصالح.',
-    },
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final movableFeasts = CopticCalendarService.getMovableFeastsForYear(_selectedYear);
-
-    return Scaffold(
-      backgroundColor: AppColors.deepNavy,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF10121A),
-        centerTitle: true,
-        title: Text(
-          'التسبحة والبصخة والأعياد المتحركة',
-          style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 15.5),
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: AppColors.primaryGold,
-          labelColor: AppColors.primaryGoldLight,
-          unselectedLabelColor: AppColors.textMuted,
-          labelStyle: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 12),
-          tabs: const [
-            Tab(text: 'التسبحة (الإبصلمودية)'),
-            Tab(text: 'البصخة المقدسة'),
-            Tab(text: 'الأعياد المتحركة'),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildPrayersList(_tasbehaParts, 'تسبحة نصف الليل والإبصلمودية المقدسة'),
-          _buildPrayersList(_paschaParts, 'صلوات وألحان أسبوع الآلام والبصخة المقدسة'),
-          _buildMovableFeastsTab(movableFeasts),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPrayersList(List<Map<String, String>> list, String header) {
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 30),
-      itemCount: list.length + 1,
-      itemBuilder: (context, idx) {
-        if (idx == 0) {
-          return Container(
-            margin: const EdgeInsets.only(bottom: 14),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [Color(0xFF281E12), Color(0xFF151412)]),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.primaryGold),
-            ),
-            child: Row(
-              children: [
-                const CopticCross(size: 22),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    header,
-                    style: GoogleFonts.cairo(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primaryGoldLight,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-        final item = list[idx - 1];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.cardNavy,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.25)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                item['title']!,
-                style: GoogleFonts.cairo(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primaryGoldLight,
-                ),
-              ),
-              const SizedBox(height: 10),
-              SelectableText(
-                item['arabic']!,
-                style: GoogleFonts.cairo(fontSize: 14.5, height: 1.7, color: Colors.white),
-              ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1F222F),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'قبطي معرب:',
-                      style: GoogleFonts.cairo(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.primaryGold),
-                    ),
-                    SelectableText(
-                      item['arabized']!,
-                      style: GoogleFonts.cairo(fontSize: 13, height: 1.6, color: AppColors.primaryGoldLight),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              SelectableText(
-                item['coptic']!,
-                style: const TextStyle(
-                  fontFamily: 'Coptic',
-                  fontSize: 14,
-                  height: 1.5,
-                  color: Color(0xFFB0BEC5),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   static const List<String> _arDays = [
-    'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد',
+    'الاثنين',
+    'الثلاثاء',
+    'الأربعاء',
+    'الخميس',
+    'الجمعة',
+    'السبت',
+    'الأحد',
   ];
   static const List<String> _arMonths = [
-    'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
-    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+    'يناير',
+    'فبراير',
+    'مارس',
+    'أبريل',
+    'مايو',
+    'يونيو',
+    'يوليو',
+    'أغسطس',
+    'سبتمبر',
+    'أكتوبر',
+    'نوفمبر',
+    'ديسمبر',
   ];
 
   String _formatArabicDate(DateTime dt) {
@@ -245,104 +109,818 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
     return '$dayName، ${dt.day} $monthName ${dt.year}';
   }
 
-  Widget _buildMovableFeastsTab(List<Map<String, dynamic>> feasts) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 30),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppColors.cardNavy,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.45)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final fontScale = context.watch<ThemeProvider>().fontScale;
+    final movableFeasts =
+        CopticCalendarService.getMovableFeastsForYear(_selectedYear);
+
+    final tabBar = TabBar(
+      controller: _tabController,
+      indicatorColor: p.accent,
+      labelColor: p.accent,
+      unselectedLabelColor: p.inkMuted,
+      labelStyle: GoogleFonts.cairo(fontWeight: FontWeight.w700, fontSize: 12),
+      tabs: const [
+        Tab(text: 'التسبحة (الإبصلمودية)'),
+        Tab(text: 'البصخة المقدسة'),
+        Tab(text: 'الأعياد والأصوام'),
+      ],
+    );
+
+    final body = _loading
+        ? Center(child: CircularProgressIndicator(color: p.accent))
+        : TabBarView(
+            controller: _tabController,
             children: [
-              IconButton(
-                onPressed: () => setState(() => _selectedYear--),
-                icon: const Icon(Icons.chevron_right_rounded, color: AppColors.primaryGold),
-              ),
-              Column(
-                children: [
-                  Text(
-                    'حاسبة الأعياد والأصوام القبطية',
-                    style: GoogleFonts.cairo(fontSize: 12, color: AppColors.textMuted),
+              _buildTasbehaTab(p, fontScale),
+              _buildPaschaTab(p, fontScale),
+              _buildFeastsTab(p, movableFeasts),
+            ],
+          );
+
+    if (widget.embedded) {
+      return Column(
+        children: [
+          Material(color: p.background, child: tabBar),
+          Divider(color: p.border, height: 1),
+          Expanded(child: body),
+        ],
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: p.background,
+      appBar: AppBar(
+        backgroundColor: p.background,
+        elevation: 0,
+        centerTitle: true,
+        title: Text(
+          'التسبحة والبصخة والأعياد المتحركة',
+          style: GoogleFonts.amiri(
+            fontWeight: FontWeight.w700,
+            fontSize: 21,
+            color: p.ink,
+          ),
+        ),
+        bottom: tabBar,
+      ),
+      body: body,
+    );
+  }
+
+  // ==================== TAB 1: FULL MIDNIGHT TASBEHA ====================
+  Widget _buildTasbehaTab(AppPalette p, double fontScale) {
+    if (_tasbehaSections.isEmpty) {
+      return Center(
+        child: Text('جارٍ تحميل الإبصلمودية...',
+            style: GoogleFonts.cairo(color: p.inkMuted)),
+      );
+    }
+    final safeIdx = _selectedTasbehaIdx.clamp(0, _tasbehaSections.length - 1);
+    final sec = _tasbehaSections[safeIdx];
+    final title = '${sec['title'] ?? ''}';
+    final subtitle = '${sec['subtitle'] ?? ''}';
+    final coptic = '${sec['coptic'] ?? ''}';
+    final arabized = '${sec['arabized'] ?? ''}';
+    final arabic = '${sec['arabic'] ?? ''}';
+
+    return Column(
+      children: [
+        // Quick 12-Part Selector Strip
+        Container(
+          height: 48,
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: p.border)),
+          ),
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            itemCount: _tasbehaSections.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, idx) {
+              final sel = idx == safeIdx;
+              final shortLbl = '${_tasbehaSections[idx]['title'] ?? ''}'
+                  .split('(')
+                  .first
+                  .trim();
+              return ChoiceChip(
+                showCheckmark: false,
+                selected: sel,
+                selectedColor: p.accent,
+                backgroundColor: p.surfaceElevated,
+                side: BorderSide(color: sel ? p.accent : p.border),
+                label: Text(
+                  shortLbl,
+                  style: GoogleFonts.cairo(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: sel ? p.onAccent : p.ink,
                   ),
-                  Text(
-                    'سنة $_selectedYear ميلادية',
-                    style: GoogleFonts.cairo(
-                      fontSize: 16.5,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primaryGoldLight,
+                ),
+                onSelected: (_) {
+                  HapticFeedback.selectionClick();
+                  SpeechPronunciationService().stop();
+                  setState(() => _selectedTasbehaIdx = idx);
+                },
+              );
+            },
+          ),
+        ),
+
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 95),
+            children: [
+              // Section Header Card
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: p.surfaceElevated,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: p.accent.withValues(alpha: 0.4)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        CopticCross(size: 18, color: p.accent),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: GoogleFonts.amiri(
+                              fontSize: 21,
+                              fontWeight: FontWeight.w700,
+                              color: p.ink,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                    if (subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: GoogleFonts.cairo(
+                          fontSize: 12,
+                          color: p.accent,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        SpeechPlayStopButton(
+                          textToSpeak: '$title. $arabic',
+                          label: title,
+                          playText: 'استماع للقسم',
+                          stopText: 'إيقاف الصوت',
+                          compact: true,
+                        ),
+                        const Spacer(),
+                        Text(
+                          'القسم ${safeIdx + 1} من ${_tasbehaSections.length}',
+                          style: GoogleFonts.cairo(
+                            fontSize: 11.5,
+                            color: p.inkMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              IconButton(
-                onPressed: () => setState(() => _selectedYear++),
-                icon: const Icon(Icons.chevron_left_rounded, color: AppColors.primaryGold),
+
+              const SizedBox(height: 12),
+
+              // Coptic & Arabized Stanza Box
+              if (coptic.isNotEmpty || arabized.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: p.accentSoft,
+                    borderRadius: BorderRadius.circular(16),
+                    border:
+                        Border.all(color: p.accent.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (coptic.isNotEmpty) ...[
+                        Text(
+                          'النص القبطي:',
+                          style: GoogleFonts.cairo(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: p.accent,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        SelectableText(
+                          coptic,
+                          textDirection: TextDirection.ltr,
+                          style: GoogleFonts.cairo(
+                            fontSize: 14.5 * fontScale,
+                            fontWeight: FontWeight.w700,
+                            color: p.ink,
+                            height: 1.55,
+                          ),
+                        ),
+                      ],
+                      if (arabized.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'القبطي المعرب:',
+                          style: GoogleFonts.cairo(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: p.crimson,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        SelectableText(
+                          arabized,
+                          style: GoogleFonts.cairo(
+                            fontSize: 13.5 * fontScale,
+                            fontWeight: FontWeight.w600,
+                            color: p.crimson,
+                            height: 1.6,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // Full Verbatim Arabic Text
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: p.surfaceElevated,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: p.border),
+                ),
+                child: SelectableText(
+                  arabic,
+                  style: GoogleFonts.amiri(
+                    fontSize: 20 * fontScale,
+                    height: 1.9,
+                    color: p.ink,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Prev / Next Tasbeha Section Navigation
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  if (safeIdx > 0)
+                    OutlinedButton.icon(
+                      onPressed: () =>
+                          setState(() => _selectedTasbehaIdx = safeIdx - 1),
+                      icon: Icon(Icons.arrow_back_rounded,
+                          size: 16, color: p.accent),
+                      label: Text('القسم السابق',
+                          style: GoogleFonts.cairo(color: p.accent)),
+                      style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: p.border)),
+                    )
+                  else
+                    const SizedBox.shrink(),
+                  if (safeIdx < _tasbehaSections.length - 1)
+                    ElevatedButton.icon(
+                      onPressed: () =>
+                          setState(() => _selectedTasbehaIdx = safeIdx + 1),
+                      icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                      label: Text('القسم التالي',
+                          style:
+                              GoogleFonts.cairo(fontWeight: FontWeight.w700)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: p.accent,
+                        foregroundColor: p.onAccent,
+                        elevation: 0,
+                      ),
+                    )
+                  else
+                    const SizedBox.shrink(),
+                ],
               ),
             ],
           ),
         ),
-        const SizedBox(height: 14),
-        ...feasts.map((f) {
-          final dt = f['date'] as DateTime;
-          final coptic = CopticCalendarService.fromGregorian(dt);
-          final isMajor = f['type'] == 'major_feast';
-          final isFast = f['type'] == 'fast';
-          return Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: isMajor ? const Color(0xFF281F12) : AppColors.cardNavy,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isMajor
-                    ? AppColors.primaryGold
-                    : (isFast ? Colors.deepPurpleAccent.withValues(alpha: 0.4) : Colors.white12),
-                width: isMajor ? 1.4 : 0.9,
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  isMajor
-                      ? Icons.auto_awesome_rounded
-                      : (isFast ? Icons.nights_stay_rounded : Icons.church_rounded),
-                  color: isMajor ? AppColors.primaryGold : AppColors.primaryGoldLight,
+      ],
+    );
+  }
+
+  // ==================== TAB 2: COMPLETE 7-DAY HOLY WEEK PASCHA ====================
+  Widget _buildPaschaTab(AppPalette p, double fontScale) {
+    if (_paschaDays.isEmpty) {
+      return Center(
+        child: Text('جارٍ تحميل دلال البصخة المقدسة...',
+            style: GoogleFonts.cairo(color: p.inkMuted)),
+      );
+    }
+    final safeDay = _selectedPaschaDayIdx.clamp(0, _paschaDays.length - 1);
+    final day = _paschaDays[safeDay];
+    final sections = (day['sections'] as List? ?? [])
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+
+    return Column(
+      children: [
+        // 7-Day Holy Week Selector
+        Container(
+          height: 48,
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: p.border)),
+          ),
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            itemCount: _paschaDays.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, idx) {
+              final sel = idx == safeDay;
+              return ChoiceChip(
+                showCheckmark: false,
+                selected: sel,
+                selectedColor: p.crimson,
+                backgroundColor: p.surfaceElevated,
+                side: BorderSide(color: sel ? p.crimson : p.border),
+                label: Text(
+                  '${_paschaDays[idx]['day_name']}',
+                  style: GoogleFonts.cairo(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: sel ? Colors.white : p.ink,
+                  ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${f['name']}',
-                        style: GoogleFonts.cairo(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: isMajor ? AppColors.primaryGoldLight : Colors.white,
+                onSelected: (_) {
+                  HapticFeedback.selectionClick();
+                  SpeechPronunciationService().stop();
+                  setState(() {
+                    _selectedPaschaDayIdx = idx;
+                    _thokCount = 0;
+                  });
+                },
+              );
+            },
+          ),
+        ),
+
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 95),
+            children: [
+              // Day Liturgical Overview Card
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: p.surfaceElevated,
+                  borderRadius: BorderRadius.circular(18),
+                  border:
+                      Border.all(color: p.crimson.withValues(alpha: 0.45)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        CopticCross(size: 18, color: p.crimson),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${day['day_name']}',
+                            style: GoogleFonts.amiri(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w700,
+                              color: p.ink,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: p.crimsonSoft,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'أسبوع الآلام',
+                            style: GoogleFonts.cairo(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: p.crimson,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${day['subtitle']} • ${day['tone']}',
+                      style: GoogleFonts.cairo(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: p.accent,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${day['overview']}',
+                      style: GoogleFonts.cairo(
+                        fontSize: 12.5,
+                        color: p.inkMuted,
+                        height: 1.55,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Interactive 12x Thok Te Ti Gom Haptic Counter
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: p.accentSoft,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: p.accent.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'عدّاد تسبحة البصخة «ثوك تي تي جوم»',
+                            style: GoogleFonts.cairo(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: p.ink,
+                            ),
+                          ),
+                          Text(
+                            _thokCount >= 12
+                                ? 'أتممت ١٢ مرة لهذه الساعة!'
+                                : 'اضغط مع كل مرة (تُقال ١٢ مرة في كل ساعة)',
+                            style: GoogleFonts.cairo(
+                              fontSize: 11,
+                              color: _thokCount >= 12 ? p.success : p.inkMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_thokCount > 0)
+                      IconButton(
+                        tooltip: 'تصفير',
+                        icon: Icon(Icons.refresh_rounded,
+                            size: 18, color: p.inkMuted),
+                        onPressed: () => setState(() => _thokCount = 0),
+                      ),
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        setState(() {
+                          _thokCount = _thokCount >= 12 ? 0 : _thokCount + 1;
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: _thokCount >= 12 ? p.success : p.accent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '$_thokCount / 12',
+                          style: GoogleFonts.cairo(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: p.onAccent,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        _formatArabicDate(dt),
-                        style: GoogleFonts.cairo(fontSize: 12, color: AppColors.textLight),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              // Day Sections (Prophecies, Hymns, Gospels, Prayers)
+              for (final sec in sections) ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: p.surfaceElevated,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: p.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${sec['title']}',
+                              style: GoogleFonts.cairo(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: p.crimson,
+                              ),
+                            ),
+                          ),
+                          SpeechPlayStopButton(
+                            textToSpeak: '${sec['title']}. ${sec['arabic']}',
+                            label: '${sec['title']}',
+                            playText: 'استماع',
+                            stopText: 'إيقاف',
+                            compact: true,
+                          ),
+                        ],
                       ),
-                      Text(
-                        'الموافق قبطياً: ${coptic.formatted}',
-                        style: GoogleFonts.cairo(fontSize: 11.5, color: AppColors.primaryGold),
+                      if ('${sec['coptic'] ?? ''}'.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        SelectableText(
+                          '${sec['coptic']}',
+                          textDirection: TextDirection.ltr,
+                          style: GoogleFonts.cairo(
+                            fontSize: 13.5 * fontScale,
+                            fontWeight: FontWeight.w700,
+                            color: p.accent,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                      if ('${sec['arabized'] ?? ''}'.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        SelectableText(
+                          '${sec['arabized']}',
+                          style: GoogleFonts.cairo(
+                            fontSize: 12.5 * fontScale,
+                            fontWeight: FontWeight.w600,
+                            color: p.inkMuted,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      SelectableText(
+                        '${sec['arabic']}',
+                        style: GoogleFonts.amiri(
+                          fontSize: 19 * fontScale,
+                          height: 1.85,
+                          color: p.ink,
+                        ),
                       ),
                     ],
                   ),
                 ),
               ],
-            ),
-          );
-        }),
+            ],
+          ),
+        ),
       ],
+    );
+  }
+
+  // ==================== TAB 3: ALL COPTIC FEASTS & MOVABLE CALCULATOR ====================
+  Widget _buildFeastsTab(AppPalette p, List<Map<String, dynamic>> movable) {
+    final filteredFixed =
+        _fixedFeasts.where((f) => f['group'] == _feastFilter).toList();
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 95),
+      children: [
+        // Feast Category Filter Pills
+        SizedBox(
+          height: 38,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              _feastPill(p, 'movable', 'حاسبة الأعياد والأصوام المتحركة'),
+              const SizedBox(width: 8),
+              _feastPill(p, 'major', 'السيدية الكبرى (٧)'),
+              const SizedBox(width: 8),
+              _feastPill(p, 'minor', 'السيدية الصغرى (٧)'),
+              const SizedBox(width: 8),
+              _feastPill(p, 'saints', 'أعياد العذراء والقديسين'),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 14),
+
+        if (_feastFilter == 'movable') ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: p.surfaceElevated,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: p.accent.withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  onPressed: () => setState(() => _selectedYear--),
+                  icon: Icon(Icons.chevron_right_rounded, color: p.accent),
+                ),
+                Column(
+                  children: [
+                    Text(
+                      'حاسبة الأعياد والأصوام القبطية',
+                      style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkMuted),
+                    ),
+                    Text(
+                      'سنة $_selectedYear ميلادية',
+                      style: GoogleFonts.amiri(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: p.ink,
+                      ),
+                    ),
+                  ],
+                ),
+                IconButton(
+                  onPressed: () => setState(() => _selectedYear++),
+                  icon: Icon(Icons.chevron_left_rounded, color: p.accent),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...movable.map((f) {
+            final dt = f['date'] as DateTime;
+            final coptic = CopticCalendarService.fromGregorian(dt);
+            final isMajor = f['type'] == 'major_feast';
+            final isFast = f['type'] == 'fast';
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: isMajor ? p.accentSoft : p.surfaceElevated,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isMajor
+                      ? p.accent
+                      : (isFast
+                          ? p.crimson.withValues(alpha: 0.45)
+                          : p.border),
+                  width: isMajor ? 1.3 : 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    isMajor
+                        ? Icons.auto_awesome_rounded
+                        : (isFast
+                            ? Icons.nights_stay_rounded
+                            : Icons.church_rounded),
+                    color: isFast ? p.crimson : p.accent,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${f['name']}',
+                          style: GoogleFonts.cairo(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: p.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _formatArabicDate(dt),
+                          style: GoogleFonts.cairo(
+                              fontSize: 12, color: p.inkMuted),
+                        ),
+                        Text(
+                          'الموافق قبطياً: ${coptic.formatted}',
+                          style: GoogleFonts.cairo(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: p.accent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ] else ...[
+          for (final f in filteredFixed)
+            Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: p.surfaceElevated,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: p.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CopticCross(size: 16, color: p.accent),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${f['name']}',
+                          style: GoogleFonts.amiri(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w700,
+                            color: p.ink,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: p.accentSoft,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${f['tone']}',
+                          style: GoogleFonts.cairo(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: p.accent,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'القبطي: ${f['coptic']} • الميلادي: ${f['gregorian']}',
+                    style: GoogleFonts.cairo(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: p.crimson,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    '${f['meaning']}',
+                    style: GoogleFonts.cairo(
+                      fontSize: 12.5,
+                      color: p.inkMuted,
+                      height: 1.55,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+
+  Widget _feastPill(AppPalette p, String id, String label) {
+    final sel = _feastFilter == id;
+    return ChoiceChip(
+      showCheckmark: false,
+      selected: sel,
+      selectedColor: p.accent,
+      backgroundColor: p.surfaceElevated,
+      side: BorderSide(color: sel ? p.accent : p.border),
+      label: Text(
+        label,
+        style: GoogleFonts.cairo(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          color: sel ? p.onAccent : p.ink,
+        ),
+      ),
+      onSelected: (_) {
+        HapticFeedback.selectionClick();
+        setState(() => _feastFilter = id);
+      },
     );
   }
 }

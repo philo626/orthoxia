@@ -5,10 +5,10 @@ import 'package:provider/provider.dart';
 import '../core/theme/app_palette.dart';
 import '../providers/audio_provider.dart';
 import 'ai_companion/ai_companion_view.dart';
+import 'books/scripture_library_hub_view.dart';
 import 'home/home_dashboard_view.dart';
 import 'hymns/hymns_library_view.dart';
 import 'liturgical/liturgical_hub_view.dart';
-import 'profile/profile_settings_view.dart';
 
 class MainNavigationShell extends StatefulWidget {
   const MainNavigationShell({super.key});
@@ -19,21 +19,38 @@ class MainNavigationShell extends StatefulWidget {
 
 class _MainNavigationShellState extends State<MainNavigationShell> {
   int _currentIndex = 0;
+  final ValueNotifier<int> _liturgicalSubTab = ValueNotifier<int>(0);
+  final ValueNotifier<int> _librarySubTab = ValueNotifier<int>(0);
 
-  void _navigateToTab(int index) {
+  @override
+  void dispose() {
+    _liturgicalSubTab.dispose();
+    _librarySubTab.dispose();
+    super.dispose();
+  }
+
+  void _navigateToTab(int index, {int? subTab}) {
     HapticFeedback.selectionClick();
-    setState(() => _currentIndex = index.clamp(0, 4));
+    final clamped = index.clamp(0, 4);
+    if (clamped == 1 && subTab != null) {
+      _liturgicalSubTab.value = subTab.clamp(0, 3);
+    } else if (clamped == 2 && subTab != null) {
+      _librarySubTab.value = subTab.clamp(0, 3);
+    }
+    setState(() => _currentIndex = clamped);
   }
 
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
     final screens = [
-      HomeDashboardView(onNavigateTab: _navigateToTab),
-      const LiturgicalHubView(),
+      HomeDashboardView(
+        onNavigateTab: (tab, {int? subTab}) => _navigateToTab(tab, subTab: subTab),
+      ),
+      LiturgicalHubView(externalTabNotifier: _liturgicalSubTab),
+      ScriptureLibraryHubView(externalTabNotifier: _librarySubTab),
       const HymnsLibraryView(),
       const AiCompanionView(),
-      const ProfileSettingsView(),
     ];
 
     return Scaffold(
@@ -77,13 +94,20 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                       _buildNavTab(
                         p: p,
                         index: 1,
-                        icon: Icons.menu_book_outlined,
-                        activeIcon: Icons.menu_book_rounded,
+                        icon: Icons.church_outlined,
+                        activeIcon: Icons.church_rounded,
                         label: 'الصلوات',
                       ),
                       _buildNavTab(
                         p: p,
                         index: 2,
+                        icon: Icons.menu_book_outlined,
+                        activeIcon: Icons.menu_book_rounded,
+                        label: 'المكتبة',
+                      ),
+                      _buildNavTab(
+                        p: p,
+                        index: 3,
                         icon: Icons.music_note_outlined,
                         activeIcon: Icons.graphic_eq_rounded,
                         label: 'الألحان',
@@ -91,17 +115,10 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                       ),
                       _buildNavTab(
                         p: p,
-                        index: 3,
+                        index: 4,
                         icon: Icons.forum_outlined,
                         activeIcon: Icons.forum_rounded,
-                        label: 'اسأل',
-                      ),
-                      _buildNavTab(
-                        p: p,
-                        index: 4,
-                        icon: Icons.person_outline_rounded,
-                        activeIcon: Icons.person_rounded,
-                        label: 'حسابي',
+                        label: 'المرشد',
                       ),
                     ],
                   ),
@@ -136,7 +153,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               curve: Curves.easeOutCubic,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
               decoration: BoxDecoration(
-                color: selected ? p.accent.withValues(alpha: p.isDark ? 0.16 : 0.1) : Colors.transparent,
+                color: selected
+                    ? p.accent.withValues(alpha: p.isDark ? 0.16 : 0.1)
+                    : Colors.transparent,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Stack(

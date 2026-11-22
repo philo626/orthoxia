@@ -4,12 +4,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/services/bible_reading_progress_service.dart';
+import '../../core/services/online_coptic_library_service.dart';
 import '../../core/services/reading_state_service.dart';
 import '../../core/services/speech_pronunciation_service.dart';
 import '../../core/theme/app_palette.dart';
 import '../../core/widgets/blessing_poster_studio_sheet.dart';
 import '../../models/bible_model.dart';
 import '../../providers/bible_provider.dart';
+import '../books/online_tafsir_reader_view.dart';
 
 class BibleReaderView extends StatefulWidget {
   const BibleReaderView({super.key});
@@ -244,6 +246,40 @@ class _BibleReaderViewState extends State<BibleReaderView> {
           style: GoogleFonts.amiri(fontWeight: FontWeight.bold, fontSize: 21, color: p.ink),
         ),
         actions: [
+          IconButton(
+            tooltip: 'التفسير الآبائي لهذا الإصحاح',
+            icon: Icon(Icons.menu_book_rounded, color: p.accent),
+            onPressed: () async {
+              final catalog = await OnlineCopticLibraryService().loadTafsirCatalog();
+              final match = catalog.where(
+                (t) =>
+                    t.id.toLowerCase() == book.abbrev.toLowerCase() ||
+                    book.name.contains(t.name) ||
+                    t.name.contains(book.name.replaceFirst('سفر ', '').replaceFirst('إنجيل ', '')),
+              );
+              if (!context.mounted) return;
+              if (match.isNotEmpty) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => OnlineTafsirReaderView(
+                      book: match.first,
+                      initialChapterNumber: chapter,
+                    ),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'يمكنك تصفح كل التفاسير من تبويب «المكتبة» -> «التفاسير».',
+                      style: GoogleFonts.cairo(fontSize: 12),
+                    ),
+                  ),
+                );
+              }
+            },
+          ),
           ValueListenableBuilder<bool>(
             valueListenable: _speech.isSpeakingNotifier,
             builder: (context, speaking, _) {

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/services/online_coptic_library_service.dart';
 import '../../core/services/security_guard_service.dart';
 import '../../core/services/speech_pronunciation_service.dart';
@@ -10,8 +11,10 @@ import '../../core/theme/app_palette.dart';
 import '../../providers/theme_provider.dart';
 import '../liturgical/widgets/floating_church_bar.dart';
 
-/// Unified editorial reader for ANY online Orthodox book across all sources,
-/// 100% adaptive to Warm Parchment Daylight, Warm Charcoal Night, and AMOLED Church Mode.
+/// Unified full-book reader for Orthodox books across all sources:
+/// - `in_app_chapters`: reads every full chapter directly inside the app with Windows-1256 support & offline caching.
+/// - `archive_org`: opens the REAL full visual page-flip book inside an embedded in-app reader (`archive.org/embed/<id>`).
+/// - `christianlib_post`: opens PDF links directly in an in-app PDF viewer (Google Docs Viewer) or the full book page.
 class OnlineBookReaderView extends StatefulWidget {
   final OnlineBookEntry book;
 
@@ -32,7 +35,6 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
   bool _isCached = false;
 
   OnlineBookDetail? _detail;
-
   bool _loading = true;
   bool _loadingChapter = false;
   String? _error;
@@ -84,9 +86,20 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
         setState(() {
           _loading = false;
           _error =
-              'تعذّر تحميل فصول الكتاب حالياً. يمكنك إعادة المحاولة أو فتحه مباشرة في المتصفح.';
+              'تعذّر تحميل فصول الكتاب حالياً. يمكنك إعادة المحاولة أو فتحه في القارئ الداخلي.';
         });
       }
+    } else if (widget.book.readerType == 'archive_org') {
+      // Archive.org books open straight into the real interactive page-flip book reader!
+      setState(() {
+        _detail = OnlineBookDetail(
+          title: widget.book.title,
+          bodyText: widget.book.description,
+          downloadLinks: [widget.book.url],
+          webUrl: widget.book.url,
+        );
+        _loading = false;
+      });
     } else {
       try {
         final det = await _lib.fetchChristianLibDetail(widget.book);
@@ -138,21 +151,43 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
     }
   }
 
+  String _resolveArchiveEmbedUrl(String url) {
+    final m = RegExp(r'archive\.org/details/([^/?#]+)').firstMatch(url);
+    if (m != null) {
+      return 'https://archive.org/embed/${m.group(1)}';
+    }
+    return SecurityGuardService.upgradeToHttps(url);
+  }
+
+  String _resolveInAppViewerUrl(String rawUrl) {
+    final safe = SecurityGuardService.upgradeToHttps(rawUrl);
+    if (safe.contains('archive.org/details/')) {
+      return _resolveArchiveEmbedUrl(safe);
+    }
+    if (safe.toLowerCase().endsWith('.pdf')) {
+      return 'https://docs.google.com/gview?embedded=true&url=${Uri.encodeComponent(safe)}';
+    }
+    return safe;
+  }
+
+  void _openInAppViewer(String url, {String? title}) {
+    final viewerUrl = _resolveInAppViewerUrl(url);
+    if (!SecurityGuardService.isSafeExternalUrl(viewerUrl)) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _InAppFullBookWebView(
+          title: title ?? widget.book.title,
+          viewerUrl: viewerUrl,
+          originalUrl: SecurityGuardService.upgradeToHttps(url),
+        ),
+      ),
+    );
+  }
+
   Future<void> _openExternal(String url) async {
     final safeUrl = SecurityGuardService.upgradeToHttps(url);
-    if (!SecurityGuardService.isSafeExternalUrl(safeUrl)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'تم حجب هذا الرابط تلقائياً لأمانك.',
-              style: GoogleFonts.cairo(fontSize: 12),
-            ),
-          ),
-        );
-      }
-      return;
-    }
+    if (!SecurityGuardService.isSafeExternalUrl(safeUrl)) return;
     final uri = Uri.tryParse(safeUrl);
     if (uri != null) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -273,7 +308,7 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
                   CircularProgressIndicator(color: p.accent, strokeWidth: 2),
                   const SizedBox(height: 12),
                   Text(
-                    'جارٍ فتح الكتاب وتجهيز القراءة...',
+                    'جارٍ فتح الكتاب الكامل وتجهيز القراءة...',
                     style: GoogleFonts.cairo(fontSize: 12.5, color: p.inkMuted),
                   ),
                 ],
@@ -310,11 +345,11 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
                                   fontWeight: FontWeight.w700)),
                         ),
                         OutlinedButton(
-                          onPressed: () => _openExternal(widget.book.url),
+                          onPressed: () => _openInAppViewer(widget.book.url),
                           style: OutlinedButton.styleFrom(
                             side: BorderSide(color: p.border),
                           ),
-                          child: Text('فتح في المتصفح',
+                          child: Text('فتح بالقارئ الداخلي',
                               style: GoogleFonts.cairo(color: p.accent)),
                         ),
                       ],
@@ -406,18 +441,48 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
           ),
         ),
         const SizedBox(height: 18),
-        for (final para in _paragraphs)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: SelectableText(
-              para,
-              style: GoogleFonts.amiri(
-                fontSize: 19 * fontScale,
-                height: 1.9,
-                color: p.ink,
+        if (_paragraphs.isEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 28),
+              child: Column(
+                children: [
+                  Text(
+                    'يمكنك تصفح هذا الفصل مباشرة داخل القارئ الكامل',
+                    style: GoogleFonts.cairo(color: p.inkMuted, fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => _openInAppViewer(
+                      _chapters.isNotEmpty
+                          ? _chapters[_chapterIdx].url
+                          : widget.book.url,
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: p.accent,
+                      foregroundColor: p.onAccent,
+                    ),
+                    icon: const Icon(Icons.auto_stories_rounded, size: 18),
+                    label: Text('فتح القارئ الكامل',
+                        style: GoogleFonts.cairo(fontWeight: FontWeight.w700)),
+                  ),
+                ],
               ),
             ),
-          ),
+          )
+        else
+          for (final para in _paragraphs)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: SelectableText(
+                para,
+                style: GoogleFonts.amiri(
+                  fontSize: 19 * fontScale,
+                  height: 1.9,
+                  color: p.ink,
+                ),
+              ),
+            ),
         const SizedBox(height: 20),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -458,6 +523,8 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
     final det = _detail;
     final downloads = det?.downloadLinks ?? [];
     final isArchive = widget.book.readerType == 'archive_org';
+    final primaryReadUrl =
+        downloads.isNotEmpty ? downloads.first : widget.book.url;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 110),
@@ -482,7 +549,7 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      widget.book.source,
+                      isArchive ? 'كتاب مصوّر كامل (صفحة بصفحة)' : widget.book.source,
                       style: GoogleFonts.cairo(
                         fontSize: 10.5,
                         color: p.accent,
@@ -512,80 +579,98 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
                 ),
               ),
               const SizedBox(height: 16),
-              if (downloads.isNotEmpty) ...[
-                for (int i = 0; i < downloads.take(3).length; i++) ...[
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _openExternal(downloads[i]),
-                      icon: Icon(
-                        isArchive
-                            ? Icons.auto_stories_rounded
-                            : Icons.picture_as_pdf_rounded,
-                        size: 18,
-                      ),
-                      label: Text(
-                        isArchive
-                            ? 'تصفح وقراءة الكتاب كاملاً (PDF)'
-                            : (downloads.length == 1
-                                ? 'تحميل وقراءة الكتاب (PDF)'
-                                : 'رابط التحميل #${i + 1} (PDF)'),
-                        style: GoogleFonts.cairo(
-                            fontWeight: FontWeight.w700, fontSize: 13),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: p.accent,
-                        foregroundColor: p.onAccent,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ],
+
+              // PRIMARY CTA: Open REAL full visual book/PDF right INSIDE the app!
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _openExternal(widget.book.url),
-                  icon:
-                      Icon(Icons.open_in_new_rounded, size: 17, color: p.accent),
-                  label: Text(
-                    'فتح صفحة الكتاب في المكتبة الأصلية',
-                    style: GoogleFonts.cairo(
-                      color: p.accent,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12.5,
-                    ),
+                child: ElevatedButton.icon(
+                  onPressed: () => _openInAppViewer(
+                    primaryReadUrl,
+                    title: det?.title ?? widget.book.title,
                   ),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: p.border),
-                    padding: const EdgeInsets.symmetric(vertical: 11),
+                  icon: Icon(
+                    isArchive
+                        ? Icons.auto_stories_rounded
+                        : Icons.menu_book_rounded,
+                    size: 19,
+                  ),
+                  label: Text(
+                    isArchive
+                        ? 'تصفح الكتاب المصوّر كاملاً داخل التطبيق'
+                        : 'قراءة الكتاب الكامل (PDF) داخل التطبيق',
+                    style: GoogleFonts.cairo(
+                        fontWeight: FontWeight.w700, fontSize: 13.5),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: p.accent,
+                    foregroundColor: p.onAccent,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
               const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () {
-                    SharePlus.instance.share(
-                      ShareParams(
-                        text:
-                            '${widget.book.title}\n${widget.book.author}\n${widget.book.url}\n\nمن تطبيق أرثوذكسيا',
+
+              // Secondary external PDF download links
+              if (downloads.isNotEmpty) ...[
+                for (int i = 0; i < downloads.take(2).length; i++) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _openExternal(downloads[i]),
+                      icon: Icon(Icons.download_rounded,
+                          size: 17, color: p.accent),
+                      label: Text(
+                        downloads.length == 1
+                            ? 'تحميل نسخة PDF على الجهاز'
+                            : 'تحميل نسخة PDF #${i + 1}',
+                        style: GoogleFonts.cairo(
+                          color: p.accent,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12.5,
+                        ),
                       ),
-                    );
-                  },
-                  icon:
-                      Icon(Icons.share_outlined, size: 15, color: p.inkMuted),
-                  label: Text('مشاركة رابط الكتاب',
-                      style:
-                          GoogleFonts.cairo(color: p.inkMuted, fontSize: 12)),
-                ),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: p.border),
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                ],
+              ],
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => _openExternal(widget.book.url),
+                    icon: Icon(Icons.open_in_new_rounded,
+                        size: 15, color: p.inkMuted),
+                    label: Text('فتح بالمتصفح',
+                        style:
+                            GoogleFonts.cairo(color: p.inkMuted, fontSize: 12)),
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      SharePlus.instance.share(
+                        ShareParams(
+                          text:
+                              '${widget.book.title}\n${widget.book.author}\n${widget.book.url}\n\nمن تطبيق أرثوذكسيا',
+                        ),
+                      );
+                    },
+                    icon: Icon(Icons.share_outlined,
+                        size: 15, color: p.inkMuted),
+                    label: Text('مشاركة الكتاب',
+                        style:
+                            GoogleFonts.cairo(color: p.inkMuted, fontSize: 12)),
+                  ),
+                ],
               ),
             ],
           ),
@@ -611,6 +696,98 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// Embedded In-App Full Book & PDF Visual Reader (supports Archive.org flip-book & PDFs).
+class _InAppFullBookWebView extends StatefulWidget {
+  final String title;
+  final String viewerUrl;
+  final String originalUrl;
+
+  const _InAppFullBookWebView({
+    required this.title,
+    required this.viewerUrl,
+    required this.originalUrl,
+  });
+
+  @override
+  State<_InAppFullBookWebView> createState() => _InAppFullBookWebViewState();
+}
+
+class _InAppFullBookWebViewState extends State<_InAppFullBookWebView> {
+  late final WebViewController _controller;
+  int _progress = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onProgress: (prog) {
+            if (mounted) setState(() => _progress = prog);
+          },
+          onNavigationRequest: (req) {
+            if (SecurityGuardService.isSafeExternalUrl(req.url)) {
+              return NavigationDecision.navigate;
+            }
+            return NavigationDecision.prevent;
+          },
+        ),
+      )
+      ..loadRequest(Uri.parse(widget.viewerUrl));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return Scaffold(
+      backgroundColor: p.background,
+      appBar: AppBar(
+        backgroundColor: p.background,
+        elevation: 0,
+        title: Text(
+          widget.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.amiri(
+            fontSize: 19,
+            fontWeight: FontWeight.w700,
+            color: p.ink,
+          ),
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'تحديث',
+            icon: Icon(Icons.refresh_rounded, color: p.accent),
+            onPressed: () => _controller.reload(),
+          ),
+          IconButton(
+            tooltip: 'فتح خارجياً / تحميل',
+            icon: Icon(Icons.open_in_new_rounded, color: p.inkMuted, size: 20),
+            onPressed: () async {
+              final uri = Uri.tryParse(widget.originalUrl);
+              if (uri != null) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            },
+          ),
+        ],
+        bottom: _progress < 100
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(3),
+                child: LinearProgressIndicator(
+                  value: _progress / 100.0,
+                  color: p.accent,
+                  backgroundColor: p.border,
+                ),
+              )
+            : null,
+      ),
+      body: WebViewWidget(controller: _controller),
     );
   }
 }

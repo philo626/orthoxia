@@ -14,12 +14,14 @@ import '../liturgical/widgets/floating_church_bar.dart';
 class OnlineTafsirReaderView extends StatefulWidget {
   final TafsirBookEntry book;
   final String initialCommentator;
+  final int? initialChapterNumber;
   final ValueChanged<String>? onSearchMatta;
 
   const OnlineTafsirReaderView({
     super.key,
     required this.book,
     this.initialCommentator = 'tadros',
+    this.initialChapterNumber,
     this.onSearchMatta,
   });
 
@@ -83,12 +85,24 @@ class _OnlineTafsirReaderViewState extends State<OnlineTafsirReaderView> {
         });
         return;
       }
+      int targetIdx = 0;
+      if (widget.initialChapterNumber != null && widget.initialChapterNumber! > 0) {
+        final chNum = widget.initialChapterNumber!;
+        final found = list.indexWhere(
+          (c) =>
+              c.url.contains('Chapter-${chNum.toString().padLeft(2, '0')}') ||
+              c.url.contains('Chapter-$chNum.') ||
+              c.title.contains(' $chNum') ||
+              c.title.contains('الأصحاح $chNum'),
+        );
+        if (found >= 0) targetIdx = found;
+      }
       setState(() {
         _chapters = list;
-        _selectedChapterIdx = 0;
+        _selectedChapterIdx = targetIdx;
         _loadingIndex = false;
       });
-      await _loadChapterContent(0);
+      await _loadChapterContent(targetIdx);
     } catch (_) {
       if (!mounted) return;
       setState(() {

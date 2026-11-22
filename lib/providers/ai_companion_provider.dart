@@ -20,9 +20,11 @@ class AiCompanionProvider with ChangeNotifier {
   final List<AiMessage> _messages = [_welcomeMessage()];
   bool _isLoading = false;
   String? _apiKey;
+  AiApiConfig _apiConfig = const AiApiConfig();
 
   List<AiMessage> get messages => _messages;
   bool get isLoading => _isLoading;
+  AiApiConfig get apiConfig => _apiConfig;
 
   final List<String> quickPrompts = const [
     'ما هو مفهوم التوبة والاعتراف؟',
@@ -30,10 +32,33 @@ class AiCompanionProvider with ChangeNotifier {
     'ما هو سر التجسد الإلهي؟',
     'كيف أتغلب على الفتور الروحي؟',
     'ما هي أسرار الكنيسة السبعة؟',
+    'اشرح لي ترتيب التسبحة والبصخة',
   ];
 
   AiCompanionProvider() {
     _loadHistory();
+    _loadApiConfig();
+  }
+
+  Future<void> _loadApiConfig() async {
+    _apiConfig = await AiTheologyService.loadConfig();
+    notifyListeners();
+  }
+
+  Future<(bool, String)> testAndSaveApiConfig(AiApiConfig cfg) async {
+    final (ok, msg) = await _service.testConnection(cfg);
+    if (ok) {
+      await AiTheologyService.saveConfig(cfg);
+      _apiConfig = cfg;
+      notifyListeners();
+    }
+    return (ok, msg);
+  }
+
+  Future<void> disconnectApi() async {
+    await AiTheologyService.clearConfig();
+    _apiConfig = const AiApiConfig();
+    notifyListeners();
   }
 
   Future<void> _loadHistory() async {

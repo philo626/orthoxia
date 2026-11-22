@@ -1,7 +1,40 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'security_guard_service.dart';
+
+enum AiProviderType { gemini, groq, customProxy }
+
+class AiApiConfig {
+  final AiProviderType provider;
+  final String apiKey;
+  final String customEndpoint;
+  final String customModel;
+
+  const AiApiConfig({
+    this.provider = AiProviderType.gemini,
+    this.apiKey = '',
+    this.customEndpoint = '',
+    this.customModel = '',
+  });
+
+  bool get isConfigured =>
+      provider == AiProviderType.customProxy
+          ? customEndpoint.trim().startsWith('https://')
+          : apiKey.trim().length >= 12;
+
+  String get providerDisplayName {
+    switch (provider) {
+      case AiProviderType.gemini:
+        return 'Google Gemini';
+      case AiProviderType.groq:
+        return 'Groq (Llama 3.3)';
+      case AiProviderType.customProxy:
+        return 'خادم مخصص';
+    }
+  }
+}
 
 class AiMessage {
   final String text;
@@ -37,9 +70,69 @@ class AiMessage {
 }
 
 class AiTheologyService {
+  static const _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      resetOnError: true,
+      keyCipherAlgorithm:
+          KeyCipherAlgorithm.RSA_ECB_OAEPwithSHA_256andMGF1Padding,
+      storageCipherAlgorithm: StorageCipherAlgorithm.AES_GCM_NoPadding,
+    ),
+  );
+  static const _cfgProviderKey = 'ai_provider_type_v1';
+  static const _cfgApiKeyKey = 'ai_provider_apikey_v1';
+  static const _cfgEndpointKey = 'ai_provider_endpoint_v1';
+  static const _cfgModelKey = 'ai_provider_model_v1';
+
   static List<dynamic>? _booksCache;
-  static List<dynamic>? _commentariesCache;
+  static List<dynamic>? _bibleCache;
   static Map<String, dynamic>? _lectionaryCache;
+  static AiApiConfig? _cachedConfig;
+
+  static Future<AiApiConfig> loadConfig() async {
+    if (_cachedConfig != null) return _cachedConfig!;
+    try {
+      final pStr = await _secureStorage.read(key: _cfgProviderKey) ?? 'gemini';
+      final apiKey = await _secureStorage.read(key: _cfgApiKeyKey) ?? '';
+      final endpoint = await _secureStorage.read(key: _cfgEndpointKey) ?? '';
+      final model = await _secureStorage.read(key: _cfgModelKey) ?? '';
+      final provider = AiProviderType.values.firstWhere(
+        (e) => e.name == pStr,
+        orElse: () => AiProviderType.gemini,
+      );
+      _cachedConfig = AiApiConfig(
+        provider: provider,
+        apiKey: apiKey.trim(),
+        customEndpoint: endpoint.trim(),
+        customModel: model.trim(),
+      );
+      return _cachedConfig!;
+    } catch (_) {
+      return const AiApiConfig();
+    }
+  }
+
+  static Future<void> saveConfig(AiApiConfig config) async {
+    _cachedConfig = config;
+    try {
+      await _secureStorage.write(
+          key: _cfgProviderKey, value: config.provider.name);
+      await _secureStorage.write(
+          key: _cfgApiKeyKey, value: config.apiKey.trim());
+      await _secureStorage.write(
+          key: _cfgEndpointKey, value: config.customEndpoint.trim());
+      await _secureStorage.write(
+          key: _cfgModelKey, value: config.customModel.trim());
+    } catch (_) {}
+  }
+
+  static Future<void> clearConfig() async {
+    _cachedConfig = const AiApiConfig();
+    try {
+      await _secureStorage.delete(key: _cfgApiKeyKey);
+      await _secureStorage.delete(key: _cfgEndpointKey);
+      await _secureStorage.delete(key: _cfgModelKey);
+    } catch (_) {}
+  }
 
   static Future<void> _ensureLocalRagLoaded() async {
     if (_booksCache == null) {
@@ -50,12 +143,12 @@ class AiTheologyService {
         _booksCache = [];
       }
     }
-    if (_commentariesCache == null) {
+    if (_bibleCache == null) {
       try {
-        final raw = await rootBundle.loadString('assets/data/commentaries.json');
-        _commentariesCache = jsonDecode(raw) as List<dynamic>;
+        final raw = await rootBundle.loadString('assets/data/bible.json');
+        _bibleCache = jsonDecode(raw) as List<dynamic>;
       } catch (_) {
-        _commentariesCache = [];
+        _bibleCache = [];
       }
     }
     if (_lectionaryCache == null) {
@@ -76,12 +169,12 @@ class AiTheologyService {
       'citations': [
         'القديس يوحنا ذهبي الفم — مقالات في التوبة',
         'القديس مارإسحق السرياني — النسكيات',
-        'قداسة البابا شنودة الثالث — كتاب حياة التوبة والنقاوة'
+        'قداسة البابا شنودة الثالث — حياة التوبة والنقاوة'
       ]
     },
     'صوم يونان': {
       'response':
-          'صوم نينوى (يونان) هو صوم توبة وانسحاق لمدة ثلاثة أيام، يسبق الصوم الكبير بأسبوعين كتهيئة روحية للنفس.\n\nدخل هذا الصوم إلى طقس الكنيسة القبطية الأرثوذكسية في عهد البابا إبرآم بن زرعة السرياني (البطريرك ٦٢ في القرن العاشر الميلادي)، ونصومه تشبهاً بأهل نينوى وتأملاً في مكوث يونان ثلاثة أيام في جوف الحوت كرمز لدفن وقيامة مخلصنا الصالح.',
+          'صوم نينوى (صوم يونان) هو صوم توبة وانسحاق لمدة ثلاثة أيام (الاثنين والثلاثاء والأربعاء)، يسبق الصوم الكبير بأسبوعين كتهيئة روحية للنفس.\n\nدخل هذا الصوم إلى طقس الكنيسة القبطية الأرثوذكسية في عهد البابا إبرآم بن زرعة السرياني (البطريرك ٦٢ في القرن العاشر الميلادي)، ونصومه تشبهاً بتوبة أهل نينوى وتأملاً في مكوث يونان ثلاثة أيام وثلاث ليالٍ في جوف الحوت كرمز لدفن وقيامة مخلصنا الصالح.',
       'citations': [
         'سفر يونان النبي — العهد القديم',
         'قطمارس الصوم الكبير وصوم يونان',
@@ -90,7 +183,7 @@ class AiTheologyService {
     },
     'سر التجسد': {
       'response':
-          'سر التجسد الإلهي هو أساس إيماننا المسيحي الأرثوذكسي، حيث أخذ كلمة الله الأزلي جسداً حقيقياً من الروح القدس ومن العذراء القديسة مريم وتأنس، دون اختلاط ولا امتزاج ولا تغيير.\n\nيعلمنا القديس أثناسيوس الرسولي في كتاب «تجسد الكلمة»: «تجسد الكلمة لكي يبيد الفساد الذي حل بالطبيعة البشرية، ويعيد للإنسان صورة الله، ويبطل سلطان الموت».',
+          'سر التجسد الإلهي هو أساس إيماننا المسيحي الأرثوذكسي، حيث أخذ كلمة الله الأزلي جسداً حقيقياً من الروح القدس ومن العذراء القديسة مريم وتأنس، بغير اختلاط ولا امتزاج ولا تغيير.\n\nيعلمنا القديس أثناسيوس الرسولي في كتاب «تجسد الكلمة»: «تجسد الكلمة لكي يبيد الفساد الذي حل بالطبيعة البشرية، ويعيد للإنسان صورة الله، ويبطل سلطان الموت».',
       'citations': [
         'القديس أثناسيوس الرسولي — تجسد الكلمة',
         'القديس كيرلس الكبير — شرح تجسد الوحيد',
@@ -99,27 +192,26 @@ class AiTheologyService {
     },
     'الفتور الروحي': {
       'response':
-          'الفتور الروحي حالة قد تصيب المؤمن حينما تخمد حرارة الصلاة، وعلاجه في التراث الآبائي:\n١. التمسك بقانون صلاة الأجبية ولو ساعة قصيرة.\n٢. ترديد صلاة يسوع السهمية على المسبحة القبطية («يا ربي يسوع المسيح ابن الله الحي ارحمني أنا الخاطئ»).\n٣. قراءة سير الشهداء وأقوال آباء البرية في بستان الرهبان.\n٤. الجلوس مع أب الاعتراف لطلب الإرشاد والمعونة.',
+          'الفتور الروحي حالة قد تصيب المؤمن حينما تخمد حرارة الصلاة، وعلاجه في التراث الآبائي:\n١. التمسك بقانون صلاة الأجبية بانتظام ولو صلاة قصيرة بخشوع.\n٢. ترديد صلاة يسوع السهمية («يا ربي يسوع المسيح ابن الله الحي ارحمني أنا الخاطئ»).\n٣. قراءة سير الشهداء وأقوال آباء البرية في بستان الرهبان.\n٤. الجلوس مع أب الاعتراف لطلب الإرشاد والتناول من الأسرار المقدسة.',
       'citations': [
-        'بستان الرهبان — أقوال القديس أنطونيوس الكبير',
+        'بستان الرهبان — القديس أنطونيوس الكبير',
         'الأب متى المسكين — حياة الصلاة الأرثوذكسية',
         'القديس البابا كيرلس السادس'
       ]
     },
     'الثالوث': {
       'response':
-          'تؤمن الكنيسة القبطية الأرثوذكسية بإله واحد مثلث الأقانيم: الآب (الأصل والينبوع)، والابن (الكلمة والحكمة المولود من الآب قبل كل الدهور)، والروح القدس (الرب المحيي المنبثق من الآب). ثلاثة أقانيم متمايزة بغير انفصال، وجوهر إلهي واحد بغير انقسام.\n\nيشبّه القديس أثناسيوس الرسولي والقديس كيرلس الكبير ذلك بالشمس: قرص الشمس والنور الصادر منها والحرارة المنبعثة منها؛ ثلاثة ولكنها شمس واحدة.',
+          'تؤمن الكنيسة القبطية الأرثوذكسية بإله واحد مثلث الأقانيم: الآب (الأصل والينبوع)، والابن (الكلمة والحكمة المولود من الآب قبل كل الدهور)، والروح القدس (الرب المحيي المنبثق من الآب). ثلاثة أقانيم متمايزة بغير انفصال، وجوهر إلهي واحد بغير انقسام.\n\nيشبّه القديس أثناسيوس والقديس كيرلس ذلك بالشمس: قرص الشمس والنور الصادر منها والحرارة المنبعثة منها؛ ثلاثة ولكنها شمس واحدة.',
       'citations': [
         'قانون الإيمان النيقاوي القسطنطيني',
-        'القديس أثناسيوس الرسولي — الرسائل إلى سرابيون',
-        'عقيدة الثالوث القدوس في الكنيسة الأرثوذكسية'
+        'القديس أثناسيوس الرسولي — الرسائل إلى سرابيون'
       ]
     },
     'الأسرار': {
       'response':
           'أسرار الكنيسة القبطية الأرثوذكسية السبعة هي:\n١. سر المعمودية (الميلاد الثاني من الماء والروح — يو ٣: ٥).\n٢. سر الميرون (تثبيت وسكنى الروح القدس — ١ يو ٢: ٢٠).\n٣. سر الإفخارستيا / التناول (جسد الرب ودمه الأقدسين — يو ٦: ٥٤).\n٤. سر التوبة والاعتراف (غفران الخطايا بسلطان الكهنوت — يو ٢٠: ٢٣).\n٥. سر مسحة المرضى / القنديل (يع ٥: ١٤).\n٦. سر الزيجة المقدسة (أف ٥: ٣٢).\n٧. سر الكهنوت المقدس (إقامة الأساقفة والكهنة والشمامسة).',
       'citations': [
-        'اللاهوت الطقسي والأسرار السبعة — الأرشيدياكون حبيب جرجس',
+        'الأرشيدياكون حبيب جرجس — الأسرار السبعة',
         'قداسة البابا شنودة الثالث — اللاهوت المقارن'
       ]
     },
@@ -131,9 +223,57 @@ class AiTheologyService {
         'الهيتينيات ومجمع القديسين في الخولاجي المقدس'
       ]
     },
+    'الصوم الكبير': {
+      'response':
+          'الصوم الكبير في الكنيسة القبطية الأرثوذكسية مدته ٥٥ يوماً مقسمة إلى:\n١. أسبوع الاستعداد (الرفاع) — ٧ أيام.\n٢. الأربعين المقدسة التي صامها السيد المسيح — ٤٠ يوماً.\n٣. أسبوع الآلام المقدس (البصخة) — ٨ أيام تنتهي بعيد القيامة المجيد.\n\nوآحاده السبعة تمثل رحلة النفس من التوبة حتى الملكوت: أحد الكنوز، التجربة، الابن الضال، السامرية، المخلع، المولود أعمى، وأحد الشعانين.',
+      'citations': [
+        'قطمارس الصوم الكبير — دير مارمينا مريوط',
+        'الترتيب الطقسي للكنيسة القبطية الأرثوذكسية'
+      ]
+    },
+    'القداس': {
+      'response':
+          'القداس الإلهي هو سر الشكر (الإفخارستيا) وذبيحة العهد الجديد غير الدموية، وتصلي الكنيسة القبطية بثلاثة قداسات قانونية:\n١. القداس الباسيلي (للقديس باسيليوس الكبير — يُصلى أغلب أيام السنة).\n٢. القداس الغريغوري (للقديس غريغوريوس النزينزي — للأعياد السيدية ومناسبات الفرح).\n٣. القداس الكيرلسي (للقديس مارمرقس وهذّبه القديس كيرلس عمود الدين — يغلب عليه طابع التخشع والصوم).',
+      'citations': [
+        'الخولاجي المقدس — الكنيسة القبطية الأرثوذكسية',
+        'الأنبا متاؤس — روحانية القداس الإلهي'
+      ]
+    },
+    'البصخة': {
+      'response':
+          'كلمة «بصخة» (Pascha) معناها «العبور»، وهو أسبوع الآلام المقدس الذي تعيش فيه الكنيسة خطوة بخطوة مع السيد المسيح من أحد الشعانين حتى ليلة سبت النور وعيد القيامة.\n\nتُصلى كل يوم ٥ سواعي نهارية و٥ سواعي ليلية، وتُرَتَّل فيها تسبحة «ثوك تي تي جوم» (لك القوة والمجد) ١٢ مرة في كل ساعة، وتُختم بالساعة الثانية عشرة من الجمعة العظيمة (الدفن ولحن غولغوثا).',
+      'citations': [
+        'دلال أسبوع الآلام المقدس',
+        'قطمارس البصخة المقدسة'
+      ]
+    },
+    'التسبحة': {
+      'response':
+          'تسبحة نصف الليل (الإبصلمودية المقدسة) هي شركة مع صفوف الملائكة في التسبيح، وتتكون من:\n١. تين ثينو (قوموا يا بني النور).\n٢. الهوس الأول (تسبحة موسى النبي — خروج ١٥) ولبشه.\n٣. الهوس الثاني (مزمور ١٣٦ — اشكروا الرب) ولبشه.\n٤. الهوس الثالث (تسبحة الثلاثة فتية القديسين) ولحن تينين والمجمع.\n٥. الهوس الرابع (المزامير ١٤٨ و١٤٩ و١٥٠).\n٦. الإبصالية والثيؤطوكية (مديح والدة الإله) والذكصولوجيات وختام التسبحة.',
+      'citations': [
+        'الإبصلمودية السنوية والكيهكية المقدسة',
+        'الكنيسة القبطية الأرثوذكسية'
+      ]
+    },
+    'المعمودية': {
+      'response':
+          'سر المعمودية هو باب الأسرار والميلاد الثاني من الماء والروح كما قال الرب لنيقوديموس: «إن كان أحد لا يولد من الماء والروح لا يقدر أن يدخل ملكوت الله» (يو ٣: ٥).\n\nتتم في الكنيسة الأرثوذكسية بالتغطيس الكامل ثلاث دفعات باسم الآب والابن والروح القدس، ويتبعها مباشرة سر الميرون المقدس (٣٦ رشمة) لنوال سكنى الروح القدس.',
+      'citations': [
+        'إنجيل يوحنا ٣: ٥ • رومية ٦: ٣-٤',
+        'ترتيب طقس المعمودية والميرون بالكنيسة القبطية'
+      ]
+    },
+    'العذراء': {
+      'response':
+          'تلقب الكنيسة القبطية السيدة العذراء مريم بلقب «ثيؤطوكوس» (Θεοτόκος) أي والدة الإله، وقد أقرّه مجمع أفسس المسكوني (٤٣١م) بقيادة القديس كيرلس الكبير.\n\nوهي شفيعتنا المؤتمنة أمام عرش النعمة، نكرمها بالتطويب كما تنبأت: «هوذا منذ الآن جميع الأجيال تطوبني» (لو ١: ٤٨)، لكن العبادة والسجود الكامل لله وحده.',
+      'citations': [
+        'مجمع أفسس المسكوني ٤٣١م — القديس كيرلس الكبير',
+        'ثيؤطوكية يوم الأحد — الإبصلمودية المقدسة'
+      ]
+    },
   };
 
-  /// Searches local books, commentaries, and Synaxarium for relevant Orthodox context
+  /// Searches local Orthodox library (Knowledge base + Books + Bible + Synaxarium)
   Future<Map<String, dynamic>> _searchLocalRag(String query) async {
     await _ensureLocalRagLoaded();
     final tokens = query
@@ -159,22 +299,29 @@ class AiTheologyService {
               'إلى',
               'هذا',
               'هذه',
-              'هل'
+              'هل',
+              'ماهو',
+              'ماهي',
+              'اريد',
+              'أريد',
+              'عايز'
             ].contains(w))
         .toList();
 
     final matchedSnippets = <String>[];
     final matchedCitations = <String>[];
 
-    // 1. Check built-in Patristic Encyclopedia
+    // 1. Check Patristic Encyclopedia
+    String? directHitText;
+    List<String>? directHitCitations;
     for (final entry in _patristicKnowledgeBase.entries) {
       if (query.contains(entry.key) ||
-          tokens.any((t) => entry.key.contains(t))) {
-        return {
-          'direct_hit': true,
-          'text': entry.value['response'] as String,
-          'citations': List<String>.from(entry.value['citations']),
-        };
+          tokens.any((t) => entry.key.contains(t) && t.length >= 4)) {
+        directHitText = entry.value['response'] as String;
+        directHitCitations = List<String>.from(entry.value['citations']);
+        matchedSnippets.add(directHitText);
+        matchedCitations.addAll(directHitCitations);
+        break;
       }
     }
 
@@ -195,8 +342,8 @@ class AiTheologyService {
             if (combined.contains(t)) score++;
           }
           if (score > 0 && matchedSnippets.length < 3) {
-            final excerpt = cContent.length > 520
-                ? '${cContent.substring(0, 520)}...'
+            final excerpt = cContent.length > 480
+                ? '${cContent.substring(0, 480)}...'
                 : cContent;
             matchedSnippets
                 .add('• من كتاب «$title» ($author — $cTitle):\n$excerpt');
@@ -207,31 +354,7 @@ class AiTheologyService {
       }
     }
 
-    // 3. Search 75-Book Patristic Commentaries (commentaries.json)
-    if (_commentariesCache != null &&
-        tokens.isNotEmpty &&
-        matchedSnippets.length < 3) {
-      for (final comm in _commentariesCache!) {
-        final cMap = comm as Map<String, dynamic>;
-        final bName = '${cMap['bible_book_name'] ?? ''}';
-        if (tokens.any((t) => bName.contains(t))) {
-          final chs = cMap['chapters'] as List<dynamic>? ?? [];
-          if (chs.isNotEmpty) {
-            final ch0 = chs.first as Map<String, dynamic>;
-            final intro = '${ch0['introduction'] ?? ''}';
-            final vs = ch0['verses'] as List<dynamic>? ?? [];
-            final vText = vs.isNotEmpty
-                ? '${(vs.first as Map)['patristic_commentary'] ?? ''}'
-                : '';
-            matchedSnippets.add('• من تفسير «$bName»:\n$intro\n\n$vText');
-            matchedCitations.add(
-                'تفسير $bName — القمص تادرس يعقوب ملطي والقس أنطونيوس فكري');
-          }
-        }
-      }
-    }
-
-    // 4. Search 366-Day Authentic Arabic Synaxarium (synaxarium_ar.json)
+    // 3. Search 366-Day Authentic Arabic Synaxarium
     if (_lectionaryCache != null &&
         tokens.isNotEmpty &&
         matchedSnippets.length < 3) {
@@ -243,9 +366,9 @@ class AiTheologyService {
           final text = '${eMap['text'] ?? ''}';
           if (tokens.any((t) => title.contains(t))) {
             final excerpt =
-                text.length > 450 ? '${text.substring(0, 450)}...' : text;
+                text.length > 420 ? '${text.substring(0, 420)}...' : text;
             matchedSnippets.add('• من السنكسار القبطي ($title):\n$excerpt');
-            matchedCitations.add('السنكسار القبطي الأرثوذكسي — $title');
+            matchedCitations.add('السنكسار القبطي — $title');
             if (matchedSnippets.length >= 3) break;
           }
         }
@@ -253,11 +376,196 @@ class AiTheologyService {
       }
     }
 
+    // 4. Search Holy Bible verses (bible.json) if still room
+    if (_bibleCache != null && tokens.isNotEmpty && matchedSnippets.length < 3) {
+      for (final bk in _bibleCache!) {
+        final bMap = bk as Map<String, dynamic>;
+        final bName = '${bMap['name'] ?? ''}';
+        final chs = bMap['chapters'] as List<dynamic>? ?? [];
+        bool foundInBook = false;
+        for (int ci = 0; ci < chs.length && !foundInBook; ci++) {
+          final vs = chs[ci] as List<dynamic>;
+          for (int vi = 0; vi < vs.length; vi++) {
+            final vText = vs[vi].toString();
+            if (tokens.every((t) => vText.contains(t))) {
+              matchedSnippets
+                  .add('• من الكتاب المقدس ($bName ${ci + 1}:${vi + 1}): «$vText»');
+              matchedCitations.add('$bName ${ci + 1}:${vi + 1}');
+              foundInBook = true;
+              break;
+            }
+          }
+        }
+        if (matchedSnippets.length >= 3) break;
+      }
+    }
+
     return {
-      'direct_hit': false,
+      'direct_hit': directHitText != null,
+      'direct_text': directHitText,
+      'direct_citations': directHitCitations,
       'snippets': matchedSnippets,
       'citations': matchedCitations,
     };
+  }
+
+  static const String _orthodoxSystemPrompt =
+      'أنت «المرشد الآبائي القبطي الأرثوذكسي» في تطبيق أرثوذكسيا. '
+      'أجب عن سؤال المستخدم بدقة لاهوتية وكتابية وطقسية وفق إيمان الكنيسة القبطية الأرثوذكسية فقط '
+      'وتفاسير الآباء (القديس أثناسيوس الرسولي، القديس كيرلس الكبير، القديس يوحنا ذهبي الفم، قداسة البابا شنودة الثالث، '
+      'القمص تادرس يعقوب ملطي، القمص أنطونيوس فكري، والأب متى المسكين). '
+      'قواعد صارمة: ١) التزم تماماً بالحقائق الكنسية القبطية (مثلاً: صوم يونان ٣ أيام قبل الصوم الكبير بأسبوعين، '
+      'الصوم الكبير ٥٥ يوماً، الأسرار السبعة، الشفاعة التوسلية للقديسين). '
+      '٢) اكتب بلغة عربية واضحة ومرتبة في نقاط مرقمة (١. ٢. ٣.) أو نقاط (•) مع وضع الآيات وأقوال الآباء بين «...». '
+      '٣) ممنوع تماماً استخدام الإيموجي أو علامات النجوم (*** أو ** أو *) أو رموز الماركداون (#).';
+
+  /// Live test of an API configuration before saving. Returns `(ok, message)`.
+  Future<(bool, String)> testConnection(AiApiConfig cfg) async {
+    if (!cfg.isConfigured) {
+      return (false, 'يرجى إدخال مفتاح API صحيح أولاً.');
+    }
+    try {
+      final reply = await _callConfiguredProvider(
+        cfg: cfg,
+        userPrompt: 'أجب بجملة واحدة قصيرة: ما معنى كلمة أرثوذكسية؟',
+        history: const [],
+      );
+      if (reply != null && reply.isNotEmpty) {
+        return (true, 'تم الاتصال بنجاح بـ ${cfg.providerDisplayName}!');
+      }
+      return (false, 'لم يستجب الخادم — تحقق من صحة المفتاح أو اتصالك بالإنترنت.');
+    } catch (e) {
+      return (false, 'فشل الاتصال: ${e.toString().replaceFirst("Exception: ", "")}');
+    }
+  }
+
+  Future<String?> _callConfiguredProvider({
+    required AiApiConfig cfg,
+    required String userPrompt,
+    required List<AiMessage> history,
+  }) async {
+    final recentTurns =
+        history.length > 6 ? history.sublist(history.length - 6) : history;
+
+    if (cfg.provider == AiProviderType.gemini) {
+      // Try official Google Gemini 2.5 Flash, fallback to Gemini 2.0 Flash
+      for (final model in const ['gemini-2.5-flash', 'gemini-2.0-flash']) {
+        final uri = Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=${Uri.encodeQueryComponent(cfg.apiKey)}',
+        );
+        final contents = <Map<String, dynamic>>[];
+        for (final turn in recentTurns) {
+          if (turn.text.trim().isEmpty) continue;
+          contents.add({
+            'role': turn.isUser ? 'user' : 'model',
+            'parts': [
+              {
+                'text': turn.text.length > 600
+                    ? turn.text.substring(0, 600)
+                    : turn.text
+              }
+            ],
+          });
+        }
+        contents.add({
+          'role': 'user',
+          'parts': [
+            {'text': userPrompt}
+          ],
+        });
+
+        final res = await http
+            .post(
+              uri,
+              headers: const {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'systemInstruction': {
+                  'parts': [
+                    {'text': _orthodoxSystemPrompt}
+                  ]
+                },
+                'contents': contents,
+                'generationConfig': {
+                  'temperature': 0.25,
+                  'maxOutputTokens': 1024,
+                },
+              }),
+            )
+            .timeout(const Duration(seconds: 22));
+
+        if (res.statusCode == 200) {
+          final decoded = jsonDecode(utf8.decode(res.bodyBytes));
+          final parts =
+              decoded['candidates']?[0]?['content']?['parts'] as List?;
+          final raw = parts
+                  ?.map((p) => (p as Map)['text']?.toString() ?? '')
+                  .join('\n')
+                  .trim() ??
+              '';
+          if (raw.isNotEmpty) return cleanMarkdownFormatting(raw);
+        } else if (res.statusCode == 400 ||
+            res.statusCode == 401 ||
+            res.statusCode == 403) {
+          throw Exception('مفتاح Gemini غير صالح أو غير مفعّل (HTTP ${res.statusCode})');
+        }
+      }
+      return null;
+    }
+
+    // Groq OR Custom OpenAI-Compatible Endpoint
+    final String endpointUrl = cfg.provider == AiProviderType.groq
+        ? 'https://api.groq.com/openai/v1/chat/completions'
+        : SecurityGuardService.upgradeToHttps(cfg.customEndpoint);
+    if (!SecurityGuardService.isSafeExternalUrl(endpointUrl)) {
+      throw Exception('رابط الخادم يجب أن يبدأ بـ https:// وآمن');
+    }
+
+    final modelName = cfg.provider == AiProviderType.groq
+        ? 'llama-3.3-70b-versatile'
+        : (cfg.customModel.isNotEmpty ? cfg.customModel : 'gpt-4o-mini');
+
+    final messages = <Map<String, String>>[
+      {'role': 'system', 'content': _orthodoxSystemPrompt},
+    ];
+    for (final turn in recentTurns) {
+      if (turn.text.trim().isEmpty) continue;
+      messages.add({
+        'role': turn.isUser ? 'user' : 'assistant',
+        'content': turn.text.length > 600
+            ? turn.text.substring(0, 600)
+            : turn.text,
+      });
+    }
+    messages.add({'role': 'user', 'content': userPrompt});
+
+    final headers = <String, String>{'Content-Type': 'application/json'};
+    if (cfg.apiKey.isNotEmpty) {
+      headers['Authorization'] = 'Bearer ${cfg.apiKey}';
+    }
+
+    final res = await http
+        .post(
+          Uri.parse(endpointUrl),
+          headers: headers,
+          body: jsonEncode({
+            'model': modelName,
+            'messages': messages,
+            'temperature': 0.25,
+          }),
+        )
+        .timeout(const Duration(seconds: 22));
+
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(utf8.decode(res.bodyBytes));
+      final raw = decoded['choices']?[0]?['message']?['content']
+              ?.toString()
+              .trim() ??
+          '';
+      if (raw.isNotEmpty) return cleanMarkdownFormatting(raw);
+    } else if (res.statusCode == 401 || res.statusCode == 403) {
+      throw Exception('مفتاح API غير صالح (HTTP ${res.statusCode})');
+    }
+    return null;
   }
 
   Future<AiMessage> askQuestion(
@@ -280,7 +588,7 @@ class AiTheologyService {
     if (!SecurityGuardService().allowAction(
       'ai_theology',
       cooldown: const Duration(seconds: 2),
-      maxPerWindow: 12,
+      maxPerWindow: 15,
       window: const Duration(minutes: 3),
     )) {
       return AiMessage(
@@ -292,7 +600,7 @@ class AiTheologyService {
     }
     final lower = cleanQuery.toLowerCase();
 
-    // 1. Guardrail check for personal canonical/marital disputes
+    // 1. Pastoral guardrail for personal canonical/marital disputes
     if (lower.contains('طلاق') ||
         lower.contains('خلع') ||
         lower.contains('زواج مدني')) {
@@ -305,96 +613,59 @@ class AiTheologyService {
       );
     }
 
-    // 2. Run Local RAG over the Coptic Orthodox Library
+    // 2. Always ground with Local Orthodox RAG first
     final rag = await _searchLocalRag(cleanQuery);
-    if (rag['direct_hit'] == true && history.length <= 2) {
-      return AiMessage(
-        text: rag['text'] as String,
-        isUser: false,
-        timestamp: DateTime.now(),
-        citations: rag['citations'] as List<String>,
-      );
-    }
-
     final ragSnippets = (rag['snippets'] as List<String>? ?? []);
     final ragCitations = (rag['citations'] as List<String>? ?? []);
     final ragContext = ragSnippets.isNotEmpty
-        ? '\n\nمراجع من مكتبة التطبيق الأرثوذكسية:\n${ragSnippets.join("\n\n")}'
+        ? '\n\nمراجع موثقة من مكتبة التطبيق الأرثوذكسية:\n${ragSnippets.join("\n\n")}'
         : '';
 
-    const systemPrompt =
-        'أنت «المرشد الآبائي القبطي الأرثوذكسي» في تطبيق أرثوذكسيا. أجب عن سؤال المستخدم بدقة لاهوتية وروحية وطقسية وفق إيمان الكنيسة القبطية الأرثوذكسية وتفاسير الآباء (القديس أثناسيوس الرسولي، القديس كيرلس الكبير، القديس يوحنا ذهبي الفم، قداسة البابا شنودة الثالث، القمص تادرس يعقوب ملطي، والقس أنطونيوس فكري). اكتب بلغة عربية واضحة ومرتبة في نقاط مرقمة (١. ٢. ٣.) أو نقاط (•) مع وضع الآيات وأقوال الآباء بين علامتي تنصيص «...»، وممنوع تماماً استخدام الإيموجي أو علامات النجوم (*** أو ** أو *) أو رموز الماركداون (#).';
-
-    // Include up to last 6 turns of conversation history for natural follow-ups
-    final messagesPayload = <Map<String, String>>[
-      {'role': 'system', 'content': systemPrompt},
-    ];
-    final recentTurns = history.length > 6
-        ? history.sublist(history.length - 6)
-        : history;
-    for (final turn in recentTurns) {
-      if (turn.text.trim().isEmpty) continue;
-      messagesPayload.add({
-        'role': turn.isUser ? 'user' : 'assistant',
-        'content': turn.text.length > 600
-            ? turn.text.substring(0, 600)
-            : turn.text,
-      });
+    // 3. Call user's configured REAL AI API (Gemini / Groq / Custom Proxy) if set
+    var cfg = await loadConfig();
+    if (!cfg.isConfigured && apiKey != null && apiKey.trim().length >= 12) {
+      cfg = AiApiConfig(provider: AiProviderType.gemini, apiKey: apiKey.trim());
     }
-    messagesPayload.add({'role': 'user', 'content': '$cleanQuery$ragContext'});
 
-    // 3. Try Live Online AI Generation
-    try {
-      final response = await http
-          .post(
-            Uri.parse('https://text.pollinations.ai/openai'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'model': 'openai',
-              'messages': messagesPayload,
-              'temperature': 0.25,
-            }),
-          )
-          .timeout(const Duration(seconds: 16));
-
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-        final rawAiText =
-            decoded['choices']?[0]?['message']?['content']?.toString().trim() ??
-                '';
-        final aiText = cleanMarkdownFormatting(rawAiText);
-        if (aiText.isNotEmpty) {
+    if (cfg.isConfigured) {
+      try {
+        final aiText = await _callConfiguredProvider(
+          cfg: cfg,
+          userPrompt: '$cleanQuery$ragContext',
+          history: history,
+        );
+        if (aiText != null && aiText.isNotEmpty) {
           return AiMessage(
             text: aiText,
             isUser: false,
             timestamp: DateTime.now(),
             citations: ragCitations.isNotEmpty
-                ? ragCitations
+                ? [...ragCitations, 'مرتبط بـ ${cfg.providerDisplayName}']
                 : [
-                    'تفاسير آباء الكنيسة القبطية الأرثوذكسية',
-                    'القمص تادرس يعقوب ملطي • القس أنطونيوس فكري',
+                    'المرشد الآبائي (${cfg.providerDisplayName})',
+                    'تراث الكنيسة القبطية الأرثوذكسية',
                   ],
           );
         }
+      } catch (_) {
+        // Fall through cleanly to zero-hallucination local Orthodox RAG!
       }
-    } catch (_) {
-      // Offline fallback to Local RAG synthesis below
     }
 
-    // 4. Offline Local RAG Synthesis (works completely offline inside church)
-    if (rag['direct_hit'] == true) {
+    // 4. Zero-hallucination Offline Patristic Knowledge Base + Local RAG Synthesis
+    if (rag['direct_hit'] == true && rag['direct_text'] != null) {
       return AiMessage(
-        text: rag['text'] as String,
+        text: rag['direct_text'] as String,
         isUser: false,
         timestamp: DateTime.now(),
-        citations: rag['citations'] as List<String>,
+        citations: rag['direct_citations'] as List<String>?,
       );
     }
 
     if (ragSnippets.isNotEmpty) {
       return AiMessage(
         text:
-            'بخصوص سؤالك: «$cleanQuery»\n\nإليك ما ورد في مراجع وتفاسير الكنيسة القبطية الأرثوذكسية المحفوظة على جهازك:\n\n${ragSnippets.join("\n\n─────────────────\n\n")}',
+            'بخصوص سؤالك: «$cleanQuery»\n\nإليك ما ورد في مكتبة التطبيق الأرثوذكسية (الكتاب المقدس، الكتب الآبائية، والسنكسار):\n\n${ragSnippets.join("\n\n─────────────────\n\n")}',
         isUser: false,
         timestamp: DateTime.now(),
         citations: ragCitations,
@@ -403,18 +674,19 @@ class AiTheologyService {
 
     return AiMessage(
       text:
-          'بخصوص سؤالك الروحي: «$cleanQuery»\n\nفي تعليم الكنيسة القبطية الأرثوذكسية وتفاسير الآباء (القديس أثناسيوس الرسولي، القديس كيرلس الكبير، والقمص تادرس يعقوب ملطي):\n• كل آية أو طقس في الكنيسة يشير إلى عمل السيد المسيح الخلاصي واتحادنا به في سر الكنيسة.\n• يمكنك كتابة اسم أي سفر من أسفار الكتاب المقدس أو اسم قديس أو عقيدة (مثل: الثالوث، التجسد، الأسرار السبعة، الشفاعة، التوبة) لاستخراج النصوص والتفاسير الآبائية مباشرة.',
+          'بخصوص سؤالك: «$cleanQuery»\n\n'
+          '• يمكنك تفعيل الذكاء الاصطناعي الحقيقي مجاناً عبر زر «ربط API» في أعلى الشاشة (بمفتاح Google Gemini المجاني أو Groq بدون كارت بنكي) للإجابة المفتوحة على أي سؤال لاهوتي أو كتابي.\n'
+          '• وبدون إنترنت أو مفتاح، يمكنك السؤال مباشرة عن: التوبة، الثالوث، التجسد، الأسرار السبعة، الشفاعة، الصوم الكبير، صوم يونان، القداس، البصخة، التسبحة، المعمودية، العذراء، أو أي آية أو قديس في السنكسار.',
       isUser: false,
       timestamp: DateTime.now(),
       citations: [
-        'الكتاب المقدس والتفاسير الآبائية',
-        'تراث الكنيسة القبطية الأرثوذكسية',
+        'الموسوعة الآبائية المحلية — أرثوذكسيا',
+        'يدعم ربط Google Gemini و Groq المجاني',
       ],
     );
   }
 
   /// Strips raw Markdown asterisks (***, **, *), hashes (###), and horizontal rules (---)
-  /// and normalizes bullet points for clean Arabic Patristic display.
   static String cleanMarkdownFormatting(String raw) {
     if (raw.isEmpty) return '';
     String text = raw;

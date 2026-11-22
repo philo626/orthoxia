@@ -36,7 +36,6 @@ class _AuthViewState extends State<AuthView> {
   bool _busy = false;
   bool _pendingGuest = false;
   String? _pendingEmail;
-  String? _pendingPhone;
   String? _errorMsg;
 
   @override
@@ -60,14 +59,12 @@ class _AuthViewState extends State<AuthView> {
     required bool guest,
     String? resolvedName,
     String? email,
-    String? phone,
   }) {
     if (resolvedName != null && resolvedName.trim().isNotEmpty) {
       _nameCtrl.text = resolvedName.trim();
     }
     _pendingGuest = guest;
     _pendingEmail = email;
-    _pendingPhone = phone;
 
     // If returning user already personalized before and logged in again, enter directly
     if (_storage.isOnboardingCompleted() && !guest && _nameCtrl.text.trim().isNotEmpty) {
@@ -94,9 +91,6 @@ class _AuthViewState extends State<AuthView> {
     await _storage.setUserName(finalName);
     if (_pendingEmail != null && _pendingEmail!.trim().isNotEmpty) {
       await _storage.setUserEmail(_pendingEmail!.trim());
-    }
-    if (_pendingPhone != null && _pendingPhone!.trim().isNotEmpty) {
-      await _storage.setUserPhone(_pendingPhone!.trim());
     }
     await _storage.setPatronSaintId(_selectedSaintId);
     await _storage.setGuestMode(_pendingGuest);
@@ -312,171 +306,6 @@ class _AuthViewState extends State<AuthView> {
                             child: CircularProgressIndicator(strokeWidth: 2, color: p.onAccent),
                           )
                         : const Text('إرسال رابط الاستعادة'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showPhoneOtpSheet() {
-    final phoneCtrl = TextEditingController(text: '+20');
-    final otpCtrl = TextEditingController();
-    String? verificationId;
-    bool sending = false;
-    String? sheetErr;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        final p = ctx.palette;
-        return StatefulBuilder(
-          builder: (ctx, setSheet) => Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(22, 14, 22, 26),
-              decoration: BoxDecoration(
-                color: p.surface,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-                border: Border(top: BorderSide(color: p.border)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: p.border,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Text(
-                    'الدخول برقم الهاتف',
-                    style: GoogleFonts.amiri(
-                      fontSize: 23,
-                      fontWeight: FontWeight.bold,
-                      color: p.ink,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    verificationId == null
-                        ? 'سنرسل رسالة نصية تحتوي على رمز تحقق مكوّن من ٦ أرقام.'
-                        : 'أدخل رمز التحقق الذي وصلك على ${phoneCtrl.text.trim()}',
-                    style: GoogleFonts.cairo(fontSize: 13, color: p.inkSecondary),
-                  ),
-                  const SizedBox(height: 14),
-                  if (sheetErr != null)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                      decoration: BoxDecoration(
-                        color: p.danger.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        sheetErr!,
-                        style: GoogleFonts.cairo(fontSize: 12.5, color: p.danger),
-                      ),
-                    ),
-                  TextField(
-                    controller: phoneCtrl,
-                    enabled: verificationId == null,
-                    keyboardType: TextInputType.phone,
-                    style: GoogleFonts.cairo(color: p.ink, fontSize: 14.5),
-                    decoration: const InputDecoration(
-                      hintText: '+2010xxxxxxxx',
-                      prefixIcon: Icon(Icons.phone_outlined, size: 20),
-                    ),
-                  ),
-                  if (verificationId != null) ...[
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: otpCtrl,
-                      keyboardType: TextInputType.number,
-                      maxLength: 6,
-                      style: GoogleFonts.cairo(color: p.ink, fontSize: 16, letterSpacing: 4),
-                      decoration: const InputDecoration(
-                        counterText: '',
-                        hintText: 'رمز التحقق',
-                        prefixIcon: Icon(Icons.sms_outlined, size: 20),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: sending
-                        ? null
-                        : () async {
-                            if (verificationId == null) {
-                              setSheet(() {
-                                sending = true;
-                                sheetErr = null;
-                              });
-                              await _firebase.verifyPhoneNumber(
-                                phoneNumber: phoneCtrl.text.trim(),
-                                onCodeSent: (vId) {
-                                  if (!ctx.mounted) return;
-                                  setSheet(() {
-                                    verificationId = vId;
-                                    sending = false;
-                                  });
-                                },
-                                onError: (err) {
-                                  if (!ctx.mounted) return;
-                                  setSheet(() {
-                                    sheetErr = err;
-                                    sending = false;
-                                  });
-                                },
-                                onAutoVerified: (_) {
-                                  if (ctx.mounted) Navigator.pop(ctx);
-                                  _proceedToPersonalization(
-                                    guest: false,
-                                    phone: phoneCtrl.text.trim(),
-                                  );
-                                },
-                              );
-                            } else {
-                              setSheet(() => sending = true);
-                              final res = await _firebase.confirmPhoneOtp(
-                                verificationId: verificationId!,
-                                smsCode: otpCtrl.text.trim(),
-                                displayName: _nameCtrl.text.trim(),
-                                phoneNumber: phoneCtrl.text.trim(),
-                              );
-                              if (!ctx.mounted) return;
-                              if (res.success) {
-                                Navigator.pop(ctx);
-                                _proceedToPersonalization(
-                                  guest: false,
-                                  phone: phoneCtrl.text.trim(),
-                                );
-                              } else {
-                                setSheet(() {
-                                  sending = false;
-                                  sheetErr = res.message;
-                                });
-                              }
-                            }
-                          },
-                    child: sending
-                        ? SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: p.onAccent),
-                          )
-                        : Text(verificationId == null ? 'إرسال الرمز' : 'تأكيد الدخول'),
                   ),
                 ],
               ),
@@ -815,41 +644,21 @@ class _AuthViewState extends State<AuthView> {
 
           const SizedBox(height: 18),
 
-          // Quiet Secondary Actions Row (Phone OTP + Guest)
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _busy ? null : _showPhoneOtpSheet,
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 44),
-                    backgroundColor: p.surface,
-                  ),
-                  icon: Icon(Icons.phone_outlined, size: 17, color: p.inkSecondary),
-                  label: Text(
-                    'برقم الهاتف',
-                    style: GoogleFonts.cairo(fontSize: 13, color: p.ink),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _busy
-                      ? null
-                      : () => _proceedToPersonalization(guest: true),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 44),
-                    backgroundColor: p.surface,
-                  ),
-                  icon: Icon(Icons.arrow_back_rounded, size: 17, color: p.inkSecondary),
-                  label: Text(
-                    'متابعة كزائر',
-                    style: GoogleFonts.cairo(fontSize: 13, color: p.ink),
-                  ),
-                ),
-              ),
-            ],
+          // Quiet Secondary Action (Guest Mode — 100% reliable without blocked paid SMS OTP)
+          OutlinedButton.icon(
+            onPressed: _busy
+                ? null
+                : () => _proceedToPersonalization(guest: true),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 46),
+              backgroundColor: p.surface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            icon: Icon(Icons.arrow_back_rounded, size: 17, color: p.inkSecondary),
+            label: Text(
+              'متابعة كزائر',
+              style: GoogleFonts.cairo(fontSize: 13.5, fontWeight: FontWeight.w600, color: p.ink),
+            ),
           ),
 
           const SizedBox(height: 18),

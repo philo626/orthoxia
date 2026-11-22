@@ -223,6 +223,10 @@ class FirebaseService {
         if (displayName.trim().isNotEmpty) {
           await cred.user?.updateDisplayName(displayName.trim());
         }
+        // Automatically send email verification link on new account creation
+        try {
+          await cred.user?.sendEmailVerification();
+        } catch (_) {}
       }
 
       final resolvedName = displayName.trim().isNotEmpty

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/services/ai_theology_service.dart';
 import '../../core/services/speech_pronunciation_service.dart';
 import '../../core/theme/app_palette.dart';
@@ -194,6 +195,323 @@ class _AiCompanionViewState extends State<AiCompanionView> {
     );
   }
 
+  void _showApiSetupSheet(BuildContext context, AiCompanionProvider aiProv) {
+    final p = context.palette;
+    var selectedProvider = aiProv.apiConfig.provider;
+    final keyCtrl = TextEditingController(text: aiProv.apiConfig.apiKey);
+    final urlCtrl =
+        TextEditingController(text: aiProv.apiConfig.customEndpoint);
+    final modelCtrl = TextEditingController(text: aiProv.apiConfig.customModel);
+    bool testing = false;
+    String? statusMsg;
+    bool statusOk = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+            decoration: BoxDecoration(
+              color: p.surface,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border(top: BorderSide(color: p.border)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: p.borderStrong,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'ربط الذكاء الاصطناعي للمرشد الآبائي',
+                    style: GoogleFonts.amiri(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w700,
+                      color: p.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'اختر مزوداً مجانياً (بدون كارت بنكي) لحفظ مفتاحك مشفراً داخل هاتفك وتشغيل الإجابات المفتوحة:',
+                    style: GoogleFonts.cairo(
+                        fontSize: 12, color: p.inkMuted, height: 1.5),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ChoiceChip(
+                        label: Text('Google Gemini (مجاني — موصى به)',
+                            style: GoogleFonts.cairo(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: selectedProvider == AiProviderType.gemini
+                                    ? p.onAccent
+                                    : p.ink)),
+                        selected: selectedProvider == AiProviderType.gemini,
+                        selectedColor: p.accent,
+                        backgroundColor: p.surfaceMuted,
+                        showCheckmark: false,
+                        onSelected: (_) => setSheet(
+                            () => selectedProvider = AiProviderType.gemini),
+                      ),
+                      ChoiceChip(
+                        label: Text('Groq (سريع ومجاني)',
+                            style: GoogleFonts.cairo(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: selectedProvider == AiProviderType.groq
+                                    ? p.onAccent
+                                    : p.ink)),
+                        selected: selectedProvider == AiProviderType.groq,
+                        selectedColor: p.accent,
+                        backgroundColor: p.surfaceMuted,
+                        showCheckmark: false,
+                        onSelected: (_) => setSheet(
+                            () => selectedProvider = AiProviderType.groq),
+                      ),
+                      ChoiceChip(
+                        label: Text('خادم مخصص (Proxy)',
+                            style: GoogleFonts.cairo(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: selectedProvider ==
+                                        AiProviderType.customProxy
+                                    ? p.onAccent
+                                    : p.ink)),
+                        selected:
+                            selectedProvider == AiProviderType.customProxy,
+                        selectedColor: p.accent,
+                        backgroundColor: p.surfaceMuted,
+                        showCheckmark: false,
+                        onSelected: (_) => setSheet(() =>
+                            selectedProvider = AiProviderType.customProxy),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (selectedProvider == AiProviderType.gemini)
+                    InkWell(
+                      onTap: () => launchUrl(
+                        Uri.parse('https://aistudio.google.com/apikey'),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: p.accentSoft,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: p.accent.withValues(alpha: 0.35)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.key_rounded, color: p.accent, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'احصل على مفتاح Google Gemini مجاناً (١٥٠٠ سؤال يومياً بدون كارت) ← اضغط هنا',
+                                style: GoogleFonts.cairo(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: p.accent,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else if (selectedProvider == AiProviderType.groq)
+                    InkWell(
+                      onTap: () => launchUrl(
+                        Uri.parse('https://console.groq.com/keys'),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: p.accentSoft,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: p.accent.withValues(alpha: 0.35)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.bolt_rounded, color: p.accent, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'احصل على مفتاح Groq المجاني (Llama 3.3 السريع) ← اضغط هنا',
+                                style: GoogleFonts.cairo(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: p.accent,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  if (selectedProvider == AiProviderType.customProxy) ...[
+                    TextField(
+                      controller: urlCtrl,
+                      textDirection: TextDirection.ltr,
+                      style: GoogleFonts.cairo(color: p.ink, fontSize: 13),
+                      decoration: InputDecoration(
+                        labelText: 'رابط الخادم (HTTPS Endpoint)',
+                        hintText: 'https://your-worker.workers.dev/v1/chat/completions',
+                        filled: true,
+                        fillColor: p.surfaceMuted,
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: modelCtrl,
+                      textDirection: TextDirection.ltr,
+                      style: GoogleFonts.cairo(color: p.ink, fontSize: 13),
+                      decoration: InputDecoration(
+                        labelText: 'اسم النموذج (اختياري)',
+                        hintText: 'gemini-2.5-flash / gpt-4o-mini',
+                        filled: true,
+                        fillColor: p.surfaceMuted,
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  TextField(
+                    controller: keyCtrl,
+                    obscureText: true,
+                    textDirection: TextDirection.ltr,
+                    style: GoogleFonts.cairo(color: p.ink, fontSize: 13),
+                    decoration: InputDecoration(
+                      labelText: selectedProvider == AiProviderType.customProxy
+                          ? 'مفتاح API (إن وجد)'
+                          : 'الصق مفتاح API هنا',
+                      filled: true,
+                      fillColor: p.surfaceMuted,
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none),
+                    ),
+                  ),
+                  if (statusMsg != null) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      statusMsg!,
+                      style: GoogleFonts.cairo(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: statusOk ? p.success : p.crimson,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      if (aiProv.apiConfig.isConfigured)
+                        TextButton(
+                          onPressed: testing
+                              ? null
+                              : () async {
+                                  await aiProv.disconnectApi();
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                },
+                          child: Text('إلغاء الربط',
+                              style: GoogleFonts.cairo(color: p.crimson)),
+                        ),
+                      const Spacer(),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: p.accent,
+                          foregroundColor: p.onAccent,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 11),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: testing
+                            ? null
+                            : () async {
+                                setSheet(() {
+                                  testing = true;
+                                  statusMsg = 'جارٍ اختبار الاتصال...';
+                                  statusOk = false;
+                                });
+                                final cfg = AiApiConfig(
+                                  provider: selectedProvider,
+                                  apiKey: keyCtrl.text.trim(),
+                                  customEndpoint: urlCtrl.text.trim(),
+                                  customModel: modelCtrl.text.trim(),
+                                );
+                                final (ok, msg) =
+                                    await aiProv.testAndSaveApiConfig(cfg);
+                                if (!ctx.mounted) return;
+                                setSheet(() {
+                                  testing = false;
+                                  statusOk = ok;
+                                  statusMsg = msg;
+                                });
+                                if (ok) {
+                                  Future.delayed(
+                                      const Duration(milliseconds: 900), () {
+                                    if (ctx.mounted) Navigator.pop(ctx);
+                                  });
+                                }
+                              },
+                        icon: testing
+                            ? SizedBox(
+                                width: 15,
+                                height: 15,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: p.onAccent),
+                              )
+                            : const Icon(Icons.check_circle_outline_rounded,
+                                size: 17),
+                        label: Text(
+                          testing ? 'جارٍ الاختبار...' : 'اختبار الاتصال والحفظ',
+                          style: GoogleFonts.cairo(
+                              fontWeight: FontWeight.w700, fontSize: 12.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
@@ -234,9 +552,14 @@ class _AiCompanionViewState extends State<AiCompanionView> {
                         ),
                       ),
                       Text(
-                        'إجابات موثقة من الكتاب المقدس والطقس وأقوال الآباء',
+                        aiProv.apiConfig.isConfigured
+                            ? 'متصل بـ ${aiProv.apiConfig.providerDisplayName} • مراجع أرثوذكسية'
+                            : 'الموسوعة الآبائية المحلية • اضغط «ربط API» للتفعيل المفتوح',
                         style: GoogleFonts.cairo(
-                            fontSize: 10.5, color: p.inkMuted),
+                            fontSize: 10.5,
+                            color: aiProv.apiConfig.isConfigured
+                                ? p.success
+                                : p.inkMuted),
                       ),
                     ],
                   ),
@@ -244,6 +567,24 @@ class _AiCompanionViewState extends State<AiCompanionView> {
               ],
             ),
             actions: [
+              TextButton.icon(
+                onPressed: () => _showApiSetupSheet(context, aiProv),
+                icon: Icon(
+                  aiProv.apiConfig.isConfigured
+                      ? Icons.cloud_done_rounded
+                      : Icons.vpn_key_rounded,
+                  size: 16,
+                  color: aiProv.apiConfig.isConfigured ? p.success : p.accent,
+                ),
+                label: Text(
+                  aiProv.apiConfig.isConfigured ? 'API متصل' : 'ربط API',
+                  style: GoogleFonts.cairo(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: aiProv.apiConfig.isConfigured ? p.success : p.accent,
+                  ),
+                ),
+              ),
               if (aiProv.messages.length > 1)
                 IconButton(
                   tooltip: 'محادثة جديدة',

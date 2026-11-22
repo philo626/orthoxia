@@ -1,171 +1,48 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/constants/app_colors.dart';
+import 'package:provider/provider.dart';
 import '../../core/services/speech_pronunciation_service.dart';
+import '../../core/theme/app_palette.dart';
 import '../../core/widgets/coptic_cross.dart';
+import '../../providers/theme_provider.dart';
 
-class SacramentRiteSection {
-  final String role;
-  final String title;
-  final String copticOrArabized;
-  final String arabicText;
-
-  const SacramentRiteSection({
-    required this.role,
-    required this.title,
-    this.copticOrArabized = '',
-    required this.arabicText,
-  });
-}
-
-class SacramentRite {
-  final String id;
-  final String title;
-  final IconData icon;
-  final String occasion;
-  final String overview;
-  final List<SacramentRiteSection> sections;
-
-  const SacramentRite({
-    required this.id,
-    required this.title,
-    required this.icon,
-    required this.occasion,
-    required this.overview,
-    required this.sections,
-  });
-}
-
+/// Complete Coptic Orthodox Sacraments & Liturgical Rites Reader (8 complete rites:
+/// Lakan, Pentecost Sagda, Baptism & Myron, Matrimony, Unction of the Sick / Qandil,
+/// Repentance & Confession, Funeral, and Home Blessing) — 100% adaptive to AppPalette.
 class ChurchSacramentsRitesView extends StatefulWidget {
-  const ChurchSacramentsRitesView({super.key});
+  final bool embedded;
 
-  static const List<SacramentRite> rites = [
-    SacramentRite(
-      id: 'lakan',
-      title: 'طقس وصلاة اللقان المقدس',
-      icon: Icons.water_drop_outlined,
-      occasion: 'يُصلى ٣ مرات في السنة: عيد الغطاس • خميس العهد • عيد الآباء الرسل',
-      overview: 'صلاة تقديس الماء في اللقان تذكاراً لمعمودية الرب يسوع في نهر الأردن (الغطاس)، ولغسله أرجل التلاميذ باتضاع (خميس العهد)، ولإرسالية التلاميذ لتعميد الأمم (عيد الرسل).',
-      sections: [
-        SacramentRiteSection(
-          role: 'الكاهن',
-          title: 'صلاة الشكر والنبوات والمزامير',
-          copticOrArabized: 'مارين شيب إهموت إنطوطف إم إفنوتي • إسمو إيروف',
-          arabicText: 'تُفتتح صلاة اللقان بصلاة الشكر ورفع البخور، ثم تُقرأ نبوات من العهد القديم تشير إلى قوة الماء المطهر، ويتلو الشعب الهيتينيات وأوشية الإنجيل.',
-        ),
-        SacramentRiteSection(
-          role: 'الكاهن',
-          title: 'الطلبات الكبرى على ماء اللقان',
-          copticOrArabized: 'كيريي إليسون (يا رب ارحم)',
-          arabicText: 'أيها السيد الرب الإله ضابط الكل، خالق المياه وينبوع الحياة، قدس هذا الماء بروحك القدوس، ليكون ماء بركة وطهارة وشفاءً للنفوس والأجساد، واغسل قلوبنا من كل دنس الخطية كما غسلت أرجل تلاميذك القديسين.',
-        ),
-        SacramentRiteSection(
-          role: 'الشعب',
-          title: 'مرد الشعب أثناء رشومات اللقان',
-          copticOrArabized: 'كيرياليسون • كيرياليسون • كيرياليسون',
-          arabicText: 'يا رب ارحم (يرددها الشعب مع كل طلبة، ثم يرشم الكاهن الماء بالصليب ثلاث مرات باسم الآب والابن والروح القدس، ويبارك الشعب بالماء المقدس).',
-        ),
-      ],
-    ),
-    SacramentRite(
-      id: 'pentecost_sagda',
-      title: 'صلوات السجدة المقدسة (عيد العنصرة)',
-      icon: Icons.local_fire_department_outlined,
-      occasion: 'تُصلى عصر يوم أحد عيد العنصرة (حلول الروح القدس)',
-      overview: 'ثلاث سجدات خاشعة للثالوث القدوس (السجدة الأولى للآب، والثانية للابن، والثالثة للروح القدس)، حيث نركع لأول مرة بعد خمسين يوماً من القيامة شكراً على حلول الروح القدس المعزي.',
-      sections: [
-        SacramentRiteSection(
-          role: 'الشماس',
-          title: 'نداء السجدة في عيد البنطيقسطي',
-          copticOrArabized: 'إكلينومين طاغوناطا • أنيستومي',
-          arabicText: 'نحني ركبنا أمام الرب! نقوم ثم نحني ركبنا أيضاً! فلنسجد للآب والابن والروح القدس الثالوث المساوي في الجوهر.',
-        ),
-        SacramentRiteSection(
-          role: 'الكاهن',
-          title: 'السجدة الأولى (موجهة لله الآب)',
-          copticOrArabized: 'إفنوتي بي نيشتي بي شا إينيه',
-          arabicText: 'أيها الرب الإله الآب الأزلي غير المدرك، الذي أرسل ابنه الوحيد لخلاص العالم، تقبل سجودنا وتضرعاتنا، وأرح نفوس آبائنا وإخوتنا الذين رقدوا على رجاء القيامة في فردوس النعيم.',
-        ),
-        SacramentRiteSection(
-          role: 'الكاهن',
-          title: 'السجدة الثانية (موجهة لله الابن الكلمة)',
-          copticOrArabized: 'بي إخريستوس بين نوتي',
-          arabicText: 'أيها السيد الرب يسوع المسيح كلمة الآب، الذي صعد إلى السماوات وجلس عن يمين العظمة وأرسل لنا الروح المعزي، هب لنا روح الحكمة والفهم ومخافتك المقدسة.',
-        ),
-        SacramentRiteSection(
-          role: 'الكاهن',
-          title: 'السجدة الثالثة (استدعاء مواهب الروح القدس)',
-          copticOrArabized: 'بي إبنيفما إمباراكليطون',
-          arabicText: 'أيها الملك السمائي المعزي، روح الحق الحاضر في كل مكان والمالئ الكل، هلم اسكن فينا وطهرنا من كل دنس، وخلص أيها الصالح نفوسنا، وجدد وجه الأرض بسلامك.',
-        ),
-      ],
-    ),
-    SacramentRite(
-      id: 'matrimony',
-      title: 'طقس سر الإكليل المقدس (الزيجة)',
-      icon: Icons.workspace_premium_outlined,
-      occasion: 'سر اتحاد العروسين في الرب على مثال اتحاد المسيح بالكنيسة',
-      overview: 'سر مقدس يصير به العروسان جسداً واحداً بالروح القدس، ويشمل تبريك الخواتم (العربون)، القراءات، دهن الزيت، إلباس البرنس والأكاليل، والوصايا المقدسة.',
-      sections: [
-        SacramentRiteSection(
-          role: 'الكاهن',
-          title: 'صلاة تبريك الأكاليل والاتحاد المقدس',
-          copticOrArabized: 'إفنوتي بي أجيوس • بارك إكليلهما',
-          arabicText: 'اللهم القدوس الذي جبل الإنسان على صورته ومثاله، وقال ليس حسناً أن يكون آدم وحده، بارك عبديك هذين، واجمعهما في وحدانية المحبة والطهارة، وكللهما بإكليل المجد والكرامة.',
-        ),
-        SacramentRiteSection(
-          role: 'الشماس',
-          title: 'وصايا الكنيسة للعروسين',
-          copticOrArabized: 'الوصية الرسولية للبيت المسيحي',
-          arabicText: 'يجب عليك أيها العريس المبارك أن تتسلم زوجتك في هذه الساعة بنية خالصة وقلب طاهر، وتكرمها كجسدك كما أحب المسيح الكنيسة. وأنتِ أيتها العروس المباركة أكرمي رجلَكِ وكوني معه في سلام ووداعة، وليبارك الرب بيتكما بالنسل الصالح والسلام.',
-        ),
-      ],
-    ),
-    SacramentRite(
-      id: 'unction_sick',
-      title: 'طقس سر مسحة المرضى (القنديل)',
-      icon: Icons.healing_outlined,
-      occasion: 'سبع صلوات لشفاء النفس والجسد (ويُصلى القنديل العام في جمعة ختام الصوم)',
-      overview: 'تأسيساً على وصية معلمنا يعقوب الرسول: «أمريض أحد بينكم؟ فليدعُ قسوس الكنيسة فيصلوا عليه ويدهنوه بزيت باسم الرب، وصلاة الإيمان تشفي المريض».',
-      sections: [
-        SacramentRiteSection(
-          role: 'الكاهن',
-          title: 'صلاة شفاء المرضى وتقديس الزيت',
-          copticOrArabized: 'طبيب النفوس والأجساد الحقيقي',
-          arabicText: 'أيها السيد الرب يسوع المسيح طبيب نفوسنا وأجسادنا الحقيقي، الذي حمل أمراضنا وأوجاعنا، قدس هذا الزيت ليكون شفاءً وعافيةً لكل من يُدهن به بإيمان، وانزع كل مرض وكل وجع، وأقم عبيدك بمعونتك الإلهية.',
-        ),
-      ],
-    ),
-    SacramentRite(
-      id: 'baptism_myron',
-      title: 'طقس سر المعمودية والميرون المقدس',
-      icon: Icons.spa_outlined,
-      occasion: 'سر الميلاد الثاني من الماء والروح وختم الروح القدس (٣٦ رشماً)',
-      overview: 'بالمعمودية ندفن مع المسيح ونقوم معه خليقة جديدة، وبالميرون المقدس ننال سكنى وختم الروح القدس في كل حواسنا وأعضائنا.',
-      sections: [
-        SacramentRiteSection(
-          role: 'الكاهن',
-          title: 'جحد الشيطان والإقرار بالإيمان بالمسيح',
-          copticOrArabized: 'أجحدك أيها الشيطان • وأعترف بك أيها المسيح إلهي',
-          arabicText: 'ينظر المعمد (أو إشبينه) نحو الغرب ويجحد الشيطان وكل أعماله الشريرة، ثم يلتفت نحو الشرق ويرفع يديه معلناً: أعترف بك أيها المسيح إلهي وبكل نواميسك المخلصة، ويتلو قانون الإيمان الأرثوذكسي.',
-        ),
-        SacramentRiteSection(
-          role: 'الكاهن',
-          title: 'التغطيس الثلاثي ورشومات الميرون الـ ٣٦',
-          copticOrArabized: 'أعمدك باسم الآب والابن والروح القدس',
-          arabicText: 'يُغطس المعمد ثلاث دفعات باسم الآب والابن والروح القدس، ثم يُرشم بزيت الميرون المقدس ٣٦ رشماً على جميع الحواس والمفاصل قائلاً: مسحة نعمة الروح القدس، مسحة عربون ملكوت السماوات. آمين.',
-        ),
-      ],
-    ),
-  ];
+  const ChurchSacramentsRitesView({super.key, this.embedded = false});
 
   @override
-  State<ChurchSacramentsRitesView> createState() => _ChurchSacramentsRitesViewState();
+  State<ChurchSacramentsRitesView> createState() =>
+      _ChurchSacramentsRitesViewState();
 }
 
 class _ChurchSacramentsRitesViewState extends State<ChurchSacramentsRitesView> {
+  List<Map<String, dynamic>> _rites = [];
   int _selectedRiteIdx = 0;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRites();
+  }
+
+  Future<void> _loadRites() async {
+    try {
+      final raw = await rootBundle
+          .loadString('assets/data/sacraments_rites_complete.json');
+      final list = jsonDecode(raw) as List;
+      _rites = list.map((e) => Map<String, dynamic>.from(e)).toList();
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -173,221 +50,294 @@ class _ChurchSacramentsRitesViewState extends State<ChurchSacramentsRitesView> {
     super.dispose();
   }
 
+  IconData _resolveIcon(String name) {
+    switch (name) {
+      case 'water_drop':
+        return Icons.water_drop_outlined;
+      case 'local_fire_department':
+        return Icons.local_fire_department_outlined;
+      case 'spa':
+        return Icons.spa_outlined;
+      case 'workspace_premium':
+        return Icons.workspace_premium_outlined;
+      case 'healing':
+        return Icons.healing_outlined;
+      case 'favorite_border':
+        return Icons.favorite_border_rounded;
+      case 'church':
+        return Icons.church_outlined;
+      case 'home':
+        return Icons.home_outlined;
+      default:
+        return Icons.auto_stories_outlined;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final rite = ChurchSacramentsRitesView.rites[_selectedRiteIdx];
+    final p = context.palette;
+    final fontScale = context.watch<ThemeProvider>().fontScale;
+
+    final content = _loading
+        ? Center(child: CircularProgressIndicator(color: p.accent))
+        : _rites.isEmpty
+            ? Center(
+                child: Text('تعذر تحميل نصوص الطقوس',
+                    style: GoogleFonts.cairo(color: p.inkMuted)),
+              )
+            : _buildRitesBody(p, fontScale);
+
+    if (widget.embedded) {
+      return content;
+    }
 
     return Scaffold(
-      backgroundColor: AppColors.deepNavy,
+      backgroundColor: p.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepNavy,
+        backgroundColor: p.background,
+        elevation: 0,
         centerTitle: true,
         title: Text(
           'الطقوس الكنسية والأسرار واللقان',
-          style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 16),
+          style: GoogleFonts.amiri(
+            fontWeight: FontWeight.w700,
+            fontSize: 21,
+            color: p.ink,
+          ),
         ),
       ),
-      body: Column(
-        children: [
-          // Horizontal Rites Selector
-          SizedBox(
-            height: 46,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-              itemCount: ChurchSacramentsRitesView.rites.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, idx) {
-                final r = ChurchSacramentsRitesView.rites[idx];
-                final sel = idx == _selectedRiteIdx;
-                return ChoiceChip(
-                  showCheckmark: false,
-                  avatar: Icon(
-                    r.icon,
-                    size: 15,
-                    color: sel ? Colors.black : AppColors.primaryGold,
-                  ),
-                  label: Text(
-                    r.title,
-                    style: GoogleFonts.cairo(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: sel ? Colors.black : AppColors.textLight,
-                    ),
-                  ),
-                  selected: sel,
-                  selectedColor: AppColors.primaryGold,
-                  backgroundColor: AppColors.cardNavy,
-                  side: BorderSide(color: sel ? AppColors.primaryGold : AppColors.hairline),
-                  onSelected: (_) {
-                    HapticFeedback.selectionClick();
-                    SpeechPronunciationService().stop();
-                    setState(() => _selectedRiteIdx = idx);
-                  },
-                );
-              },
-            ),
-          ),
+      body: content,
+    );
+  }
 
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 36),
-              children: [
-                // Overview Hero Card
+  Widget _buildRitesBody(AppPalette p, double fontScale) {
+    final safeIdx = _selectedRiteIdx.clamp(0, _rites.length - 1);
+    final rite = _rites[safeIdx];
+    final sections = (rite['sections'] as List? ?? [])
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    final riteIcon = _resolveIcon('${rite['icon'] ?? ''}');
+    final riteTitle = '${rite['title'] ?? ''}';
+    final riteOccasion = '${rite['occasion'] ?? ''}';
+    final riteOverview = '${rite['overview'] ?? ''}';
+
+    return Column(
+      children: [
+        // 8-Rites Selector Ribbon
+        Container(
+          height: 50,
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: p.border)),
+          ),
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            itemCount: _rites.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, idx) {
+              final r = _rites[idx];
+              final sel = idx == safeIdx;
+              return ChoiceChip(
+                showCheckmark: false,
+                avatar: Icon(
+                  _resolveIcon('${r['icon'] ?? ''}'),
+                  size: 15,
+                  color: sel ? p.onAccent : p.accent,
+                ),
+                label: Text(
+                  '${r['title']}',
+                  style: GoogleFonts.cairo(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: sel ? p.onAccent : p.ink,
+                  ),
+                ),
+                selected: sel,
+                selectedColor: p.accent,
+                backgroundColor: p.surfaceElevated,
+                side: BorderSide(color: sel ? p.accent : p.border),
+                onSelected: (_) {
+                  HapticFeedback.selectionClick();
+                  SpeechPronunciationService().stop();
+                  setState(() => _selectedRiteIdx = idx);
+                },
+              );
+            },
+          ),
+        ),
+
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 95),
+            children: [
+              // Overview Header Card
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: p.surfaceElevated,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: p.accent.withValues(alpha: 0.4)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: p.accentSoft,
+                          ),
+                          child: Icon(riteIcon, color: p.accent, size: 22),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                riteTitle,
+                                style: GoogleFonts.amiri(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                  color: p.ink,
+                                ),
+                              ),
+                              Text(
+                                riteOccasion,
+                                style: GoogleFonts.cairo(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: p.accent,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      riteOverview,
+                      style: GoogleFonts.cairo(
+                        fontSize: 13,
+                        height: 1.6,
+                        color: p.inkMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SpeechPlayStopButton(
+                      textToSpeak:
+                          '$riteTitle. $riteOverview. ${sections.map((s) => "${s['title']}: ${s['arabic']}").join(". ")}',
+                      label: riteTitle,
+                      playText: 'استماع للطقس كاملاً',
+                      stopText: 'إيقاف الصوت',
+                      compact: true,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              // Complete Liturgical Sections
+              for (final sec in sections) ...[
                 Container(
-                  padding: const EdgeInsets.all(18),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppColors.cardNavy,
+                    color: p.surfaceElevated,
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: AppColors.hairline),
+                    border: Border.all(color: p.border),
                   ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Row(
                         children: [
+                          CopticCross(size: 14, color: p.accent),
+                          const SizedBox(width: 8),
                           Container(
-                            width: 44,
-                            height: 44,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppColors.surfaceNavy,
-                              border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.35)),
+                              color: '${sec['role']}' == 'الشعب'
+                                  ? p.crimsonSoft
+                                  : p.accentSoft,
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Icon(rite.icon, color: AppColors.primaryGold, size: 22),
+                            child: Text(
+                              '${sec['role']}',
+                              style: GoogleFonts.cairo(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: '${sec['role']}' == 'الشعب'
+                                    ? p.crimson
+                                    : p.accent,
+                              ),
+                            ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 8),
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  rite.title,
-                                  style: GoogleFonts.cairo(
-                                    fontSize: 16.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.primaryGoldLight,
-                                  ),
-                                ),
-                                Text(
-                                  rite.occasion,
-                                  style: GoogleFonts.cairo(
-                                    fontSize: 11.5,
-                                    color: AppColors.primaryGold,
-                                  ),
-                                ),
-                              ],
+                            child: Text(
+                              '${sec['title']}',
+                              style: GoogleFonts.cairo(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                                color: p.ink,
+                              ),
                             ),
+                          ),
+                          SpeechPlayStopButton(
+                            textToSpeak: '${sec['title']}. ${sec['arabic']}',
+                            label: '${sec['title']}',
+                            playText: 'استماع',
+                            stopText: 'إيقاف',
+                            compact: true,
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
-                      Text(
-                        rite.overview,
-                        style: GoogleFonts.cairo(
-                          fontSize: 13,
-                          height: 1.6,
-                          color: Colors.white70,
+                      if ('${sec['coptic'] ?? ''}'.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: p.surfaceMuted,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: SelectableText(
+                            '${sec['coptic']}',
+                            textDirection: TextDirection.ltr,
+                            style: GoogleFonts.cairo(
+                              fontSize: 13 * fontScale,
+                              fontWeight: FontWeight.w700,
+                              color: p.accent,
+                              height: 1.5,
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: SpeechPlayStopButton(
-                          textToSpeak:
-                              '${rite.title}. ${rite.overview}. ${rite.sections.map((s) => "${s.title}: ${s.arabicText}").join(". ")}',
-                          label: rite.title,
-                          playText: 'استماع للطقس كاملاً',
-                          stopText: 'إيقاف الصوت ⏹️',
+                      ],
+                      const SizedBox(height: 10),
+                      SelectableText(
+                        '${sec['arabic']}',
+                        style: GoogleFonts.amiri(
+                          fontSize: 19 * fontScale,
+                          height: 1.85,
+                          color: p.ink,
                         ),
                       ),
                     ],
                   ),
                 ),
-
-                const SizedBox(height: 16),
-
-                // Sections
-                ...rite.sections.map((sec) {
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.cardNavy,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.3)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            const CopticCross(size: 16),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryGold.withValues(alpha: 0.18),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                sec.role,
-                                style: GoogleFonts.cairo(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primaryGoldLight,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                sec.title,
-                                style: GoogleFonts.cairo(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primaryGoldLight,
-                                ),
-                              ),
-                            ),
-                            SpeechPlayStopButton(
-                              textToSpeak: '${sec.title}. ${sec.arabicText}',
-                              label: sec.title,
-                              playText: 'استماع',
-                              stopText: 'إيقاف ⏹️',
-                              compact: true,
-                            ),
-                          ],
-                        ),
-                        if (sec.copticOrArabized.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            '☦ ${sec.copticOrArabized}',
-                            style: GoogleFonts.cairo(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primaryGold,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 8),
-                        SelectableText(
-                          sec.arabicText,
-                          style: GoogleFonts.amiri(
-                            fontSize: 19,
-                            height: 1.75,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
               ],
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

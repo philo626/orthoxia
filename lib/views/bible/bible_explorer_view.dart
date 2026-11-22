@@ -10,7 +10,9 @@ import '../../providers/bible_provider.dart';
 import 'bible_reader_view.dart';
 
 class BibleExplorerView extends StatefulWidget {
-  const BibleExplorerView({super.key});
+  final bool embedded;
+
+  const BibleExplorerView({super.key, this.embedded = false});
 
   @override
   State<BibleExplorerView> createState() => _BibleExplorerViewState();
@@ -239,51 +241,74 @@ class _BibleExplorerViewState extends State<BibleExplorerView> {
     final bible = context.watch<BibleProvider>();
     final lastBible = _readingState.lastBible;
 
-    return Scaffold(
-      backgroundColor: p.canvas,
-      appBar: AppBar(
-        backgroundColor: p.canvas,
-        foregroundColor: p.ink,
-        title: Text(
-          'الكتاب المقدس',
-          style: GoogleFonts.amiri(fontWeight: FontWeight.bold, fontSize: 23, color: p.ink),
-        ),
-        actions: [
-          ValueListenableBuilder<int>(
-            valueListenable: _readingState.favoritesCountNotifier,
-            builder: (_, count, _) => TextButton.icon(
-              onPressed: () => _openFavoritesSheet(context, bible),
-              icon: Icon(Icons.bookmark_outline_rounded, size: 18, color: p.accent),
-              label: Text(
-                count > 0 ? 'المفضلة ($count)' : 'المفضلة',
-                style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold, color: p.accent),
-              ),
+    final content = bible.isLoading
+        ? Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(color: p.accent, strokeWidth: 2),
+                const SizedBox(height: 14),
+                Text(
+                  'جاري تحميل أسفار الكتاب المقدس...',
+                  style: GoogleFonts.cairo(color: p.inkSecondary),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
-      body: bible.isLoading
-          ? Center(
+          )
+        : Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(color: p.accent, strokeWidth: 2),
-                  const SizedBox(height: 14),
-                  Text(
-                    'جاري تحميل أسفار الكتاب المقدس...',
-                    style: GoogleFonts.cairo(color: p.inkSecondary),
-                  ),
-                ],
-              ),
-            )
-          : Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 720),
-                child: Column(
-                  children: [
-                    // Resume Where You Left Off Card (when available!)
-                    if (lastBible != null && bible.searchResults.isEmpty)
+                  if (widget.embedded)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 6, 16, 2),
+                      child: Row(
+                        children: [
+                          Text(
+                            '٧٣ سفراً • فانديك الكنسية',
+                            style: GoogleFonts.cairo(
+                              fontSize: 11.5,
+                              color: p.inkMuted,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const Spacer(),
+                          ValueListenableBuilder<int>(
+                            valueListenable: _readingState.favoritesCountNotifier,
+                            builder: (_, count, _) => InkWell(
+                              borderRadius: BorderRadius.circular(20),
+                              onTap: () => _openFavoritesSheet(context, bible),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: p.goldSoft,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: p.goldBorder),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.bookmark_outline_rounded, size: 15, color: p.accent),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      count > 0 ? 'آياتي المفضلة ($count)' : 'آياتي المفضلة',
+                                      style: GoogleFonts.cairo(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: p.accent,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  // Resume Where You Left Off Card (when available!)
+                  if (lastBible != null && bible.searchResults.isEmpty)
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
                         child: PressScale(
@@ -432,7 +457,37 @@ class _BibleExplorerViewState extends State<BibleExplorerView> {
                   ],
                 ),
               ),
+            );
+
+    if (widget.embedded) {
+      return Material(color: p.canvas, child: content);
+    }
+
+    return Scaffold(
+      backgroundColor: p.canvas,
+      appBar: AppBar(
+        backgroundColor: p.canvas,
+        foregroundColor: p.ink,
+        title: Text(
+          'الكتاب المقدس',
+          style: GoogleFonts.amiri(fontWeight: FontWeight.bold, fontSize: 23, color: p.ink),
+        ),
+        actions: [
+          ValueListenableBuilder<int>(
+            valueListenable: _readingState.favoritesCountNotifier,
+            builder: (_, count, _) => TextButton.icon(
+              onPressed: () => _openFavoritesSheet(context, bible),
+              icon: Icon(Icons.bookmark_outline_rounded, size: 18, color: p.accent),
+              label: Text(
+                count > 0 ? 'المفضلة ($count)' : 'المفضلة',
+                style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold, color: p.accent),
+              ),
             ),
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
+      body: content,
     );
   }
 

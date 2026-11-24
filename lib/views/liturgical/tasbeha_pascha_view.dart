@@ -33,10 +33,14 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
 
   bool _loading = true;
   List<Map<String, dynamic>> _tasbehaSections = [];
+  List<Map<String, dynamic>> _kiahkSections = [];
+  List<Map<String, dynamic>> _seasonalDoxologies = [];
   List<Map<String, dynamic>> _paschaDays = [];
   List<Map<String, dynamic>> _fixedFeasts = [];
 
+  String _tasbehaMode = 'annual'; // 'annual' | 'kiahk' | 'doxologies'
   int _selectedTasbehaIdx = 0;
+  int _selectedKiahkIdx = 0;
   int _selectedPaschaDayIdx = 0;
   int _thokCount = 0; // Interactive 12x Thok Te Ti Gom counter
   String _feastFilter = 'movable'; // 'movable' | 'major' | 'minor' | 'saints'
@@ -58,6 +62,12 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
           .loadString('assets/data/tasbeha_pascha_complete.json');
       final map = jsonDecode(raw) as Map<String, dynamic>;
       _tasbehaSections = (map['tasbeha'] as List? ?? [])
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      _kiahkSections = (map['kiahk_tasbeha'] as List? ?? [])
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      _seasonalDoxologies = (map['seasonal_doxologies'] as List? ?? [])
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
       _paschaDays = (map['pascha_days'] as List? ?? [])
@@ -170,7 +180,7 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
     );
   }
 
-  // ==================== TAB 1: FULL MIDNIGHT TASBEHA ====================
+  // ==================== TAB 1: FULL MIDNIGHT TASBEHA (ANNUAL + KIAHK + DOXOLOGIES) ====================
   Widget _buildTasbehaTab(AppPalette p, double fontScale) {
     if (_tasbehaSections.isEmpty) {
       return Center(
@@ -178,17 +188,120 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
             style: GoogleFonts.cairo(color: p.inkMuted)),
       );
     }
-    final safeIdx = _selectedTasbehaIdx.clamp(0, _tasbehaSections.length - 1);
-    final sec = _tasbehaSections[safeIdx];
+
+    final modeSwitcher = Container(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+      decoration: BoxDecoration(
+        color: p.surfaceSubtle,
+        border: Border(bottom: BorderSide(color: p.border, width: 0.7)),
+      ),
+      child: Row(
+        children: [
+          _tasbehaModeBtn(p, 'annual', 'السنوية (${_tasbehaSections.length})'),
+          const SizedBox(width: 6),
+          _tasbehaModeBtn(p, 'kiahk', 'الكيهكية ٧ و ٤'),
+          const SizedBox(width: 6),
+          _tasbehaModeBtn(p, 'doxologies', 'الذكصولوجيات (${_seasonalDoxologies.length})'),
+        ],
+      ),
+    );
+
+    if (_tasbehaMode == 'doxologies') {
+      return Column(
+        children: [
+          modeSwitcher,
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 40),
+              itemCount: _seasonalDoxologies.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
+              itemBuilder: (_, idx) {
+                final dox = _seasonalDoxologies[idx];
+                return Container(
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    color: p.surfaceElevated,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: p.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          CopticCross(size: 14, color: p.accent),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${dox['season'] ?? ''}',
+                              style: GoogleFonts.amiri(
+                                fontSize: 19 * fontScale.clamp(0.85, 1.3),
+                                fontWeight: FontWeight.bold,
+                                color: p.accent,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      SelectableText(
+                        '${dox['arabic'] ?? ''}',
+                        style: GoogleFonts.amiri(
+                          fontSize: 18 * fontScale,
+                          height: 1.8,
+                          color: p.ink,
+                        ),
+                      ),
+                      if ('${dox['arabized'] ?? ''}'.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        SelectableText(
+                          '${dox['arabized']}',
+                          style: GoogleFonts.cairo(
+                            fontSize: 13 * fontScale,
+                            color: p.gold,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                      if ('${dox['coptic'] ?? ''}'.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        SelectableText(
+                          '${dox['coptic']}',
+                          textDirection: TextDirection.ltr,
+                          textAlign: TextAlign.left,
+                          style: TextStyle(
+                            fontFamily: 'Coptic',
+                            fontSize: 14 * fontScale,
+                            color: p.inkSecondary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      );
+    }
+
+    final activeList = _tasbehaMode == 'kiahk' && _kiahkSections.isNotEmpty
+        ? _kiahkSections
+        : _tasbehaSections;
+    final activeIdx = _tasbehaMode == 'kiahk' ? _selectedKiahkIdx : _selectedTasbehaIdx;
+    final safeIdx = activeIdx.clamp(0, activeList.length - 1);
+    final sec = activeList[safeIdx];
     final title = '${sec['title'] ?? ''}';
-    final subtitle = '${sec['subtitle'] ?? ''}';
+    final subtitle = '${sec['subtitle'] ?? sec['tune'] ?? ''}';
     final coptic = '${sec['coptic'] ?? ''}';
     final arabized = '${sec['arabized'] ?? ''}';
     final arabic = '${sec['arabic'] ?? ''}';
 
     return Column(
       children: [
-        // Quick 12-Part Selector Strip
+        modeSwitcher,
+        // Quick Part Selector Strip
         Container(
           height: 48,
           padding: const EdgeInsets.symmetric(vertical: 6),
@@ -198,11 +311,11 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            itemCount: _tasbehaSections.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemCount: activeList.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
             itemBuilder: (context, idx) {
               final sel = idx == safeIdx;
-              final shortLbl = '${_tasbehaSections[idx]['title'] ?? ''}'
+              final shortLbl = '${activeList[idx]['title'] ?? ''}'
                   .split('(')
                   .first
                   .trim();
@@ -223,7 +336,13 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
                 onSelected: (_) {
                   HapticFeedback.selectionClick();
                   SpeechPronunciationService().stop();
-                  setState(() => _selectedTasbehaIdx = idx);
+                  setState(() {
+                    if (_tasbehaMode == 'kiahk') {
+                      _selectedKiahkIdx = idx;
+                    } else {
+                      _selectedTasbehaIdx = idx;
+                    }
+                  });
                 },
               );
             },
@@ -385,8 +504,13 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
                 children: [
                   if (safeIdx > 0)
                     OutlinedButton.icon(
-                      onPressed: () =>
-                          setState(() => _selectedTasbehaIdx = safeIdx - 1),
+                      onPressed: () => setState(() {
+                        if (_tasbehaMode == 'kiahk') {
+                          _selectedKiahkIdx = safeIdx - 1;
+                        } else {
+                          _selectedTasbehaIdx = safeIdx - 1;
+                        }
+                      }),
                       icon: Icon(Icons.arrow_back_rounded,
                           size: 16, color: p.accent),
                       label: Text('القسم السابق',
@@ -396,10 +520,15 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
                     )
                   else
                     const SizedBox.shrink(),
-                  if (safeIdx < _tasbehaSections.length - 1)
+                  if (safeIdx < activeList.length - 1)
                     ElevatedButton.icon(
-                      onPressed: () =>
-                          setState(() => _selectedTasbehaIdx = safeIdx + 1),
+                      onPressed: () => setState(() {
+                        if (_tasbehaMode == 'kiahk') {
+                          _selectedKiahkIdx = safeIdx + 1;
+                        } else {
+                          _selectedTasbehaIdx = safeIdx + 1;
+                        }
+                      }),
                       icon: const Icon(Icons.arrow_forward_rounded, size: 16),
                       label: Text('القسم التالي',
                           style:
@@ -418,6 +547,39 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _tasbehaModeBtn(AppPalette p, String mode, String label) {
+    final active = _tasbehaMode == mode;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          SpeechPronunciationService().stop();
+          setState(() => _tasbehaMode = mode);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 6),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: active ? p.accent : p.surface,
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(color: active ? p.accent : p.border),
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.cairo(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: active ? p.onAccent : p.ink,
+            ),
+          ),
+        ),
+      ),
     );
   }
 

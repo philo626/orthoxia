@@ -2,14 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../core/services/ai_theology_service.dart';
-import '../../core/services/speech_pronunciation_service.dart';
 import '../../core/theme/app_palette.dart';
+import '../../core/widgets/blessing_poster_studio_sheet.dart';
 import '../../core/widgets/coptic_cross.dart';
+import '../../core/widgets/luxe_widgets.dart';
 import '../../providers/ai_companion_provider.dart';
 import '../../providers/theme_provider.dart';
 
+/// Organized Modern Orthodox Chatbot («المرشد الآبائي»):
+/// - Zero technical/API jargon or connection badges exposed to users
+/// - Multi-session chat history («محادثاتي السابقة») + 1-tap New Chat
+/// - Categorized Orthodox welcome cards (العقيدة، الطقس، الكتاب، الحياة الروحية)
+/// - Editorial formatted Patristic answers with Copy & Share Poster actions
 class AiCompanionView extends StatefulWidget {
   const AiCompanionView({super.key});
 
@@ -18,33 +23,179 @@ class AiCompanionView extends StatefulWidget {
 }
 
 class _AiCompanionViewState extends State<AiCompanionView> {
-  final TextEditingController _msgCtrl = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
-  final SpeechPronunciationService _speech = SpeechPronunciationService();
+  final TextEditingController _inputCtrl = TextEditingController();
+  final ScrollController _scrollCtrl = ScrollController();
 
   @override
   void dispose() {
-    _speech.stop();
-    _msgCtrl.dispose();
-    _scrollController.dispose();
+    _inputCtrl.dispose();
+    _scrollCtrl.dispose();
     super.dispose();
   }
 
-  void _sendMessage(AiCompanionProvider provider, String text) {
-    if (text.trim().isEmpty) return;
+  void _sendPrompt(AiCompanionProvider prov, String text) {
+    if (text.trim().isEmpty || prov.isLoading) return;
     HapticFeedback.lightImpact();
-    _msgCtrl.clear();
+    _inputCtrl.clear();
     FocusScope.of(context).unfocus();
-    provider.sendMessage(text);
-    Future.delayed(const Duration(milliseconds: 220), () {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 350),
+    prov.sendMessage(text);
+    _scrollToBottom();
+  }
+
+  void _scrollToBottom() {
+    Future.delayed(const Duration(milliseconds: 140), () {
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.animateTo(
+          _scrollCtrl.position.maxScrollExtent + 160,
+          duration: const Duration(milliseconds: 300),
           curve: Curves.easeOutCubic,
         );
       }
     });
+  }
+
+  void _showChatHistorySheet(BuildContext context, AiCompanionProvider aiProv) {
+    final p = context.palette;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Consumer<AiCompanionProvider>(
+        builder: (ctx, prov, _) {
+          final savedSessions =
+              prov.sessions.where((s) => s.messages.any((m) => m.isUser)).toList();
+          return Container(
+            height: MediaQuery.of(ctx).size.height * 0.68,
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
+            decoration: BoxDecoration(
+              color: p.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border(top: BorderSide(color: p.border)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: p.borderStrong,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'محادثاتي السابقة',
+                        style: GoogleFonts.amiri(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: p.ink,
+                        ),
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        prov.startNewChat();
+                        Navigator.pop(ctx);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: p.accent,
+                        foregroundColor: p.onAccent,
+                        minimumSize: const Size(0, 36),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                      icon: const Icon(Icons.add_rounded, size: 17),
+                      label: Text(
+                        'محادثة جديدة',
+                        style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: savedSessions.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.chat_bubble_outline_rounded,
+                                  size: 40, color: p.inkMuted.withValues(alpha: 0.5)),
+                              const SizedBox(height: 10),
+                              Text(
+                                'ستُحفظ محادثاتك هنا تلقائياً لتعود إليها في أي وقت.',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.cairo(fontSize: 13, color: p.inkMuted),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: savedSessions.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 8),
+                          itemBuilder: (_, idx) {
+                            final session = savedSessions[idx];
+                            final isSelected = session.id == prov.activeSessionId;
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: isSelected ? p.goldSoft : p.surfaceSubtle,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: isSelected ? p.accent : p.border,
+                                ),
+                              ),
+                              child: Material(
+                                type: MaterialType.transparency,
+                                child: ListTile(
+                                  dense: true,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  leading: Icon(
+                                    Icons.forum_outlined,
+                                    size: 19,
+                                    color: isSelected ? p.accent : p.inkMuted,
+                                  ),
+                                  title: Text(
+                                    session.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.cairo(
+                                      fontSize: 13,
+                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                      color: p.ink,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    '${session.messages.length} رسالة',
+                                    style: GoogleFonts.cairo(fontSize: 11, color: p.inkMuted),
+                                  ),
+                                  trailing: IconButton(
+                                    icon: Icon(Icons.delete_outline_rounded,
+                                        size: 18, color: p.inkMuted),
+                                    onPressed: () => prov.deleteSession(session.id),
+                                  ),
+                                  onTap: () {
+                                    prov.selectSession(session.id);
+                                    Navigator.pop(ctx);
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   /// Renders a clean, structured Patristic answer adapted to AppPalette
@@ -65,8 +216,7 @@ class _AiCompanionViewState extends State<AiCompanionView> {
       }
 
       // 1. Section Header
-      final isHeader = line.startsWith('☦') ||
-          (line.endsWith(':') && line.length <= 55);
+      final isHeader = line.startsWith('☦') || (line.endsWith(':') && line.length <= 55);
       if (isHeader) {
         widgets.add(
           Padding(
@@ -95,8 +245,7 @@ class _AiCompanionViewState extends State<AiCompanionView> {
       }
 
       // 2. Bullet or Numbered Point
-      final bulletMatch =
-          RegExp(r'^([•\-]|[٠-٩0-9]+[\.\-\)])\s*(.+)$').firstMatch(line);
+      final bulletMatch = RegExp(r'^([•\-]|[٠-٩0-9]+[\.\-\)])\s*(.+)$').firstMatch(line);
       if (bulletMatch != null) {
         final marker = bulletMatch.group(1)!;
         final body = bulletMatch.group(2)!;
@@ -105,7 +254,7 @@ class _AiCompanionViewState extends State<AiCompanionView> {
             margin: const EdgeInsets.symmetric(vertical: 4),
             padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
             decoration: BoxDecoration(
-              color: p.surfaceMuted,
+              color: p.surfaceSubtle,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: p.border),
             ),
@@ -114,16 +263,15 @@ class _AiCompanionViewState extends State<AiCompanionView> {
               children: [
                 Container(
                   margin: const EdgeInsets.only(top: 3, left: 8),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                   decoration: BoxDecoration(
-                    color: p.accentSoft,
+                    color: p.goldSoft,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    marker == '•' || marker == '-' ? '•' : marker,
+                    marker == '-' ? '•' : marker,
                     style: GoogleFonts.cairo(
-                      fontSize: 11.5 * fontScale,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w700,
                       color: p.accent,
                     ),
@@ -135,7 +283,7 @@ class _AiCompanionViewState extends State<AiCompanionView> {
                     style: GoogleFonts.cairo(
                       fontSize: 13.5 * fontScale,
                       color: p.ink,
-                      height: 1.6,
+                      height: 1.65,
                     ),
                   ),
                 ),
@@ -146,14 +294,14 @@ class _AiCompanionViewState extends State<AiCompanionView> {
         continue;
       }
 
-      // 3. Patristic / Biblical Quote Paragraph (contains «...»)
+      // 3. Scriptural / Patristic Quote Block
       if (line.contains('«') && line.contains('»')) {
         widgets.add(
           Container(
             margin: const EdgeInsets.symmetric(vertical: 5),
             padding: const EdgeInsets.all(11),
             decoration: BoxDecoration(
-              color: p.accentSoft,
+              color: p.goldSoft,
               borderRadius: BorderRadius.circular(12),
               border: Border(
                 right: BorderSide(color: p.accent, width: 3),
@@ -162,7 +310,7 @@ class _AiCompanionViewState extends State<AiCompanionView> {
             child: SelectableText(
               line,
               style: GoogleFonts.amiri(
-                fontSize: 16.5 * fontScale,
+                fontSize: 17 * fontScale,
                 fontWeight: FontWeight.w600,
                 color: p.ink,
                 height: 1.65,
@@ -195,347 +343,37 @@ class _AiCompanionViewState extends State<AiCompanionView> {
     );
   }
 
-  void _showApiSetupSheet(BuildContext context, AiCompanionProvider aiProv) {
-    final p = context.palette;
-    var selectedProvider = aiProv.apiConfig.provider;
-    final keyCtrl = TextEditingController(text: aiProv.apiConfig.apiKey);
-    final urlCtrl =
-        TextEditingController(text: aiProv.apiConfig.customEndpoint);
-    final modelCtrl = TextEditingController(text: aiProv.apiConfig.customModel);
-    bool testing = false;
-    String? statusMsg;
-    bool statusOk = false;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheet) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          ),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
-            decoration: BoxDecoration(
-              color: p.surface,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(24)),
-              border: Border(top: BorderSide(color: p.border)),
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: p.borderStrong,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    'ربط الذكاء الاصطناعي للمرشد الآبائي',
-                    style: GoogleFonts.amiri(
-                      fontSize: 21,
-                      fontWeight: FontWeight.w700,
-                      color: p.ink,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'اختر مزوداً مجانياً (بدون كارت بنكي) لحفظ مفتاحك مشفراً داخل هاتفك وتشغيل الإجابات المفتوحة:',
-                    style: GoogleFonts.cairo(
-                        fontSize: 12, color: p.inkMuted, height: 1.5),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      ChoiceChip(
-                        label: Text('Google Gemini (مجاني — موصى به)',
-                            style: GoogleFonts.cairo(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
-                                color: selectedProvider == AiProviderType.gemini
-                                    ? p.onAccent
-                                    : p.ink)),
-                        selected: selectedProvider == AiProviderType.gemini,
-                        selectedColor: p.accent,
-                        backgroundColor: p.surfaceMuted,
-                        showCheckmark: false,
-                        onSelected: (_) => setSheet(
-                            () => selectedProvider = AiProviderType.gemini),
-                      ),
-                      ChoiceChip(
-                        label: Text('Groq (سريع ومجاني)',
-                            style: GoogleFonts.cairo(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
-                                color: selectedProvider == AiProviderType.groq
-                                    ? p.onAccent
-                                    : p.ink)),
-                        selected: selectedProvider == AiProviderType.groq,
-                        selectedColor: p.accent,
-                        backgroundColor: p.surfaceMuted,
-                        showCheckmark: false,
-                        onSelected: (_) => setSheet(
-                            () => selectedProvider = AiProviderType.groq),
-                      ),
-                      ChoiceChip(
-                        label: Text('خادم مخصص (Proxy)',
-                            style: GoogleFonts.cairo(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
-                                color: selectedProvider ==
-                                        AiProviderType.customProxy
-                                    ? p.onAccent
-                                    : p.ink)),
-                        selected:
-                            selectedProvider == AiProviderType.customProxy,
-                        selectedColor: p.accent,
-                        backgroundColor: p.surfaceMuted,
-                        showCheckmark: false,
-                        onSelected: (_) => setSheet(() =>
-                            selectedProvider = AiProviderType.customProxy),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  if (selectedProvider == AiProviderType.gemini)
-                    InkWell(
-                      onTap: () => launchUrl(
-                        Uri.parse('https://aistudio.google.com/apikey'),
-                        mode: LaunchMode.externalApplication,
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: p.accentSoft,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: p.accent.withValues(alpha: 0.35)),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.key_rounded, color: p.accent, size: 18),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'احصل على مفتاح Google Gemini مجاناً (١٥٠٠ سؤال يومياً بدون كارت) ← اضغط هنا',
-                                style: GoogleFonts.cairo(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: p.accent,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  else if (selectedProvider == AiProviderType.groq)
-                    InkWell(
-                      onTap: () => launchUrl(
-                        Uri.parse('https://console.groq.com/keys'),
-                        mode: LaunchMode.externalApplication,
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: p.accentSoft,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: p.accent.withValues(alpha: 0.35)),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.bolt_rounded, color: p.accent, size: 18),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'احصل على مفتاح Groq المجاني (Llama 3.3 السريع) ← اضغط هنا',
-                                style: GoogleFonts.cairo(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: p.accent,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 12),
-                  if (selectedProvider == AiProviderType.customProxy) ...[
-                    TextField(
-                      controller: urlCtrl,
-                      textDirection: TextDirection.ltr,
-                      style: GoogleFonts.cairo(color: p.ink, fontSize: 13),
-                      decoration: InputDecoration(
-                        labelText: 'رابط الخادم (HTTPS Endpoint)',
-                        hintText: 'https://your-worker.workers.dev/v1/chat/completions',
-                        filled: true,
-                        fillColor: p.surfaceMuted,
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: modelCtrl,
-                      textDirection: TextDirection.ltr,
-                      style: GoogleFonts.cairo(color: p.ink, fontSize: 13),
-                      decoration: InputDecoration(
-                        labelText: 'اسم النموذج (اختياري)',
-                        hintText: 'gemini-2.5-flash / gpt-4o-mini',
-                        filled: true,
-                        fillColor: p.surfaceMuted,
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                  TextField(
-                    controller: keyCtrl,
-                    obscureText: true,
-                    textDirection: TextDirection.ltr,
-                    style: GoogleFonts.cairo(color: p.ink, fontSize: 13),
-                    decoration: InputDecoration(
-                      labelText: selectedProvider == AiProviderType.customProxy
-                          ? 'مفتاح API (إن وجد)'
-                          : 'الصق مفتاح API هنا',
-                      filled: true,
-                      fillColor: p.surfaceMuted,
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none),
-                    ),
-                  ),
-                  if (statusMsg != null) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      statusMsg!,
-                      style: GoogleFonts.cairo(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: statusOk ? p.success : p.crimson,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      if (aiProv.apiConfig.isConfigured)
-                        TextButton(
-                          onPressed: testing
-                              ? null
-                              : () async {
-                                  await aiProv.disconnectApi();
-                                  if (ctx.mounted) Navigator.pop(ctx);
-                                },
-                          child: Text('إلغاء الربط',
-                              style: GoogleFonts.cairo(color: p.crimson)),
-                        ),
-                      const Spacer(),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: p.accent,
-                          foregroundColor: p.onAccent,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 18, vertical: 11),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                        onPressed: testing
-                            ? null
-                            : () async {
-                                setSheet(() {
-                                  testing = true;
-                                  statusMsg = 'جارٍ اختبار الاتصال...';
-                                  statusOk = false;
-                                });
-                                final cfg = AiApiConfig(
-                                  provider: selectedProvider,
-                                  apiKey: keyCtrl.text.trim(),
-                                  customEndpoint: urlCtrl.text.trim(),
-                                  customModel: modelCtrl.text.trim(),
-                                );
-                                final (ok, msg) =
-                                    await aiProv.testAndSaveApiConfig(cfg);
-                                if (!ctx.mounted) return;
-                                setSheet(() {
-                                  testing = false;
-                                  statusOk = ok;
-                                  statusMsg = msg;
-                                });
-                                if (ok) {
-                                  Future.delayed(
-                                      const Duration(milliseconds: 900), () {
-                                    if (ctx.mounted) Navigator.pop(ctx);
-                                  });
-                                }
-                              },
-                        icon: testing
-                            ? SizedBox(
-                                width: 15,
-                                height: 15,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: p.onAccent),
-                              )
-                            : const Icon(Icons.check_circle_outline_rounded,
-                                size: 17),
-                        label: Text(
-                          testing ? 'جارٍ الاختبار...' : 'اختبار الاتصال والحفظ',
-                          style: GoogleFonts.cairo(
-                              fontWeight: FontWeight.w700, fontSize: 12.5),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
-    final themeProv = Provider.of<ThemeProvider>(context);
-    final fontScale = themeProv.fontScale;
+    final fontScale = context.watch<ThemeProvider>().fontScale;
 
     return Consumer<AiCompanionProvider>(
       builder: (context, aiProv, _) {
+        final hasMessages = aiProv.messages.isNotEmpty;
+
         return Scaffold(
-          backgroundColor: p.background,
+          backgroundColor: p.canvas,
           appBar: AppBar(
-            backgroundColor: p.background,
+            backgroundColor: p.canvas,
+            foregroundColor: p.ink,
             elevation: 0,
+            leading: IconButton(
+              tooltip: 'محادثاتي السابقة',
+              icon: Icon(Icons.history_rounded, color: p.ink),
+              onPressed: () => _showChatHistorySheet(context, aiProv),
+            ),
             title: Row(
               children: [
                 Container(
-                  width: 36,
-                  height: 36,
+                  width: 34,
+                  height: 34,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: p.accentSoft,
-                    border: Border.all(color: p.accent.withValues(alpha: 0.45)),
+                    color: p.goldSoft,
+                    border: Border.all(color: p.goldBorder),
                   ),
-                  child: Center(child: CopticCross(size: 18, color: p.accent)),
+                  child: Center(child: CopticCross(size: 17, color: p.accent)),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -552,14 +390,13 @@ class _AiCompanionViewState extends State<AiCompanionView> {
                         ),
                       ),
                       Text(
-                        aiProv.apiConfig.isConfigured
-                            ? 'متصل بـ ${aiProv.apiConfig.providerDisplayName} • مراجع أرثوذكسية'
-                            : 'الموسوعة الآبائية المحلية • اضغط «ربط API» للتفعيل المفتوح',
+                        'حوار روحي ولاهوتي وطقسي أرثوذكسي',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.cairo(
-                            fontSize: 10.5,
-                            color: aiProv.apiConfig.isConfigured
-                                ? p.success
-                                : p.inkMuted),
+                          fontSize: 10.5,
+                          color: p.inkMuted,
+                        ),
                       ),
                     ],
                   ),
@@ -567,322 +404,455 @@ class _AiCompanionViewState extends State<AiCompanionView> {
               ],
             ),
             actions: [
-              TextButton.icon(
-                onPressed: () => _showApiSetupSheet(context, aiProv),
-                icon: Icon(
-                  aiProv.apiConfig.isConfigured
-                      ? Icons.cloud_done_rounded
-                      : Icons.vpn_key_rounded,
-                  size: 16,
-                  color: aiProv.apiConfig.isConfigured ? p.success : p.accent,
-                ),
-                label: Text(
-                  aiProv.apiConfig.customModel == 'orthoxia-cloud'
-                      ? 'متصل'
-                      : (aiProv.apiConfig.isConfigured ? 'API متصل' : 'ربط API'),
-                  style: GoogleFonts.cairo(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                    color: aiProv.apiConfig.isConfigured ? p.success : p.accent,
-                  ),
-                ),
+              IconButton(
+                tooltip: 'محادثة جديدة',
+                icon: Icon(Icons.edit_square, size: 20, color: p.accent),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  aiProv.startNewChat();
+                },
               ),
-              if (aiProv.messages.length > 1)
-                IconButton(
-                  tooltip: 'محادثة جديدة',
-                  icon: Icon(Icons.refresh_rounded, color: p.accent),
-                  onPressed: () {
-                    HapticFeedback.lightImpact();
-                    aiProv.clearConversation();
-                  },
-                ),
+              const SizedBox(width: 4),
             ],
           ),
           body: SafeArea(
             bottom: false,
-            child: Column(
-              children: [
-                Expanded(
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
-                    itemCount: aiProv.messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = aiProv.messages[index];
-                      final cleanedText =
-                          AiTheologyService.cleanMarkdownFormatting(msg.text);
-                      return Align(
-                        alignment: msg.isUser
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.90,
-                          ),
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: msg.isUser
-                                ? p.accentSoft
-                                : p.surfaceElevated,
-                            borderRadius: BorderRadius.only(
-                              topLeft: const Radius.circular(18),
-                              topRight: const Radius.circular(18),
-                              bottomLeft: Radius.circular(msg.isUser ? 18 : 4),
-                              bottomRight: Radius.circular(msg.isUser ? 4 : 18),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 740),
+                child: Column(
+                  children: [
+                    Divider(color: p.border, height: 1),
+
+                    // Main Chat Canvas OR Organized Welcome View
+                    Expanded(
+                      child: !hasMessages
+                          ? _buildOrganizedWelcome(p, aiProv)
+                          : ListView.builder(
+                              controller: _scrollCtrl,
+                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                              itemCount: aiProv.messages.length + (aiProv.isLoading ? 1 : 0),
+                              itemBuilder: (context, idx) {
+                                if (idx == aiProv.messages.length) {
+                                  return _buildThinkingBubble(p);
+                                }
+                                final msg = aiProv.messages[idx];
+                                return _buildMessageBubble(context, p, msg, fontScale);
+                              },
                             ),
-                            border: Border.all(
-                              color: msg.isUser
-                                  ? p.accent.withValues(alpha: 0.45)
-                                  : p.border,
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (msg.isUser)
-                                SelectableText(
-                                  cleanedText,
-                                  style: GoogleFonts.cairo(
-                                    fontSize: 14 * fontScale,
-                                    fontWeight: FontWeight.w600,
-                                    color: p.ink,
-                                    height: 1.55,
+                    ),
+
+                    // Clean Floating Pill Chat Input
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                      decoration: BoxDecoration(
+                        color: p.canvas,
+                        border: Border(top: BorderSide(color: p.border, width: 0.8)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: p.surface,
+                                borderRadius: BorderRadius.circular(24),
+                                border: Border.all(color: p.border),
+                              ),
+                              child: TextField(
+                                controller: _inputCtrl,
+                                minLines: 1,
+                                maxLines: 4,
+                                textInputAction: TextInputAction.send,
+                                onSubmitted: (val) => _sendPrompt(aiProv, val),
+                                style: GoogleFonts.cairo(color: p.ink, fontSize: 13.5),
+                                decoration: InputDecoration(
+                                  hintText: 'اسأل في العقيدة، الطقس، الكتاب المقدس، أو حياتك الروحية...',
+                                  hintStyle: GoogleFonts.cairo(color: p.inkMuted, fontSize: 12.5),
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  filled: false,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 11,
                                   ),
-                                )
-                              else
-                                _buildFormattedPatristicAnswer(
-                                    p, cleanedText, fontScale),
-
-                              // Action bar for Patristic responses (Audio Reader + Copy)
-                              if (!msg.isUser) ...[
-                                const SizedBox(height: 10),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    SpeechPlayStopButton(
-                                      textToSpeak: cleanedText,
-                                      label: 'إجابة المرشد الآبائي $index',
-                                      playText: 'استماع',
-                                      stopText: 'إيقاف',
-                                      compact: true,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    InkWell(
-                                      onTap: () {
-                                        Clipboard.setData(
-                                            ClipboardData(text: cleanedText));
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              'تم نسخ الإجابة',
-                                              style: GoogleFonts.cairo(
-                                                  fontSize: 12),
-                                            ),
-                                            duration:
-                                                const Duration(seconds: 1),
-                                          ),
-                                        );
-                                      },
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 9, vertical: 5),
-                                        decoration: BoxDecoration(
-                                          color: p.surfaceMuted,
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                          border: Border.all(color: p.border),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(Icons.copy_rounded,
-                                                size: 13, color: p.inkMuted),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              'نسخ',
-                                              style: GoogleFonts.cairo(
-                                                fontSize: 10.5,
-                                                color: p.inkMuted,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
                                 ),
-                              ],
-
-                              if (msg.citations != null &&
-                                  msg.citations!.isNotEmpty) ...[
-                                const SizedBox(height: 10),
-                                Divider(color: p.border, height: 1),
-                                const SizedBox(height: 8),
-                                Wrap(
-                                  spacing: 6,
-                                  runSpacing: 4,
-                                  children: msg.citations!.map((c) {
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 3,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: p.surfaceMuted,
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: p.border),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.bookmark_outline_rounded,
-                                            size: 11,
-                                            color: p.accent,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Flexible(
-                                            child: Text(
-                                              c,
-                                              style: GoogleFonts.cairo(
-                                                fontSize: 10,
-                                                color: p.inkMuted,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-
-                if (aiProv.isLoading)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 18, vertical: 6),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 15,
-                          height: 15,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: p.accent,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          'جارٍ البحث في التفاسير وأقوال الآباء...',
-                          style: GoogleFonts.cairo(
-                            fontSize: 12,
-                            color: p.accent,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                // Suggested Quick Prompts
-                SizedBox(
-                  height: 38,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: aiProv.quickPrompts.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemBuilder: (context, index) {
-                      final prompt = aiProv.quickPrompts[index];
-                      return ActionChip(
-                        visualDensity: VisualDensity.compact,
-                        label: Text(
-                          prompt,
-                          style: GoogleFonts.cairo(
-                            fontSize: 11.5,
-                            color: p.ink,
-                          ),
-                        ),
-                        backgroundColor: p.surfaceElevated,
-                        side: BorderSide(color: p.border),
-                        onPressed: () => _sendMessage(aiProv, prompt),
-                      );
-                    },
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-
-                // Input Bar
-                Container(
-                  margin: const EdgeInsets.fromLTRB(14, 0, 14, 84),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: p.surfaceElevated,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: p.accent.withValues(alpha: 0.45),
-                      width: 1.2,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _msgCtrl,
-                          textInputAction: TextInputAction.send,
-                          style: GoogleFonts.cairo(color: p.ink, fontSize: 14),
-                          cursorColor: p.accent,
-                          decoration: InputDecoration(
-                            hintText:
-                                'اكتب سؤالك في الكتاب المقدس أو الطقس أو العقيدة...',
-                            hintStyle: GoogleFonts.cairo(
-                              color: p.inkSubtle,
-                              fontSize: 12.5,
+                              ),
                             ),
-                            border: InputBorder.none,
-                            contentPadding:
-                                const EdgeInsets.symmetric(horizontal: 8),
                           ),
-                          onSubmitted: (val) => _sendMessage(aiProv, val),
+                          const SizedBox(width: 8),
+                          PressScale(
+                            scale: 0.94,
+                            onTap: () => _sendPrompt(aiProv, _inputCtrl.text),
+                            child: Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: aiProv.isLoading ? p.borderStrong : p.accent,
+                              ),
+                              child: Icon(
+                                Icons.arrow_upward_rounded,
+                                color: p.onAccent,
+                                size: 22,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildOrganizedWelcome(AppPalette p, AiCompanionProvider aiProv) {
+    final icons = const [
+      Icons.auto_awesome_outlined,
+      Icons.church_outlined,
+      Icons.menu_book_outlined,
+      Icons.spa_outlined,
+    ];
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: p.goldSoft,
+                border: Border.all(color: p.goldBorder, width: 1.4),
+              ),
+              child: Center(child: CopticCross(size: 32, color: p.accent)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'سلام ونعمة، كيف أخدمك اليوم؟',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.amiri(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              color: p.ink,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'اسأل أي سؤال في الإيمان القبطي الأرثوذكسي، تفاسير الكتاب المقدس، طقوس الكنيسة، أو أقوال الآباء.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.cairo(
+              fontSize: 13,
+              color: p.inkSecondary,
+              height: 1.55,
+            ),
+          ),
+          const SizedBox(height: 26),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: aiProv.starterTopics.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 1.35,
+            ),
+            itemBuilder: (_, i) {
+              final topic = aiProv.starterTopics[i];
+              return PressScale(
+                scale: 0.97,
+                onTap: () => _sendPrompt(aiProv, topic['prompt']!),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: p.surface,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: p.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(icons[i % icons.length], size: 18, color: p.accent),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              topic['category']!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.cairo(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.bold,
+                                color: p.accent,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        topic['title']!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.amiri(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: p.ink,
+                          height: 1.25,
                         ),
                       ),
-                      GestureDetector(
-                        onTap: () => _sendMessage(aiProv, _msgCtrl.text),
-                        child: Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: p.accent,
-                          ),
-                          child: Icon(
-                            Icons.send_rounded,
-                            color: p.onAccent,
-                            size: 18,
-                          ),
+                      Text(
+                        topic['prompt']!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.cairo(
+                          fontSize: 10.5,
+                          color: p.inkMuted,
+                          height: 1.35,
                         ),
                       ),
                     ],
                   ),
                 ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThinkingBubble(AppPalette p) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            margin: const EdgeInsets.only(left: 10, top: 2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: p.goldSoft,
+              border: Border.all(color: p.goldBorder),
+            ),
+            child: Center(child: CopticCross(size: 14, color: p.accent)),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: p.surface,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: p.border),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(color: p.accent, strokeWidth: 2),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'جاري إعداد الإجابة الآبائية...',
+                  style: GoogleFonts.cairo(fontSize: 12.5, color: p.inkSecondary),
+                ),
               ],
             ),
           ),
-        );
-      },
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageBubble(
+    BuildContext context,
+    AppPalette p,
+    AiMessage msg,
+    double fontScale,
+  ) {
+    if (msg.isUser) {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 14, left: 48),
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+          decoration: BoxDecoration(
+            color: p.accent,
+            borderRadius: const BorderRadius.only(
+              topRight: Radius.circular(18),
+              topLeft: Radius.circular(18),
+              bottomLeft: Radius.circular(18),
+              bottomRight: Radius.circular(4),
+            ),
+          ),
+          child: Text(
+            msg.text,
+            style: GoogleFonts.cairo(
+              fontSize: 13.8 * fontScale,
+              color: p.onAccent,
+              fontWeight: FontWeight.w600,
+              height: 1.55,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Assistant Editorial Message (Clean ChatGPT/Claude layout)
+    final cleanPlain = AiTheologyService.cleanMarkdownFormatting(msg.text);
+    final citations = (msg.citations ?? [])
+        .where((c) => !c.contains('سحابة') && !c.contains('Gemini') && !c.contains('Groq'))
+        .toList();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 18),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            margin: const EdgeInsets.only(left: 10, top: 4),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: p.goldSoft,
+              border: Border.all(color: p.goldBorder),
+            ),
+            child: Center(child: CopticCross(size: 14, color: p.accent)),
+          ),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: p.surface,
+                borderRadius: const BorderRadius.only(
+                  topRight: Radius.circular(4),
+                  topLeft: Radius.circular(18),
+                  bottomLeft: Radius.circular(18),
+                  bottomRight: Radius.circular(18),
+                ),
+                border: Border.all(color: p.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildFormattedPatristicAnswer(p, msg.text, fontScale),
+                  if (citations.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: citations
+                          .map(
+                            (c) => Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: p.surfaceSubtle,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: p.border),
+                              ),
+                              child: Text(
+                                c,
+                                style: GoogleFonts.cairo(
+                                  fontSize: 10.5,
+                                  color: p.inkSecondary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                  Divider(color: p.border, height: 1),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      _msgActionBtn(
+                        p: p,
+                        icon: Icons.copy_rounded,
+                        label: 'نسخ',
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: cleanPlain));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('تم نسخ الإجابة', style: GoogleFonts.cairo()),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 10),
+                      _msgActionBtn(
+                        p: p,
+                        icon: Icons.ios_share_rounded,
+                        label: 'مشاركة كبطاقة',
+                        onTap: () {
+                          final excerpt = cleanPlain.length > 260
+                              ? '${cleanPlain.substring(0, 260)}...'
+                              : cleanPlain;
+                          BlessingPosterStudioSheet.show(
+                            context,
+                            title: 'من المرشد الآبائي',
+                            bodyText: excerpt,
+                            reference: 'تطبيق أرثوذكسيا',
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _msgActionBtn({
+    required AppPalette p,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: p.inkMuted),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: GoogleFonts.cairo(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: p.inkSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

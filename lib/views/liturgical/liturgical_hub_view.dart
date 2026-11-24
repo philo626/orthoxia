@@ -15,7 +15,9 @@ import '../search/global_search_view.dart';
 import '../synaxarium/synaxarium_daily_view.dart';
 import 'agpeya_view.dart';
 import 'church_sacraments_rites_view.dart';
+import 'fractions_library_view.dart';
 import 'katameros_view.dart';
+import 'raising_of_incense_view.dart';
 import 'remember_them_view.dart';
 import 'tasbeha_pascha_view.dart';
 
@@ -215,6 +217,27 @@ class _LiturgicalHubViewState extends State<LiturgicalHubView>
                 ),
               ],
             ),
+
+            const SizedBox(height: 12),
+
+            // Companion Kholagy Services (Raising of Incense + 39 Seasonal Fractions)
+            _groupedCard(p, [
+              _hubRow(
+                p: p,
+                icon: Icons.local_fire_department_outlined,
+                title: 'رفع بخور عشية وباكر كاملاً',
+                subtitle: 'الشكر • أرباع الناقوس • الأواشي • أجيوس • الذكصولوجيات • التحاليل',
+                onTap: () => Navigator.push(context, luxeRoute(const RaisingOfIncenseView())),
+              ),
+              _hubRow(
+                p: p,
+                icon: Icons.auto_awesome_outlined,
+                title: 'صلوات القِسَم (٣٩ قسمة سنوية وموسمية)',
+                subtitle: 'الميلاد • الغطاس • الصوم الكبير • الشعانين • القيامة • النيروز • العذراء',
+                onTap: () => Navigator.push(context, luxeRoute(const FractionsLibraryView())),
+                isLast: true,
+              ),
+            ]),
 
             const SizedBox(height: 22),
 

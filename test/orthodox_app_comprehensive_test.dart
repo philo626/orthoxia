@@ -21,21 +21,30 @@ import 'package:orthodox_app/core/services/storage_service.dart';
 import 'package:orthodox_app/core/theme/app_palette.dart';
 import 'package:orthodox_app/core/theme/app_theme.dart';
 import 'package:orthodox_app/models/spiritual_tracker_model.dart';
+import 'package:orthodox_app/providers/ai_companion_provider.dart';
 import 'package:orthodox_app/providers/books_provider.dart';
 import 'package:orthodox_app/providers/church_mode_provider.dart';
 import 'package:orthodox_app/providers/liturgy_provider.dart';
 import 'package:orthodox_app/providers/spiritual_tracker_provider.dart';
 import 'package:orthodox_app/providers/theme_provider.dart';
+import 'package:orthodox_app/views/ai_companion/ai_companion_view.dart';
 import 'package:orthodox_app/views/books/books_library_view.dart';
 import 'package:orthodox_app/views/coptic_academy/coptic_academy_view.dart';
 import 'package:orthodox_app/views/home/spiritual_prescription_view.dart';
 import 'package:orthodox_app/views/liturgical/church_sacraments_rites_view.dart';
+import 'package:orthodox_app/views/liturgical/fractions_library_view.dart';
+import 'package:orthodox_app/views/liturgical/raising_of_incense_view.dart';
 import 'package:orthodox_app/views/liturgical/remember_them_view.dart';
 import 'package:orthodox_app/views/liturgical/tasbeha_pascha_view.dart';
 import 'package:orthodox_app/views/liturgies/liturgy_reader_view.dart';
 import 'package:orthodox_app/views/onboarding/auth_view.dart';
 import 'package:orthodox_app/views/synaxarium/my_patron_saint_view.dart';
 import 'package:orthodox_app/views/synaxarium/synaxarium_daily_view.dart';
+import 'package:orthodox_app/views/treasures/church_history_view.dart';
+import 'package:orthodox_app/views/treasures/liturgical_encyclopedia_view.dart';
+import 'package:orthodox_app/views/treasures/madayeh_library_view.dart';
+import 'package:orthodox_app/views/treasures/patristic_sayings_view.dart';
+import 'package:orthodox_app/views/treasures/service_notebook_view.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -665,6 +674,81 @@ void main() {
       const groqCfg = AiApiConfig(provider: AiProviderType.groq, apiKey: 'gsk_TestKey1234567890');
       expect(groqCfg.isConfigured, isTrue);
       expect(groqCfg.providerDisplayName, contains('Groq'));
+
+      // 5. Verify ALL new Orsozoxi-caliber Encyclopedic JSON Datasets
+      final incense = jsonDecode(File('assets/data/raising_of_incense.json').readAsStringSync()) as Map<String, dynamic>;
+      expect((incense['sections'] as List).length, greaterThanOrEqualTo(14));
+
+      final otherPrayers = jsonDecode(File('assets/data/other_prayers.json').readAsStringSync()) as List;
+      expect(otherPrayers.length, greaterThanOrEqualTo(10));
+
+      expect((tp['kiahk_tasbeha'] as List).length, greaterThanOrEqualTo(8));
+      expect((tp['seasonal_doxologies'] as List).length, greaterThanOrEqualTo(16));
+
+      final encyc = jsonDecode(File('assets/data/liturgical_rites_encyclopedia.json').readAsStringSync()) as List;
+      expect(encyc.length, 18);
+
+      final madayeh = jsonDecode(File('assets/data/madayeh_tamagid.json').readAsStringSync()) as List;
+      expect(madayeh.length, greaterThanOrEqualTo(22));
+
+      final sayings = jsonDecode(File('assets/data/patristic_sayings.json').readAsStringSync()) as List;
+      expect(sayings.length, greaterThanOrEqualTo(50));
+    });
+
+    testWidgets('Clean Patristic Chatbot (zero API/connected badges) & All New Church Treasures render cleanly', (tester) async {
+      await tester.runAsync(() async {
+        SharedPreferences.setMockInitialValues({});
+        await StorageService().init();
+      });
+
+      // 1. Clean Chatbot View — MUST NOT expose API / متصل / سحابة jargon!
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider(create: (_) => ThemeProvider()),
+            ChangeNotifierProvider(create: (_) => AiCompanionProvider()),
+          ],
+          child: const MaterialApp(
+            home: Directionality(
+              textDirection: TextDirection.rtl,
+              child: AiCompanionView(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('المرشد الآبائي'), findsOneWidget);
+      expect(find.textContaining('API'), findsNothing);
+      expect(find.text('متصل'), findsNothing);
+      expect(find.textContaining('سحابة'), findsNothing);
+
+      // 2. Render all 7 brand-new church treasure & liturgical screens cleanly
+      final newScreens = <Widget>[
+        const RaisingOfIncenseView(),
+        const FractionsLibraryView(),
+        const LiturgicalEncyclopediaView(),
+        const MadayehLibraryView(),
+        const PatristicSayingsView(),
+        const ChurchHistoryView(),
+        const ServiceNotebookView(),
+      ];
+
+      for (final screen in newScreens) {
+        await tester.pumpWidget(
+          MultiProvider(
+            providers: [ChangeNotifierProvider(create: (_) => ThemeProvider())],
+            child: MaterialApp(
+              home: Directionality(
+                textDirection: TextDirection.rtl,
+                child: screen,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(find.byType(Scaffold), findsOneWidget);
+      }
     });
   });
 }

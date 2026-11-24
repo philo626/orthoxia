@@ -23,7 +23,9 @@ import '../community/trivia_game_view.dart';
 import '../conscience/conscience_exam_view.dart';
 import '../coptic_academy/coptic_academy_view.dart';
 import '../icons/christ_icons_gallery_view.dart';
+import '../liturgical/fractions_library_view.dart';
 import '../liturgical/katameros_view.dart';
+import '../liturgical/raising_of_incense_view.dart';
 import '../liturgical/remember_them_view.dart';
 import '../onboarding/auth_view.dart';
 import '../prayer_rope/coptic_prayer_rope_view.dart';
@@ -32,6 +34,11 @@ import '../search/global_search_view.dart';
 import '../spiritual_tracker/spiritual_tracker_view.dart';
 import '../synaxarium/my_patron_saint_view.dart';
 import '../synaxarium/synaxarium_daily_view.dart';
+import '../treasures/church_history_view.dart';
+import '../treasures/liturgical_encyclopedia_view.dart';
+import '../treasures/madayeh_library_view.dart';
+import '../treasures/patristic_sayings_view.dart';
+import '../treasures/service_notebook_view.dart';
 import 'spiritual_prescription_view.dart';
 
 class HomeDashboardView extends StatefulWidget {
@@ -357,6 +364,58 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
     final saint = PatronSaintService.getSaintById(StorageService().getPatronSaintId());
     final dailyQuote = PatronSaintService.getDailyQuote(saint.id);
     final saintImgUrl = PatronSaintService.getImageUrlForSaint(saint);
+
+    // «كنوز كنيستنا» — Encyclopedic Coptic Treasures matching Orsozoxi's complete richness
+    final churchTreasures = <({String title, String sub, IconData icon, VoidCallback onTap})>[
+      (
+        title: 'رفع بخور عشية وباكر',
+        sub: 'الخدمة الكاملة قبطي وعربي',
+        icon: Icons.local_fire_department_outlined,
+        onTap: () => Navigator.push(context, luxeRoute(const RaisingOfIncenseView())),
+      ),
+      (
+        title: 'صلوات القِسَم (٣٩)',
+        sub: 'قسمة كل عيد وموسم وصوم',
+        icon: Icons.auto_awesome_outlined,
+        onTap: () => Navigator.push(context, luxeRoute(const FractionsLibraryView())),
+      ),
+      (
+        title: 'الموسوعة الطقسية',
+        sub: 'طقس وألحان ١٨ موسماً كنسياً',
+        icon: Icons.menu_book_outlined,
+        onTap: () => Navigator.push(context, luxeRoute(const LiturgicalEncyclopediaView())),
+      ),
+      (
+        title: 'المدائح والتماجيد',
+        sub: 'فهرس أبجدي للشهداء والقديسين',
+        icon: Icons.library_music_outlined,
+        onTap: () => Navigator.push(context, luxeRoute(const MadayehLibraryView())),
+      ),
+      (
+        title: 'موسوعة أقوال الآباء',
+        sub: 'أقوال مصنفة أوفلاين بدون إنترنت',
+        icon: Icons.format_quote_rounded,
+        onTap: () => Navigator.push(context, luxeRoute(const PatristicSayingsView())),
+      ),
+      (
+        title: 'تاريخ الكنيسة والمجامع',
+        sub: 'من مارمرقس ونيقية حتى اليوم',
+        icon: Icons.account_balance_outlined,
+        onTap: () => Navigator.push(context, luxeRoute(const ChurchHistoryView())),
+      ),
+      (
+        title: 'كشكول الخدمة',
+        sub: 'تحضير دروس مدارس الأحد والخدام',
+        icon: Icons.note_alt_outlined,
+        onTap: () => Navigator.push(context, luxeRoute(const ServiceNotebookView())),
+      ),
+      (
+        title: 'الإبصلمودية الكيهكية',
+        sub: 'تسبحة ٧ و ٤ وذكصولوجيات الأعياد',
+        icon: Icons.nights_stay_outlined,
+        onTap: () => widget.onNavigateTab(1, subTab: 2),
+      ),
+    ];
 
     // Clear 2-column directory — ZERO hidden horizontal scrolls, EVERY tool visible at a glance
     final directoryTools = <({String title, String sub, IconData icon, VoidCallback onTap})>[
@@ -1104,7 +1163,109 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
 
                   const SizedBox(height: 22),
 
-                  // 6. Complete Scannable 2-Column Spiritual Directory (Everything visible in 1 glance!)
+                  // 6a. «كنوز كنيستنا» — Complete Encyclopedic Coptic Treasures Grid
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Text(
+                      'كنوز كنيستنا والطقوس',
+                      style: GoogleFonts.amiri(
+                        fontSize: 21,
+                        fontWeight: FontWeight.bold,
+                        color: p.ink,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: churchTreasures.length,
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                        childAspectRatio: 2.05,
+                      ),
+                      itemBuilder: (_, idx) {
+                        final item = churchTreasures[idx];
+                        return PressScale(
+                          scale: 0.97,
+                          onTap: item.onTap,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: p.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: p.goldBorder),
+                              boxShadow: p.isDark
+                                  ? null
+                                  : [
+                                      BoxShadow(
+                                        color: p.shadow,
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: p.goldSoft,
+                                    borderRadius: BorderRadius.circular(11),
+                                  ),
+                                  child: Icon(
+                                    item.icon,
+                                    color: p.isDark ? p.gold : p.accent,
+                                    size: 19,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        item.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.cairo(
+                                          fontSize: 12.2,
+                                          fontWeight: FontWeight.bold,
+                                          color: p.ink,
+                                          height: 1.2,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        item.sub,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.cairo(
+                                          fontSize: 9.8,
+                                          color: p.inkMuted,
+                                          height: 1.25,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 22),
+
+                  // 6b. Complete Scannable 2-Column Spiritual Directory (Everything visible in 1 glance!)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Text(

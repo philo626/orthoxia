@@ -18,6 +18,7 @@ class AgpeyaView extends StatefulWidget {
 
 class _AgpeyaViewState extends State<AgpeyaView> {
   List<AgpeyaHour> _hours = [];
+  List<Map<String, dynamic>> _otherPrayers = [];
   bool _isLoading = true;
   Set<String> _enabledAlarmIds = {};
 
@@ -46,6 +47,12 @@ class _AgpeyaViewState extends State<AgpeyaView> {
       final raw = await rootBundle.loadString('assets/data/agpeya.json');
       final list = jsonDecode(raw) as List;
       _hours = list.map((item) => AgpeyaHour.fromJson(item)).toList();
+      try {
+        final otherRaw = await rootBundle.loadString('assets/data/other_prayers.json');
+        _otherPrayers = (jsonDecode(otherRaw) as List)
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      } catch (_) {}
     } catch (_) {
     } finally {
       if (mounted) {
@@ -158,6 +165,125 @@ class _AgpeyaViewState extends State<AgpeyaView> {
     );
   }
 
+  void _openOtherPrayersSheet(BuildContext context) {
+    final p = context.palette;
+    int selectedIdx = 0;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final current = _otherPrayers[selectedIdx.clamp(0, _otherPrayers.length - 1)];
+          return Container(
+            height: MediaQuery.of(ctx).size.height * 0.84,
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
+            decoration: BoxDecoration(
+              color: p.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border(top: BorderSide(color: p.border)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: p.border,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'صلوات أخرى من الأجبية والكنيسة',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.amiri(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: p.ink,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: p.surfaceSubtle,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: p.goldBorder),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      isExpanded: true,
+                      dropdownColor: p.surface,
+                      value: selectedIdx,
+                      icon: Icon(Icons.keyboard_arrow_down_rounded, color: p.accent),
+                      items: List.generate(_otherPrayers.length, (i) {
+                        return DropdownMenuItem<int>(
+                          value: i,
+                          child: Text(
+                            '${i + 1}. ${_otherPrayers[i]['title']}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.cairo(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: p.ink,
+                            ),
+                          ),
+                        );
+                      }),
+                      onChanged: (v) {
+                        if (v != null) setSheet(() => selectedIdx = v);
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: p.canvas,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: p.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            '${current['title']}',
+                            style: GoogleFonts.amiri(
+                              fontSize: 21,
+                              fontWeight: FontWeight.bold,
+                              color: p.accent,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          SelectableText(
+                            '${current['text']}',
+                            style: GoogleFonts.amiri(
+                              fontSize: 19.5,
+                              height: 1.9,
+                              color: p.ink,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
@@ -252,9 +378,66 @@ class _AgpeyaViewState extends State<AgpeyaView> {
               Expanded(
                 child: ListView.separated(
                   padding: const EdgeInsets.fromLTRB(18, 6, 18, 36),
-                  itemCount: _hours.length,
+                  itemCount: _hours.length + (_otherPrayers.isNotEmpty ? 1 : 0),
                   separatorBuilder: (_, _) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
+                    if (index == _hours.length) {
+                      return PressScale(
+                        scale: 0.985,
+                        onTap: () => _openOtherPrayersSheet(context),
+                        child: Container(
+                          padding: const EdgeInsets.all(15),
+                          decoration: BoxDecoration(
+                            color: p.goldSoft,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: p.goldBorder),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: p.surface,
+                                  border: Border.all(color: p.goldBorder),
+                                ),
+                                alignment: Alignment.center,
+                                child: Icon(Icons.auto_stories_outlined,
+                                    color: p.accent, size: 20),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'صلوات أخرى (${_otherPrayers.length})',
+                                      style: GoogleFonts.amiri(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        color: p.ink,
+                                      ),
+                                    ),
+                                    Text(
+                                      'قبل وبعد التناول • قبل الاعتراف • التوبة • مارأفرام • للطلاب • للمرضى • للعائلة',
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.cairo(
+                                        fontSize: 11.5,
+                                        color: p.inkSecondary,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(Icons.chevron_left_rounded, color: p.accent, size: 20),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
                     final hour = _hours[index];
                     final isRecommended = hour.id == currentHourId;
                     return PressScale(

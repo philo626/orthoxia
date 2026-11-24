@@ -43,6 +43,9 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
   double _fontSize = 18.5;
   String _activeRoleFilter = 'all'; // 'all' | 'people' | 'priest' | 'deacon'
   String _layoutMode = 'kholagy_book'; // 'kholagy_book' | 'coptic_reader' | 'tri' | 'arabic'
+  bool _showArabic = true;
+  bool _showArabized = true;
+  bool _showCoptic = true;
   bool _showSilentPrayers = false;
   bool _showRubrics = true;
   bool _synaxariumExpanded = true;
@@ -803,6 +806,58 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
             ),
           ),
 
+          // Instant Orsozoxi-style Language & Silent Priest Prayers Toggle Bar (ع | م | ق | ص.ك)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: p.surfaceSubtle,
+              border: Border(bottom: BorderSide(color: p.border, width: 0.7)),
+            ),
+            child: Row(
+              children: [
+                _langTogglePill(p, 'ع', 'عربي', _showArabic, () {
+                  if (_showArabic && !_showArabized && !_showCoptic) return;
+                  setState(() => _showArabic = !_showArabic);
+                }),
+                const SizedBox(width: 6),
+                _langTogglePill(p, 'م', 'معرّب', _showArabized, () {
+                  setState(() => _showArabized = !_showArabized);
+                }),
+                const SizedBox(width: 6),
+                _langTogglePill(p, 'ق', 'قبطي', _showCoptic, () {
+                  setState(() => _showCoptic = !_showCoptic);
+                }),
+                const SizedBox(width: 6),
+                _langTogglePill(p, 'ص.ك', 'سرية', _showSilentPrayers, () {
+                  setState(() => _showSilentPrayers = !_showSilentPrayers);
+                }),
+                const Spacer(),
+                InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () => _showLiturgicalIndexSheet(liturgy),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.list_alt_rounded, size: 15, color: p.accent),
+                        const SizedBox(width: 4),
+                        Text(
+                          'انتقال سريع',
+                          style: GoogleFonts.cairo(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: p.accent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           // Continuous Flowing Illuminated Kholagy Book
           Expanded(
             child: Center(
@@ -1419,34 +1474,36 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
           const SizedBox(height: 7),
 
           // Mode A: Parallel 2-Column Coptic Reader Style
-          if (_layoutMode == 'coptic_reader' && (hasArabized || hasCoptic))
+          if (_layoutMode == 'coptic_reader' && ((_showArabized && hasArabized) || (_showCoptic && hasCoptic)))
             IntrinsicHeight(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    flex: 11,
-                    child: SelectableText(
-                      verse.arabic,
-                      style: GoogleFonts.amiri(
-                        fontSize: (_fontSize + 0.5) * fontScale,
-                        height: 1.8,
-                        color: p.ink,
-                        fontWeight: isPeople ? FontWeight.bold : FontWeight.normal,
+                  if (_showArabic)
+                    Expanded(
+                      flex: 11,
+                      child: SelectableText(
+                        verse.arabic,
+                        style: GoogleFonts.amiri(
+                          fontSize: (_fontSize + 0.5) * fontScale,
+                          height: 1.8,
+                          color: p.ink,
+                          fontWeight: isPeople ? FontWeight.bold : FontWeight.normal,
+                        ),
                       ),
                     ),
-                  ),
-                  Container(
-                    width: 1,
-                    margin: const EdgeInsets.symmetric(horizontal: 10),
-                    color: p.border,
-                  ),
+                  if (_showArabic)
+                    Container(
+                      width: 1,
+                      margin: const EdgeInsets.symmetric(horizontal: 10),
+                      color: p.border,
+                    ),
                   Expanded(
                     flex: 9,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (hasArabized)
+                        if (_showArabized && hasArabized)
                           SelectableText(
                             verse.arabized,
                             style: GoogleFonts.cairo(
@@ -1456,8 +1513,8 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                        if (hasCoptic) ...[
-                          if (hasArabized) const SizedBox(height: 6),
+                        if (_showCoptic && hasCoptic) ...[
+                          if (_showArabized && hasArabized) const SizedBox(height: 6),
                           SelectableText(
                             verse.coptic,
                             textDirection: TextDirection.ltr,
@@ -1477,17 +1534,18 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
               ),
             )
           else ...[
-            // Mode B: Printed Illuminated Kholagy Book / Tri / Pure Arabic
-            SelectableText(
-              verse.arabic,
-              style: GoogleFonts.amiri(
-                fontSize: (_fontSize + 1.5) * fontScale,
-                height: 1.85,
-                color: p.ink,
-                fontWeight: isPeople ? FontWeight.bold : FontWeight.normal,
+            // Mode B: Printed Illuminated Kholagy Book / Tri / Pure Arabic (respecting ع | م | ق checkboxes!)
+            if (_showArabic)
+              SelectableText(
+                verse.arabic,
+                style: GoogleFonts.amiri(
+                  fontSize: (_fontSize + 1.5) * fontScale,
+                  height: 1.85,
+                  color: p.ink,
+                  fontWeight: isPeople ? FontWeight.bold : FontWeight.normal,
+                ),
               ),
-            ),
-            if ((_layoutMode == 'kholagy_book' || _layoutMode == 'tri') && hasArabized) ...[
+            if (_showArabized && _layoutMode != 'arabic' && hasArabized) ...[
               const SizedBox(height: 5),
               SelectableText(
                 verse.arabized,
@@ -1498,7 +1556,7 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
                 ),
               ),
             ],
-            if (_layoutMode == 'tri' && hasCoptic) ...[
+            if (_showCoptic && (_layoutMode == 'tri' || _layoutMode == 'kholagy_book') && hasCoptic) ...[
               const SizedBox(height: 5),
               SelectableText(
                 verse.coptic,
@@ -1514,6 +1572,49 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
             ],
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _langTogglePill(
+    AppPalette p,
+    String code,
+    String hint,
+    bool active,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: active ? p.accent : p.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: active ? p.accent : p.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              active ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+              size: 13,
+              color: active ? p.onAccent : p.inkMuted,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              code,
+              style: GoogleFonts.cairo(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: active ? p.onAccent : p.ink,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

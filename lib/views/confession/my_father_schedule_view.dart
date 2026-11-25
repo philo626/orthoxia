@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/services/confession_service.dart';
+import '../../core/services/notification_service.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/theme/app_palette.dart';
 import '../../core/widgets/coptic_cross.dart';
@@ -10,6 +11,7 @@ import '../../core/widgets/luxe_widgets.dart';
 import '../../models/confession_models.dart';
 import '../conscience/conscience_exam_view.dart';
 import '../onboarding/auth_view.dart';
+import '../spiritual_tracker/communion_readiness_view.dart';
 import 'fathers_directory_view.dart';
 
 /// Playful Egyptian Arabic validator for two-part confession names («الاسم الثنائي»).
@@ -200,10 +202,28 @@ class _MyFatherScheduleViewState extends State<MyFatherScheduleView> {
       return;
     }
 
+    // Smart Confession Reminder (1 hour before session + Conscience Exam nudge!)
+    bool reminderSet = false;
+    if (res.status == AttendanceActionStatus.confirmed) {
+      reminderSet = await NotificationService().scheduleConfessionReminder(
+        sessionId: session.id,
+        fatherName: _storage.getConfessionFatherName(),
+        dateIso: session.dateIso,
+        startTimeAr: session.startTimeAr,
+        dayLabelAr: session.dayLabelAr,
+      );
+    }
+
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(res.message, style: GoogleFonts.cairo()),
-        duration: const Duration(seconds: 3),
+        content: Text(
+          reminderSet
+              ? '${res.message} وهنفكّرك قبل الميعاد بساعة تراجع فحص الضمير 🙏'
+              : res.message,
+          style: GoogleFonts.cairo(),
+        ),
+        duration: const Duration(seconds: 4),
       ),
     );
   }
@@ -239,6 +259,7 @@ class _MyFatherScheduleViewState extends State<MyFatherScheduleView> {
 
     setState(() => _busySessionIds.add(session.id));
     final res = await _service.cancelMyAttendance(session);
+    await NotificationService().cancelConfessionReminder(session.id);
     if (!mounted) return;
     setState(() => _busySessionIds.remove(session.id));
 
@@ -305,6 +326,146 @@ class _MyFatherScheduleViewState extends State<MyFatherScheduleView> {
             child: const Text('تسجيل الدخول'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showSendAltarRequestSheet(String fatherUid, String fatherName) {
+    if (_service.currentUid == null) {
+      _promptSignIn();
+      return;
+    }
+    final p = context.palette;
+    final nameCtrl = TextEditingController();
+    final noteCtrl = TextEditingController();
+    String selectedCat = 'sick';
+    bool sending = false;
+
+    const cats = <(String, String)>[
+      ('sick', 'مريض'),
+      ('departed', 'راقد (ترحيم)'),
+      ('travelers', 'مسافر'),
+      ('distressed', 'ضيقة / طلبة'),
+      ('thanksgiving', 'شكر وفرح'),
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 26),
+            decoration: BoxDecoration(
+              color: p.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border(top: BorderSide(color: p.border)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(color: p.border, borderRadius: BorderRadius.circular(4)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'ابعت اسم للمذبح عند $fatherName',
+                    style: GoogleFonts.amiri(fontSize: 22, fontWeight: FontWeight.bold, color: p.ink),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'الاسم بيوصل لقدس أبونا في سرية تامة، وبضغطة واحدة بينزل عند قدسه في قايمة «على المذبح» يذكره في الأواشي والقداس.',
+                    style: GoogleFonts.cairo(fontSize: 12, color: p.inkSecondary, height: 1.5),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 7,
+                    runSpacing: 7,
+                    children: cats.map((c) {
+                      final sel = selectedCat == c.$1;
+                      return ChoiceChip(
+                        selected: sel,
+                        selectedColor: p.gold,
+                        backgroundColor: p.surfaceSubtle,
+                        label: Text(
+                          c.$2,
+                          style: GoogleFonts.cairo(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: sel ? const Color(0xFF19130A) : p.ink,
+                          ),
+                        ),
+                        onSelected: (_) => setSheet(() => selectedCat = c.$1),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: nameCtrl,
+                    autofocus: true,
+                    style: GoogleFonts.cairo(color: p.ink, fontSize: 14.5),
+                    decoration: const InputDecoration(
+                      hintText: 'الاسم المراد ذكره على المذبح (مثال: مينا، أو المنتقل جرجس)',
+                      prefixIcon: Icon(Icons.favorite_outline_rounded, size: 20),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: noteCtrl,
+                    style: GoogleFonts.cairo(color: p.ink, fontSize: 13.5),
+                    decoration: const InputDecoration(
+                      hintText: 'ملاحظة قصيرة لقدس أبونا (اختياري — مثال: عملية جراحية / ذكرى الأربعين)',
+                      prefixIcon: Icon(Icons.notes_rounded, size: 19),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: sending
+                        ? null
+                        : () async {
+                            setSheet(() => sending = true);
+                            final (ok, msg) = await _service.submitAltarPrayerRequest(
+                              priestUid: fatherUid,
+                              personName: nameCtrl.text,
+                              category: selectedCat,
+                              note: noteCtrl.text,
+                            );
+                            if (!ctx.mounted) return;
+                            setSheet(() => sending = false);
+                            if (ok) Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(msg, style: GoogleFonts.cairo())),
+                            );
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: p.gold,
+                      foregroundColor: const Color(0xFF19130A),
+                    ),
+                    icon: sending
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF19130A)),
+                          )
+                        : const Icon(Icons.send_rounded, size: 18),
+                    label: Text(
+                      'ابعت الاسم لقدس أبونا للمذبح',
+                      style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -519,20 +680,44 @@ class _MyFatherScheduleViewState extends State<MyFatherScheduleView> {
                       ],
                     ),
                     const SizedBox(height: 10),
-                    OutlinedButton.icon(
-                      onPressed: () => _showGreetFatherSheet(fatherName),
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: p.surface,
-                        foregroundColor: p.accent,
-                        side: BorderSide(color: p.goldBorder),
-                        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      icon: const Icon(Icons.favorite_outline_rounded, size: 17),
-                      label: Text(
-                        'ابعت تهنئة أو سلام لقدس أبونا',
-                        style: GoogleFonts.cairo(fontSize: 12.5, fontWeight: FontWeight.bold),
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _showSendAltarRequestSheet(fatherUid, fatherName),
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor: p.surface,
+                              foregroundColor: p.ink,
+                              side: BorderSide(color: p.goldBorder),
+                              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            icon: Icon(Icons.local_fire_department_rounded, size: 17, color: p.gold),
+                            label: Text(
+                              'ابعت اسم للمذبح',
+                              style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _showGreetFatherSheet(fatherName),
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor: p.surface,
+                              foregroundColor: p.accent,
+                              side: BorderSide(color: p.goldBorder),
+                              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            icon: const Icon(Icons.favorite_outline_rounded, size: 17),
+                            label: Text(
+                              'تهنئة وسلام لأبونا',
+                              style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -652,6 +837,54 @@ class _MyFatherScheduleViewState extends State<MyFatherScheduleView> {
                             ),
                             Text(
                               'تُحفظ مشفّرة على موبايلك وحدك ولا تُرسل لأي جهة أبداً.',
+                              style: GoogleFonts.cairo(fontSize: 11, color: p.inkMuted),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.chevron_left_rounded, size: 19, color: p.inkMuted),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              // 5. Communion & Confession Readiness Shortcut
+              PressScale(
+                scale: 0.985,
+                onTap: () => Navigator.push(context, luxeRoute(const CommunionReadinessView())),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: p.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: p.goldBorder),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: p.goldSoft,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(Icons.church_rounded, size: 20, color: p.gold),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'الاستعداد للقداس والتناول والاعتراف',
+                              style: GoogleFonts.cairo(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.bold,
+                                color: p.ink,
+                              ),
+                            ),
+                            Text(
+                              'تابع تاريخ آخر اعتراف وتناول مع قائمة الاستعداد الهادية.',
                               style: GoogleFonts.cairo(fontSize: 11, color: p.inkMuted),
                             ),
                           ],

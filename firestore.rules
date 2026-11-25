@@ -247,6 +247,68 @@ service cloud.firestore {
         && validString(request.resource.data.attendeeName, 1, 60);
     }
 
+    // 6. Altar Prayer Requests sent from Congregation to their Priest (STRICT PRIVACY: readable ONLY by the Priest!)
+    match /priest_altar_requests/{priestUid}/items/{itemId} {
+      allow read, update, delete: if isOwner(priestUid);
+
+      allow create: if isSignedIn()
+        && request.resource.data.senderUid == request.auth.uid
+        && validString(request.resource.data.personName, 2, 80)
+        && request.resource.data.category in ['sick', 'departed', 'travelers', 'distressed', 'thanksgiving']
+        && (!('note' in request.resource.data) || request.resource.data.note.size() <= 200)
+        && request.resource.data.status == 'pending';
+    }
+
+    // 7. Free Live Multiplayer Friends Trivia Rooms (`trivia_rooms/{roomCode}`)
+    match /trivia_rooms/{roomCode} {
+      // Anyone signed in can look up a room by exact 6-char code (not publicly scrapeable)
+      allow get: if isSignedIn();
+      allow list: if false;
+
+      allow create: if isSignedIn()
+        && request.resource.data.hostUid == request.auth.uid
+        && request.resource.data.roomCode == roomCode
+        && request.resource.data.status == 'waiting'
+        && request.resource.data.questionIndices is list
+        && request.resource.data.questionIndices.size() >= 3
+        && request.resource.data.questionIndices.size() <= 20;
+
+      // Host controls room state (waiting -> playing -> finished)
+      allow update: if isSignedIn()
+        && resource.data.hostUid == request.auth.uid
+        && request.resource.data.hostUid == resource.data.hostUid
+        && request.resource.data.status in ['waiting', 'playing', 'finished'];
+
+      allow delete: if isSignedIn() && resource.data.hostUid == request.auth.uid;
+
+      // Players inside a room: readable by anyone in the room, writable ONLY by that player
+      match /players/{playerUid} {
+        allow read: if isSignedIn();
+        allow create, update: if isOwner(playerUid)
+          && request.resource.data.uid == playerUid
+          && validString(request.resource.data.name, 1, 50)
+          && request.resource.data.score is int
+          && request.resource.data.score >= 0
+          && request.resource.data.score <= 10000
+          && request.resource.data.answeredCount is int
+          && request.resource.data.answeredCount >= 0
+          && request.resource.data.answeredCount <= 25;
+        allow delete: if isOwner(playerUid);
+      }
+    }
+
+    // 8. Free Daily Online Orthodox Trivia Leaderboard (`daily_trivia/{dateIso}/scores/{uid}`)
+    match /daily_trivia/{dateIso}/scores/{uid} {
+      allow read: if true;
+      allow create, update: if isOwner(uid)
+        && request.resource.data.uid == uid
+        && validString(request.resource.data.name, 1, 50)
+        && request.resource.data.score is int
+        && request.resource.data.score >= 0
+        && request.resource.data.score <= 2500;
+      allow delete: if isOwner(uid);
+    }
+
     // Deny everything else by default
     match /{document=**} {
       allow read, write: if false;

@@ -13,6 +13,7 @@ import 'package:orthodox_app/core/services/coptic_calendar_service.dart';
 import 'package:orthodox_app/core/services/coptic_fast_service.dart';
 import 'package:orthodox_app/core/services/coptic_youtube_registry.dart';
 import 'package:orthodox_app/core/services/encryption_service.dart';
+import 'package:orthodox_app/core/services/multiplayer_trivia_service.dart';
 import 'package:orthodox_app/core/services/notification_service.dart';
 import 'package:orthodox_app/core/services/online_coptic_library_service.dart';
 import 'package:orthodox_app/core/services/patron_saint_service.dart';
@@ -22,9 +23,11 @@ import 'package:orthodox_app/core/services/speech_pronunciation_service.dart';
 import 'package:orthodox_app/core/services/storage_service.dart';
 import 'package:orthodox_app/core/theme/app_palette.dart';
 import 'package:orthodox_app/core/theme/app_theme.dart';
+import 'package:orthodox_app/core/widgets/priest_qr_poster_sheet.dart';
 import 'package:orthodox_app/models/confession_models.dart';
 import 'package:orthodox_app/models/spiritual_tracker_model.dart';
 import 'package:orthodox_app/providers/ai_companion_provider.dart';
+import 'package:orthodox_app/providers/audio_provider.dart';
 import 'package:orthodox_app/providers/bible_provider.dart';
 import 'package:orthodox_app/providers/books_provider.dart';
 import 'package:orthodox_app/providers/church_mode_provider.dart';
@@ -33,6 +36,7 @@ import 'package:orthodox_app/providers/spiritual_tracker_provider.dart';
 import 'package:orthodox_app/providers/theme_provider.dart';
 import 'package:orthodox_app/views/ai_companion/ai_companion_view.dart';
 import 'package:orthodox_app/views/books/books_library_view.dart';
+import 'package:orthodox_app/views/community/online_trivia_arena_view.dart';
 import 'package:orthodox_app/views/confession/admin_priest_review_view.dart';
 import 'package:orthodox_app/views/confession/fathers_directory_view.dart';
 import 'package:orthodox_app/views/confession/my_father_schedule_view.dart';
@@ -49,7 +53,9 @@ import 'package:orthodox_app/views/onboarding/auth_view.dart';
 import 'package:orthodox_app/views/priest/priest_altar_hub_view.dart';
 import 'package:orthodox_app/views/priest/priest_navigation_shell.dart';
 import 'package:orthodox_app/views/priest/priest_pastoral_care_view.dart';
+import 'package:orthodox_app/views/spiritual_tracker/communion_readiness_view.dart';
 import 'package:orthodox_app/views/synaxarium/my_patron_saint_view.dart';
+import 'package:orthodox_app/views/treasures/sermons_library_view.dart';
 import 'package:orthodox_app/views/synaxarium/synaxarium_daily_view.dart';
 import 'package:orthodox_app/views/treasures/church_history_view.dart';
 import 'package:orthodox_app/views/treasures/liturgical_encyclopedia_view.dart';
@@ -908,6 +914,51 @@ void main() {
               ChangeNotifierProvider(create: (_) => LiturgyProvider()),
               ChangeNotifierProvider(create: (_) => BibleProvider()),
               ChangeNotifierProvider(create: (_) => BooksProvider()),
+            ],
+            child: MaterialApp(
+              home: Directionality(
+                textDirection: TextDirection.rtl,
+                child: screen,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(find.byType(Scaffold), findsWidgets);
+      }
+
+      // 3. Verify ISO PureQrMatrix, Audio Sermons Catalog (70+), Expanded Trivia (60+), Multiplayer Room & New Screens!
+      final qr = PureQrMatrix.encode('https://github.com/philo626/orthoxia#code=AB-4829');
+      expect(qr.size, greaterThanOrEqualTo(29));
+      expect(qr.modules[0][0], isTrue); // Top-left finder corner
+      expect(qr.modules[0][qr.size - 1], isTrue); // Top-right finder corner
+      expect(qr.modules[qr.size - 1][0], isTrue); // Bottom-left finder corner
+
+      final sermons = jsonDecode(File('assets/data/sermons_library.json').readAsStringSync()) as List;
+      expect(sermons.length, greaterThanOrEqualTo(70));
+      expect(sermons.every((s) => '${s['audio_url']}'.startsWith('https://')), isTrue);
+
+      final triviaJson = jsonDecode(File('assets/data/trivia.json').readAsStringSync()) as Map<String, dynamic>;
+      expect((triviaJson['questions'] as List).length, greaterThanOrEqualTo(60));
+
+      expect(MultiplayerTriviaService.normalizeRoomCode('or4829'), 'OR-4829');
+      expect(MultiplayerTriviaService.normalizeRoomCode('٤٨٢٩'), 'OR-4829');
+      final dailyA = MultiplayerTriviaService.dailyQuestionIndices(60, count: 10, date: DateTime(2026, 11, 25));
+      final dailyB = MultiplayerTriviaService.dailyQuestionIndices(60, count: 10, date: DateTime(2026, 11, 25));
+      expect(dailyA, equals(dailyB));
+      expect(dailyA.length, 10);
+
+      for (final screen in const <Widget>[
+        CommunionReadinessView(),
+        SermonsLibraryView(),
+        OnlineTriviaArenaView(),
+      ]) {
+        await tester.pumpWidget(
+          MultiProvider(
+            providers: [
+              ChangeNotifierProvider(create: (_) => ThemeProvider()),
+              ChangeNotifierProvider(create: (_) => AudioProvider()),
             ],
             child: MaterialApp(
               home: Directionality(

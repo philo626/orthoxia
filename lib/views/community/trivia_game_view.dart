@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/widgets/luxe_widgets.dart';
 import '../../providers/trivia_provider.dart';
+import 'online_trivia_arena_view.dart';
 
 class TriviaGameView extends StatelessWidget {
   const TriviaGameView({super.key});
@@ -187,7 +189,61 @@ class TriviaGameView extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
+
+                // 1b. FREE LIVE ONLINE MULTIPLAYER WITH FRIENDS + DAILY LEADERBOARD BANNER
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          Navigator.push(
+                            context,
+                            luxeRoute(const OnlineTriviaArenaView(initialTab: 0)),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryGold,
+                          foregroundColor: const Color(0xFF19130A),
+                          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        icon: const Icon(Icons.groups_rounded, size: 19),
+                        label: Text(
+                          'العب مع أصحابك 🎮',
+                          style: GoogleFonts.cairo(fontSize: 12.2, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          Navigator.push(
+                            context,
+                            luxeRoute(const OnlineTriviaArenaView(initialTab: 1)),
+                          );
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primaryGoldLight,
+                          backgroundColor: AppColors.cardNavy,
+                          side: const BorderSide(color: AppColors.primaryGold, width: 1.2),
+                          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        icon: const Icon(Icons.emoji_events_rounded, size: 18),
+                        label: Text(
+                          'التحدي اليومي 🏆',
+                          style: GoogleFonts.cairo(fontSize: 12.2, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
 
                 // 2. Game Mode Selector Chips (Infinite Modes)
                 SingleChildScrollView(

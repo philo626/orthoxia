@@ -723,6 +723,43 @@ class AttendanceActionResult {
 // PRIEST PRIVATE ON-DEVICE PASTORAL CARE MODELS (100% AES-256 LOCAL ONLY)
 // =============================================================================
 
+/// Incoming Altar Prayer Request sent by a congregation member directly to their Priest
+class AltarPrayerRequest {
+  final String id;
+  final String senderUid;
+  final String senderName;
+  final String personName;
+  final String category; // 'sick' | 'departed' | 'travelers' | 'distressed' | 'thanksgiving'
+  final String note;
+  final String status; // 'pending' | 'added'
+  final DateTime? createdAt;
+
+  const AltarPrayerRequest({
+    required this.id,
+    required this.senderUid,
+    required this.senderName,
+    required this.personName,
+    required this.category,
+    this.note = '',
+    this.status = 'pending',
+    this.createdAt,
+  });
+
+  factory AltarPrayerRequest.fromMap(String id, Map<String, dynamic> data) {
+    final ts = data['createdAt'];
+    return AltarPrayerRequest(
+      id: id,
+      senderUid: '${data['senderUid'] ?? ''}',
+      senderName: '${data['senderName'] ?? ''}',
+      personName: '${data['personName'] ?? ''}',
+      category: '${data['category'] ?? 'sick'}',
+      note: '${data['note'] ?? ''}',
+      status: '${data['status'] ?? 'pending'}',
+      createdAt: ts is Timestamp ? ts.toDate() : null,
+    );
+  }
+}
+
 /// Altar Litany Commemoration Name (المرضى • الراقدين • المسافرين • ضيقات • شكر)
 class AltarNameItem {
   final String id;

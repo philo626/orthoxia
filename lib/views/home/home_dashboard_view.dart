@@ -34,6 +34,7 @@ import '../prayer_rope/coptic_prayer_rope_view.dart';
 import '../priest/priest_navigation_shell.dart';
 import '../profile/profile_settings_view.dart';
 import '../search/global_search_view.dart';
+import '../spiritual_tracker/communion_readiness_view.dart';
 import '../spiritual_tracker/spiritual_tracker_view.dart';
 import '../synaxarium/my_patron_saint_view.dart';
 import '../synaxarium/synaxarium_daily_view.dart';
@@ -41,6 +42,7 @@ import '../treasures/church_history_view.dart';
 import '../treasures/liturgical_encyclopedia_view.dart';
 import '../treasures/madayeh_library_view.dart';
 import '../treasures/patristic_sayings_view.dart';
+import '../treasures/sermons_library_view.dart';
 import '../treasures/service_notebook_view.dart';
 import 'spiritual_prescription_view.dart';
 
@@ -486,6 +488,18 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
         },
       ),
       (
+        title: 'مكتبة العظات الصوتية',
+        sub: 'البابا شنودة • داود لمعي • بيشوي كامل (بالخلفية)',
+        icon: Icons.headphones_rounded,
+        onTap: () => Navigator.push(context, luxeRoute(const SermonsLibraryView())),
+      ),
+      (
+        title: 'الاستعداد للقداس والتناول',
+        sub: 'تابع آخر اعتراف وتناول وقائمة الاستعداد',
+        icon: Icons.church_outlined,
+        onTap: () => Navigator.push(context, luxeRoute(const CommunionReadinessView())),
+      ),
+      (
         title: 'مذكرة الاعتراف',
         sub: 'فحص ضمير خاص ومشفّر على جهازك',
         icon: Icons.lock_outline_rounded,
@@ -498,8 +512,8 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
         onTap: () => _openPersonalGuarded(context, 'متتبع الجهاد الروحي', const SpiritualTrackerView()),
       ),
       (
-        title: 'المسابقات القبطية',
-        sub: 'اختبر معرفتك الكتابية والطقسية',
+        title: 'المسابقات أونلاين ومع أصحابك',
+        sub: 'تلمذة الشمامسة • غرفة مع أصحابك • التحدي اليومي',
         icon: Icons.emoji_events_outlined,
         onTap: () => Navigator.push(
           context,

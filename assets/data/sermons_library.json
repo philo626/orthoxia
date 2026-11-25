@@ -1,0 +1,610 @@
+[
+  {
+    "id": "sermon_1",
+    "title": "إجابات عن شكل النهاية - أبونا داود لمعي",
+    "speaker": "أبونا داود لمعي",
+    "category": "حياة روحية",
+    "duration": "00:33:52",
+    "audio_url": "https://feeds.soundcloud.com/stream/1176622150-frdawood-wgxb2qxgi4pm.mp3"
+  },
+  {
+    "id": "sermon_2",
+    "title": "طوبى لصانعى السلام - ابونا داود لمعي",
+    "speaker": "أبونا داود لمعي",
+    "category": "التعزية والسلام",
+    "duration": "00:21:23",
+    "audio_url": "https://feeds.soundcloud.com/stream/1176620920-frdawood-ca1n5gr8g4oi.mp3"
+  },
+  {
+    "id": "sermon_3",
+    "title": "هتعدى - أبونا داود لمعي",
+    "speaker": "أبونا داود لمعي",
+    "category": "حياة روحية",
+    "duration": "00:30:35",
+    "audio_url": "https://feeds.soundcloud.com/stream/1176620164-frdawood-f55yn92agusi.mp3"
+  },
+  {
+    "id": "sermon_4",
+    "title": "تفسير سفر التثنية - تكملة ص 33 & ص 34 - ليس مثل الله يا يشورون - ابونا داود لمعي",
+    "speaker": "أبونا داود لمعي",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "00:45:12",
+    "audio_url": "https://feeds.soundcloud.com/stream/1176619576-frdawood-33-34a-1.mp3"
+  },
+  {
+    "id": "sermon_5",
+    "title": "فى المسيح - ابونا دواد لمعي",
+    "speaker": "أبونا داود لمعي",
+    "category": "حياة روحية",
+    "duration": "00:23:55",
+    "audio_url": "https://feeds.soundcloud.com/stream/1171885201-frdawood-g2fvrybs7xow.mp3"
+  },
+  {
+    "id": "sermon_6",
+    "title": "لماذا انت حزينة يا نفسى - ابونا داود لمعي",
+    "speaker": "أبونا داود لمعي",
+    "category": "حياة روحية",
+    "duration": "00:22:01",
+    "audio_url": "https://feeds.soundcloud.com/stream/1171883674-frdawood-188ddpizrvmg.mp3"
+  },
+  {
+    "id": "sermon_7",
+    "title": "التجسد الإلهى - ابونا داود لمعي",
+    "speaker": "أبونا داود لمعي",
+    "category": "حياة روحية",
+    "duration": "00:17:26",
+    "audio_url": "https://feeds.soundcloud.com/stream/1171882447-frdawood-szsp0ynxp69l.mp3"
+  },
+  {
+    "id": "sermon_8",
+    "title": "كم رغيفا عندكم - أبونا داود لمعي",
+    "speaker": "أبونا داود لمعي",
+    "category": "حياة روحية",
+    "duration": "00:54:44",
+    "audio_url": "https://feeds.soundcloud.com/stream/1171874764-frdawood-djksvgiek2gw.mp3"
+  },
+  {
+    "id": "sermon_9",
+    "title": "تفسير سفر التثنية - تكملة ص 33 - يا نفتالي اشبع رضى - ابونا داود لمعي",
+    "speaker": "أبونا داود لمعي",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "00:46:29",
+    "audio_url": "https://feeds.soundcloud.com/stream/1171872679-frdawood-33a-2a.mp3"
+  },
+  {
+    "id": "sermon_10",
+    "title": "انت فين من .... - أبونا داود لمعي",
+    "speaker": "أبونا داود لمعي",
+    "category": "حياة روحية",
+    "duration": "00:22:39",
+    "audio_url": "https://feeds.soundcloud.com/stream/1164224224-frdawood-ymtug2ytx5sk.mp3"
+  },
+  {
+    "id": "sermon_11",
+    "title": "صلاة الساعة التاسعة - أبونا داود لمعي",
+    "speaker": "أبونا داود لمعي",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "00:26:55",
+    "audio_url": "https://feeds.soundcloud.com/stream/1162582855-frdawood-gpog6ggicwen.mp3"
+  },
+  {
+    "id": "sermon_12",
+    "title": "تفسير سفر التثنية - تكملة ص 32(47 -52)& ص33 (1-17) - حبيب الرب يسكن لديه آمنا - ابونا داود لمعي",
+    "speaker": "أبونا داود لمعي",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "00:49:27",
+    "audio_url": "https://feeds.soundcloud.com/stream/1162581871-frdawood-3247-52-33-1-17a.mp3"
+  },
+  {
+    "id": "sermon_13",
+    "title": "تفسير سفر التثنية - تكملة ص 32(18-46) - الصخر الذي ولدك تركته - ابونا داود لمعي",
+    "speaker": "أبونا داود لمعي",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "00:48:41",
+    "audio_url": "https://feeds.soundcloud.com/stream/1162580992-frdawood-3218-46a.mp3"
+  },
+  {
+    "id": "sermon_14",
+    "title": "كيف لا تفقد الثقة بنفسك - أبونا داود لمعي",
+    "speaker": "أبونا داود لمعي",
+    "category": "حياة روحية",
+    "duration": "00:18:38",
+    "audio_url": "https://feeds.soundcloud.com/stream/1160552809-frdawood-zrf1dyc3vxwk.mp3"
+  },
+  {
+    "id": "sermon_15",
+    "title": "ماذا نعمل للخروف الضال - أبونا داود لمعي",
+    "speaker": "أبونا داود لمعي",
+    "category": "حياة روحية",
+    "duration": "00:15:00",
+    "audio_url": "https://feeds.soundcloud.com/stream/1156903531-frdawood-fwhzktugtnv3.mp3"
+  },
+  {
+    "id": "sermon_16",
+    "title": "لا هنا و لا هناك - أبونا داود لمعي",
+    "speaker": "أبونا داود لمعي",
+    "category": "حياة روحية",
+    "duration": "00:27:35",
+    "audio_url": "https://feeds.soundcloud.com/stream/1155550162-frdawood-7nwaodt7cj5d.mp3"
+  },
+  {
+    "id": "sermon_17",
+    "title": "ذكريات أبونا لوقا مع ابونا بيشوي كامل (10 of 10)",
+    "speaker": "أبونا بيشوي كامل",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "00:14:52",
+    "audio_url": "https://feeds.soundcloud.com/stream/2170224558-stmark-kw-dhkryt-bwn-lwq-m-bwn-byshwy-kml-10-of-10-9.mp3"
+  },
+  {
+    "id": "sermon_18",
+    "title": "ذكريات أبونا لوقا مع ابونا بيشوي كامل (9 of 10)",
+    "speaker": "أبونا بيشوي كامل",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "00:22:51",
+    "audio_url": "https://feeds.soundcloud.com/stream/2170224555-stmark-kw-dhkryt-bwn-lwq-m-bwn-byshwy-kml-9-of-10-8.mp3"
+  },
+  {
+    "id": "sermon_19",
+    "title": "ذكريات أبونا لوقا مع ابونا بيشوي كامل (7 of 10)",
+    "speaker": "أبونا بيشوي كامل",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "00:21:29",
+    "audio_url": "https://feeds.soundcloud.com/stream/2170224552-stmark-kw-dhkryt-bwn-lwq-m-bwn-byshwy-kml-7-of-10-6.mp3"
+  },
+  {
+    "id": "sermon_20",
+    "title": "ذكريات أبونا لوقا مع ابونا بيشوي كامل (8 of 10)",
+    "speaker": "أبونا بيشوي كامل",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "00:11:49",
+    "audio_url": "https://feeds.soundcloud.com/stream/2170224549-stmark-kw-dhkryt-bwn-lwq-m-bwn-byshwy-kml-8-of-10-7.mp3"
+  },
+  {
+    "id": "sermon_21",
+    "title": "ذكريات أبونا لوقا مع ابونا بيشوي كامل (1 of 10)",
+    "speaker": "أبونا بيشوي كامل",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "00:15:21",
+    "audio_url": "https://feeds.soundcloud.com/stream/2170224546-stmark-kw-dhkryt-bwn-lwq-m-bwn-byshwy-kml-1-of-10-10.mp3"
+  },
+  {
+    "id": "sermon_22",
+    "title": "ذكريات أبونا لوقا مع ابونا بيشوي كامل (6 of 10)",
+    "speaker": "أبونا بيشوي كامل",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "00:27:39",
+    "audio_url": "https://feeds.soundcloud.com/stream/2170224543-stmark-kw-dhkryt-bwn-lwq-m-bwn-byshwy-kml-6-of-10-5.mp3"
+  },
+  {
+    "id": "sermon_23",
+    "title": "ذكريات أبونا لوقا مع ابونا بيشوي كامل (4 of 10)",
+    "speaker": "أبونا بيشوي كامل",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "00:13:41",
+    "audio_url": "https://feeds.soundcloud.com/stream/2170224540-stmark-kw-dhkryt-bwn-lwq-m-bwn-byshwy-kml-4-of-10-3.mp3"
+  },
+  {
+    "id": "sermon_24",
+    "title": "ذكريات أبونا لوقا مع ابونا بيشوي كامل (5 of 10)",
+    "speaker": "أبونا بيشوي كامل",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "00:19:50",
+    "audio_url": "https://feeds.soundcloud.com/stream/2170224537-stmark-kw-dhkryt-bwn-lwq-m-bwn-byshwy-kml-5-of-10-4.mp3"
+  },
+  {
+    "id": "sermon_25",
+    "title": "ذكريات أبونا لوقا مع ابونا بيشوي كامل (3 of 10)",
+    "speaker": "أبونا بيشوي كامل",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "00:07:42",
+    "audio_url": "https://feeds.soundcloud.com/stream/2170224534-stmark-kw-dhkryt-bwn-lwq-m-bwn-byshwy-kml-3-of-10-2.mp3"
+  },
+  {
+    "id": "sermon_26",
+    "title": "ذكريات أبونا لوقا مع ابونا بيشوي كامل (2 of 10)",
+    "speaker": "أبونا بيشوي كامل",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "00:14:08",
+    "audio_url": "https://feeds.soundcloud.com/stream/2170224531-stmark-kw-dhkryt-bwn-lwq-m-bwn-byshwy-kml-2-of-10-1.mp3"
+  },
+  {
+    "id": "sermon_27",
+    "title": "مَجْدَ مُلْكِكَ يَصِفُونَ -عظة قداس عيد الرسل السبت 12-7-2025 -القمص ابادير الانبا بيشوي",
+    "speaker": "مثلث الرحمات الأنبا بيشوي",
+    "category": "الأصوام والأعياد والقداس",
+    "duration": "00:13:54",
+    "audio_url": "https://feeds.soundcloud.com/stream/2132307852-stmark-kw-12-7-2025a.mp3"
+  },
+  {
+    "id": "sermon_28",
+    "title": "معجزة صيد السمك الكثير - الاحد- 24-10-2021 - ابونا بيجول الانبا بيشوي",
+    "speaker": "مثلث الرحمات الأنبا بيشوي",
+    "category": "حياة روحية",
+    "duration": "00:11:34",
+    "audio_url": "https://feeds.soundcloud.com/stream/1205295817-stmark-kw-24-10-2021a.mp3"
+  },
+  {
+    "id": "sermon_29",
+    "title": "فرحتنا بعيد الميلاد (قداس عيد الميلاد) - الخميس 6-1-2022 - ابونا بيجول الانبا بيشوي",
+    "speaker": "مثلث الرحمات الأنبا بيشوي",
+    "category": "الأصوام والأعياد والقداس",
+    "duration": "00:17:52",
+    "audio_url": "https://feeds.soundcloud.com/stream/1205295349-stmark-kw-6-1-2022a.mp3"
+  },
+  {
+    "id": "sermon_30",
+    "title": "حفل تخرج الدفعة الثانية \"إعداد الخدام 2020-2021\" - الاثنين 3-1-2022 - ابونا بيجول الانبا بيشوي",
+    "speaker": "مثلث الرحمات الأنبا بيشوي",
+    "category": "حياة روحية",
+    "duration": "00:23:14",
+    "audio_url": "https://feeds.soundcloud.com/stream/1205294647-stmark-kw-2020-2021-3-1-2022a.mp3"
+  },
+  {
+    "id": "sermon_31",
+    "title": "تأمل في حياة القديسان مكسيموس ودوماديوس -الاحد- 23-1-2022 - ابونا بيجول الانبا بيشوي",
+    "speaker": "مثلث الرحمات الأنبا بيشوي",
+    "category": "حياة روحية",
+    "duration": "00:22:15",
+    "audio_url": "https://feeds.soundcloud.com/stream/1205293783-stmark-kw-23-1-2022a.mp3"
+  },
+  {
+    "id": "sermon_32",
+    "title": "العطاء فى الخفاء - الاحد 19-12-2021 - ابونا بيجول الانبا بيشوي",
+    "speaker": "مثلث الرحمات الأنبا بيشوي",
+    "category": "حياة روحية",
+    "duration": "00:19:30",
+    "audio_url": "https://feeds.soundcloud.com/stream/1205292841-stmark-kw-19-12-2021a.mp3"
+  },
+  {
+    "id": "sermon_33",
+    "title": "الزيارة المثالية \"زيارة العذراء لإليصابات \" - الجمعة 24-12-2021 - ابونا بيجول الانبا بيشوي -",
+    "speaker": "مثلث الرحمات الأنبا بيشوي",
+    "category": "حياة روحية",
+    "duration": "00:11:12",
+    "audio_url": "https://feeds.soundcloud.com/stream/1205291383-stmark-kw-24-12-2021a.mp3"
+  },
+  {
+    "id": "sermon_34",
+    "title": "تكملة الاسفار القانونية الثانية - 16 أغسطس 2021 - نيافة الحبر الجليل الأنبا مكاريوس",
+    "speaker": "أبونا مكاري يونان",
+    "category": "حياة روحية",
+    "duration": "00:56:18",
+    "audio_url": "https://feeds.soundcloud.com/stream/1176648295-stmark-kw-16-2021a-4.mp3"
+  },
+  {
+    "id": "sermon_35",
+    "title": "الاسفار القانونية الثانية - 15 أغسطس 2021 - نيافة الحبر الجليل الأنبا مكاريوس",
+    "speaker": "أبونا مكاري يونان",
+    "category": "حياة روحية",
+    "duration": "00:56:29",
+    "audio_url": "https://feeds.soundcloud.com/stream/1176643462-stmark-kw-15-2021a.mp3"
+  },
+  {
+    "id": "sermon_36",
+    "title": "الكتاب المقدس أساس حياتنا الروحية - 13 أغسطس 2021 - ابونا بيجول الانبا بيشوي",
+    "speaker": "مثلث الرحمات الأنبا بيشوي",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "00:53:37",
+    "audio_url": "https://feeds.soundcloud.com/stream/1176643348-stmark-kw-13-2021a.mp3"
+  },
+  {
+    "id": "sermon_37",
+    "title": "الكتاب المقدس مصدر كل عقائد الكنيسة - 12 أغسطس 2021 - ابونا بيجول الانبا بيشوي",
+    "speaker": "مثلث الرحمات الأنبا بيشوي",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "00:53:14",
+    "audio_url": "https://feeds.soundcloud.com/stream/1176642148-stmark-kw-10-2021a.mp3"
+  },
+  {
+    "id": "sermon_38",
+    "title": "التربية - 11 أغسطس 2021 - ابونا بيجول الانبا بيشوي",
+    "speaker": "مثلث الرحمات الأنبا بيشوي",
+    "category": "الشباب والأسرة",
+    "duration": "00:15:06",
+    "audio_url": "https://feeds.soundcloud.com/stream/1176639883-stmark-kw-11-2021a-4.mp3"
+  },
+  {
+    "id": "sermon_39",
+    "title": "الكتاب المقدس مصدر الطقوس بالكنيسة - 8 أغسطس 2021 - ابونا بيجول الانبا بيشوي",
+    "speaker": "مثلث الرحمات الأنبا بيشوي",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "01:02:06",
+    "audio_url": "https://feeds.soundcloud.com/stream/1176639823-stmark-kw-8-2021a.mp3"
+  },
+  {
+    "id": "sermon_40",
+    "title": "دروس من حياة القديس سمعان الخراز - الخميس 25-11-2021 - ابونا بيجول الانبا بيشوي",
+    "speaker": "مثلث الرحمات الأنبا بيشوي",
+    "category": "حياة روحية",
+    "duration": "00:26:34",
+    "audio_url": "https://feeds.soundcloud.com/stream/1175454718-stmark-kw-25-11-2021a.mp3"
+  },
+  {
+    "id": "sermon_41",
+    "title": "الشهيد أبو سيفين - الجمعة 3-12-2021 - ابونا بيجول الانبا بيشوي",
+    "speaker": "مثلث الرحمات الأنبا بيشوي",
+    "category": "حياة روحية",
+    "duration": "00:14:28",
+    "audio_url": "https://feeds.soundcloud.com/stream/1175453350-stmark-kw-3-12-2021a.mp3"
+  },
+  {
+    "id": "sermon_42",
+    "title": "صوم الميلاد - الجمعة 26-11-2021 - ابونا بيجول الانبا بيشوي",
+    "speaker": "مثلث الرحمات الأنبا بيشوي",
+    "category": "الأصوام والأعياد والقداس",
+    "duration": "00:16:33",
+    "audio_url": "https://feeds.soundcloud.com/stream/1175452897-stmark-kw-26-11-2021a.mp3"
+  },
+  {
+    "id": "sermon_43",
+    "title": "احتمال الكرامة - الثلاثاء- 30-11-2021 - ابونا بيجول الانبا بيشوي",
+    "speaker": "مثلث الرحمات الأنبا بيشوي",
+    "category": "حياة روحية",
+    "duration": "00:13:39",
+    "audio_url": "https://feeds.soundcloud.com/stream/1175452285-stmark-kw-30-11-2021a.mp3"
+  },
+  {
+    "id": "sermon_44",
+    "title": "المسيح الخادم - الجمعة 22 اكتوبر 2021- ابونا بيجول الانبا بيشوي",
+    "speaker": "مثلث الرحمات الأنبا بيشوي",
+    "category": "حياة روحية",
+    "duration": "00:52:22",
+    "audio_url": "https://feeds.soundcloud.com/stream/1161179026-stmark-kw-22-2021a-1.mp3"
+  },
+  {
+    "id": "sermon_45",
+    "title": "القديس أثناسيوس الخادم الأمين - الاحد 1 أغسطس 2021 - د. جورج نسيم",
+    "speaker": "آباء الكنيسة",
+    "category": "حياة روحية",
+    "duration": "00:39:44",
+    "audio_url": "https://feeds.soundcloud.com/stream/1101225664-stmark-kw-1-2021a.mp3"
+  },
+  {
+    "id": "sermon_46",
+    "title": "عظة قداس تذكار استشهاد القديس الانبا موسي الاسود - الاحد- 5 يوليو 2021 - القمص بيجول الانبا بيشوي",
+    "speaker": "مثلث الرحمات الأنبا موسى",
+    "category": "الأصوام والأعياد والقداس",
+    "duration": "00:19:25",
+    "audio_url": "https://feeds.soundcloud.com/stream/1091056942-stmark-kw-5-2021a-1.mp3"
+  },
+  {
+    "id": "sermon_47",
+    "title": "القيامة في فكر القديس البابا أثناسيوس الرسولي - المتنيح القمص بيشوي كامل",
+    "speaker": "أبونا بيشوي كامل",
+    "category": "الأصوام والأعياد والقداس",
+    "duration": "00:35:10",
+    "audio_url": "https://feeds.soundcloud.com/stream/1041128629-stmark-kw-optn5botwx4j.mp3"
+  },
+  {
+    "id": "sermon_48",
+    "title": "عيد القيامة - المتنيح القمص بيشوي كامل",
+    "speaker": "أبونا بيشوي كامل",
+    "category": "الأصوام والأعياد والقداس",
+    "duration": "00:24:35",
+    "audio_url": "https://feeds.soundcloud.com/stream/1041127510-stmark-kw-qid7zjfqfmxn.mp3"
+  },
+  {
+    "id": "sermon_49",
+    "title": "كنعجة صامته لم يفتح فاه - المتنيح القمص بيشوي كامل",
+    "speaker": "أبونا بيشوي كامل",
+    "category": "حياة روحية",
+    "duration": "00:18:47",
+    "audio_url": "https://feeds.soundcloud.com/stream/1037074534-stmark-kw-xrukleziqfis.mp3"
+  },
+  {
+    "id": "sermon_50",
+    "title": "يوم الرب العظيم ( ثلاثاء البصخة ) - المتنيح القمص بيشوي كامل",
+    "speaker": "أبونا بيشوي كامل",
+    "category": "حياة روحية",
+    "duration": "00:37:40",
+    "audio_url": "https://feeds.soundcloud.com/stream/1037073586-stmark-kw-izktpbjeqax4.mp3"
+  },
+  {
+    "id": "sermon_51",
+    "title": "ليلة الاثنين من البصخة المقدسة - المتنيح القمص بيشوي كامل",
+    "speaker": "أبونا بيشوي كامل",
+    "category": "حياة روحية",
+    "duration": "00:29:29",
+    "audio_url": "https://feeds.soundcloud.com/stream/1037070256-stmark-kw-9f7dauq4wax4.mp3"
+  },
+  {
+    "id": "sermon_52",
+    "title": "ليلة أحد الشعانين - المتنيح القمص بيشوي كامل",
+    "speaker": "أبونا بيشوي كامل",
+    "category": "حياة روحية",
+    "duration": "00:27:24",
+    "audio_url": "https://feeds.soundcloud.com/stream/1035863575-stmark-kw-esteid40bucj.mp3"
+  },
+  {
+    "id": "sermon_53",
+    "title": "دون أن نطلب - مثلث الرحمات قداسة البابا شنودة الثالث",
+    "speaker": "قداسة البابا شنودة الثالث",
+    "category": "الأصوام والأعياد والقداس",
+    "duration": "00:44:04",
+    "audio_url": "https://feeds.soundcloud.com/stream/1010050384-stmark-kw-l49baiet3owb.mp3"
+  },
+  {
+    "id": "sermon_54",
+    "title": "الإيمان و غير الإيمان - مثلث الرحمات قداسة البابا شنودة الثالث",
+    "speaker": "قداسة البابا شنودة الثالث",
+    "category": "الأصوام والأعياد والقداس",
+    "duration": "00:38:21",
+    "audio_url": "https://feeds.soundcloud.com/stream/1010048212-stmark-kw-sxx4pxl41cez.mp3"
+  },
+  {
+    "id": "sermon_55",
+    "title": "ناظرين الي ما لا يري - مثلث الرحمات قداسة البابا شنودة الثالث",
+    "speaker": "قداسة البابا شنودة الثالث",
+    "category": "الأصوام والأعياد والقداس",
+    "duration": "00:33:19",
+    "audio_url": "https://feeds.soundcloud.com/stream/1010045863-stmark-kw-jjakuiavpxds.mp3"
+  },
+  {
+    "id": "sermon_56",
+    "title": "جلسة مع الآب - مثلث الرحمات قداسة البابا شنودة الثالث",
+    "speaker": "قداسة البابا شنودة الثالث",
+    "category": "الأصوام والأعياد والقداس",
+    "duration": "00:43:04",
+    "audio_url": "https://feeds.soundcloud.com/stream/1010037208-stmark-kw-x8pen9cwguxw.mp3"
+  },
+  {
+    "id": "sermon_57",
+    "title": "سيرة حياة الأنبا بولا ..أول السواح - الثلاثاء 9-2-2021 - ابونا بيجول الانبا بيشوى",
+    "speaker": "نيافة الأنبا بولا",
+    "category": "حياة روحية",
+    "duration": "00:19:40",
+    "audio_url": "https://feeds.soundcloud.com/stream/990539365-stmark-kw-9-2-2021a.mp3"
+  },
+  {
+    "id": "sermon_58",
+    "title": "دروس من حياة الأنبا بولا ..أول السواح - الخميس 11-2-2021 - ابونا بيجول الانبا بيشوى",
+    "speaker": "نيافة الأنبا بولا",
+    "category": "حياة روحية",
+    "duration": "00:14:55",
+    "audio_url": "https://feeds.soundcloud.com/stream/990538510-stmark-kw-11-2-2021a.mp3"
+  },
+  {
+    "id": "sermon_59",
+    "title": "براهين ألوهيتة السيد المسيح ومساواته للآب في الجوهر - الجمعة 9 سبتمبر 2020 - نيافة الأنبا رافائيل",
+    "speaker": "نيافة الأنبا رافائيل",
+    "category": "حياة روحية",
+    "duration": "01:04:41",
+    "audio_url": "https://feeds.soundcloud.com/stream/917057794-stmark-kw-9-2020a.mp3"
+  },
+  {
+    "id": "sermon_60",
+    "title": "الإعداد والإستعداد للخدمة - الجمعة 4 سبتمبر 2020 -أسقف الشباب الانبا موسى",
+    "speaker": "مثلث الرحمات الأنبا موسى",
+    "category": "الشباب والأسرة",
+    "duration": "00:22:17",
+    "audio_url": "https://feeds.soundcloud.com/stream/908301403-stmark-kw-4-2020a.mp3"
+  },
+  {
+    "id": "sermon_61",
+    "title": "تجلي الله في حياتنا - القمص تادرس يعقوب ملطي",
+    "speaker": "آباء الكنيسة",
+    "category": "حياة روحية",
+    "duration": "00:25:30",
+    "audio_url": "https://feeds.soundcloud.com/stream/879771073-stmark-kw-icpa0n3wzffy.mp3"
+  },
+  {
+    "id": "sermon_62",
+    "title": "معمل اتحاد الطبائع العجيب - القمص تادرس يعقوب ملطي",
+    "speaker": "آباء الكنيسة",
+    "category": "حياة روحية",
+    "duration": "00:24:42",
+    "audio_url": "https://feeds.soundcloud.com/stream/879770248-stmark-kw-nvs2vppxpbbk.mp3"
+  },
+  {
+    "id": "sermon_63",
+    "title": "مسيحنا والجبل الذي يملأ الأرض كلها - القمص تادرس يعقوب ملطي",
+    "speaker": "آباء الكنيسة",
+    "category": "حياة روحية",
+    "duration": "00:26:12",
+    "audio_url": "https://feeds.soundcloud.com/stream/876851341-stmark-kw-zbjhilgqxxji.mp3"
+  },
+  {
+    "id": "sermon_64",
+    "title": "إله إسرائيل والباب المغلق - القمص تادرس يعقوب ملطي",
+    "speaker": "آباء الكنيسة",
+    "category": "حياة روحية",
+    "duration": "00:21:54",
+    "audio_url": "https://feeds.soundcloud.com/stream/875854042-stmark-kw-tps7dzvfvrbi.mp3"
+  },
+  {
+    "id": "sermon_65",
+    "title": "أوريجانوس والأم البتول - القمص تادرس يعقوب ملطي",
+    "speaker": "آباء الكنيسة",
+    "category": "حياة روحية",
+    "duration": "00:25:09",
+    "audio_url": "https://feeds.soundcloud.com/stream/874074721-stmark-kw-6bx6svugdeqw.mp3"
+  },
+  {
+    "id": "sermon_66",
+    "title": "القديسة مريم والسماء الجديدة- القمص تادرس يعقوب ملطي",
+    "speaker": "آباء الكنيسة",
+    "category": "حياة روحية",
+    "duration": "00:19:41",
+    "audio_url": "https://feeds.soundcloud.com/stream/874072705-stmark-kw-at9ruasvmdaq.mp3"
+  },
+  {
+    "id": "sermon_67",
+    "title": "القديسة مريم واللقاء مع كلمة الله المتجسد - القمص تادرس يعقوب ملطي",
+    "speaker": "آباء الكنيسة",
+    "category": "حياة روحية",
+    "duration": "00:19:45",
+    "audio_url": "https://feeds.soundcloud.com/stream/874071451-stmark-kw-lu1imsdnhdkk.mp3"
+  },
+  {
+    "id": "sermon_68",
+    "title": "تفسير سفر الرؤيا - المجئ الثاني - الختوم السبعة جـ 2 - نيافة الأنبا رافائيل",
+    "speaker": "نيافة الأنبا رافائيل",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "00:55:24",
+    "audio_url": "https://feeds.soundcloud.com/stream/868571842-stmark-kw-2-645707767.mp3"
+  },
+  {
+    "id": "sermon_69",
+    "title": "Blessed Are You O Christ | 2026 (Arabic - عربي)",
+    "speaker": "نيافة الأنبا يوسف",
+    "category": "حياة روحية",
+    "duration": "00:03:28",
+    "audio_url": "https://anchor.fm/s/10aff900/podcast/play/129872336/https%3A%2F%2Fd3ctxlq1ktw2nl.cloudfront.net%2Fstaging%2F2026-10-21%2F30ababda-6134-61b1-b94a-6a826d11c8a1.m4a"
+  },
+  {
+    "id": "sermon_70",
+    "title": "The Joy of the Flock (Arabic - عربي)",
+    "speaker": "نيافة الأنبا يوسف",
+    "category": "حياة روحية",
+    "duration": "00:13:40",
+    "audio_url": "https://anchor.fm/s/10aff900/podcast/play/129766574/https%3A%2F%2Fd3ctxlq1ktw2nl.cloudfront.net%2Fstaging%2F2026-10-19%2Fa9434b4d-3584-41ca-c6f9-58bdc263bd63.mp3"
+  },
+  {
+    "id": "sermon_71",
+    "title": "Living With Split Personality (Arabic - عربي)",
+    "speaker": "نيافة الأنبا يوسف",
+    "category": "حياة روحية",
+    "duration": "00:27:50",
+    "audio_url": "https://anchor.fm/s/10aff900/podcast/play/129585259/https%3A%2F%2Fd3ctxlq1ktw2nl.cloudfront.net%2Fstaging%2F2026-10-17%2F5aafdda7-8721-b032-d672-021b1bd2bbad.m4a"
+  },
+  {
+    "id": "sermon_72",
+    "title": "QA - Living With Healthy Boundaries (Arabic - عربي) | 2026",
+    "speaker": "نيافة الأنبا يوسف",
+    "category": "حياة روحية",
+    "duration": "00:18:57",
+    "audio_url": "https://anchor.fm/s/10aff900/podcast/play/129417977/https%3A%2F%2Fd3ctxlq1ktw2nl.cloudfront.net%2Fstaging%2F2026-10-14%2Fbc3772c9-a24c-216b-f232-8c3ea822e036.mp3"
+  },
+  {
+    "id": "sermon_73",
+    "title": "Job - Chapter 33 ~ Bible Study (Arabic - عربي)",
+    "speaker": "نيافة الأنبا يوسف",
+    "category": "حياة روحية",
+    "duration": "00:14:52",
+    "audio_url": "https://anchor.fm/s/10aff900/podcast/play/129035836/https%3A%2F%2Fd3ctxlq1ktw2nl.cloudfront.net%2Fstaging%2F2026-10-8%2Fe52d01ed-9ff7-66fb-a31b-bec3218b74b3.mp3"
+  },
+  {
+    "id": "sermon_74",
+    "title": "كيف تربح النفوس و تكسب قلوب الناس (مناقشه مقال البابا شنوده)",
+    "speaker": "قداسة البابا شنودة الثالث",
+    "category": "حياة روحية",
+    "duration": "01:01:51",
+    "audio_url": "https://feeds.soundcloud.com/stream/1461402121-saint-mary-coptic-church-ya4pfoxg8tab.mp3"
+  },
+  {
+    "id": "sermon_75",
+    "title": "التدبير الروحى - ابونا متى المسكين",
+    "speaker": "الأب متى المسكين",
+    "category": "تفسير الكتاب والصلاة",
+    "duration": "01:05:07",
+    "audio_url": "https://feeds.soundcloud.com/stream/769163989-saint-mary-coptic-church-bcxghctxjoka.mp3"
+  },
+  {
+    "id": "sermon_76",
+    "title": "كتاب الكهنوت لقداسة البابا شنودة",
+    "speaker": "قداسة البابا شنودة الثالث",
+    "category": "الأصوام والأعياد والقداس",
+    "duration": "01:07:18",
+    "audio_url": "https://feeds.soundcloud.com/stream/718185016-saint-mary-coptic-church-nhgsmnwdeqjf.mp3"
+  }
+]

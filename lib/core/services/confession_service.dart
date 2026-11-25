@@ -949,6 +949,93 @@ class ConfessionService {
             snap.docs.map((d) => PriestNotificationItem.fromMap(d.id, d.data())).toList());
   }
 
+  // ===========================================================================
+  // 6. ALTAR PRAYER REQUESTS (CONGREGATION -> PRIEST'S PRIVATE ALTAR LIST)
+  // ===========================================================================
+
+  /// Congregation member sends a prayer name (sick / departed / traveler / distress / thanksgiving)
+  /// directly to their confession father's private inbox (readable ONLY by Abouna).
+  Future<(bool, String)> submitAltarPrayerRequest({
+    required String priestUid,
+    required String personName,
+    required String category,
+    String note = '',
+  }) async {
+    final db = _db;
+    final uid = currentUid;
+    if (db == null || uid == null) {
+      return (false, 'من فضلك سجّل دخول الأول عشان نبعت الاسم لقدس أبونا.');
+    }
+    final safePerson = SecurityGuardService.sanitizeText(personName, maxLength: 80, allowNewlines: false);
+    final safeNote = SecurityGuardService.sanitizeText(note, maxLength: 200);
+    final senderName = SecurityGuardService.sanitizeText(
+      _storage.hasCustomUserName() ? _storage.getUserName() : 'أحد أبناء الكنيسة',
+      maxLength: 60,
+      allowNewlines: false,
+    );
+    if (safePerson.length < 2) {
+      return (false, 'اكتب الاسم اللي عايز قدس أبونا يذكره على المذبح.');
+    }
+    const allowedCats = {'sick', 'departed', 'travelers', 'distressed', 'thanksgiving'};
+    final safeCat = allowedCats.contains(category) ? category : 'sick';
+
+    try {
+      await db
+          .collection('priest_altar_requests')
+          .doc(priestUid)
+          .collection('items')
+          .add({
+        'senderUid': uid,
+        'senderName': senderName.isEmpty ? 'ابن الكنيسة' : senderName,
+        'personName': safePerson,
+        'category': safeCat,
+        'note': safeNote,
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return (true, 'اتبعَت الاسم لقدس أبونا بنجاح، وبضغطة واحدة هيضيفه قدسه على المذبح 🙏');
+    } catch (e) {
+      if (kDebugMode) debugPrint('submitAltarPrayerRequest err: $e');
+      return (false, 'مش قادرين نبعت الطلبة دلوقتي. اتأكد من النت وحاول تاني.');
+    }
+  }
+
+  /// Priest watches incoming pending altar requests from his children (private to Abouna only!)
+  Stream<List<AltarPrayerRequest>> watchIncomingAltarRequests() {
+    final db = _db;
+    final uid = currentUid;
+    if (db == null || uid == null) return Stream.value(const []);
+    return db
+        .collection('priest_altar_requests')
+        .doc(uid)
+        .collection('items')
+        .orderBy('createdAt', descending: true)
+        .limit(50)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => AltarPrayerRequest.fromMap(d.id, d.data()))
+            .where((r) => r.status == 'pending')
+            .toList());
+  }
+
+  Future<void> dismissOrAcceptAltarRequest(String requestId, {bool delete = true}) async {
+    final db = _db;
+    final uid = currentUid;
+    if (db == null || uid == null) return;
+    try {
+      final ref = db
+          .collection('priest_altar_requests')
+          .doc(uid)
+          .collection('items')
+          .doc(requestId);
+      if (delete) {
+        await ref.delete();
+      } else {
+        await ref.update({'status': 'added'});
+      }
+    } catch (_) {}
+  }
+
   Future<void> markAllNotificationsRead() async {
     final db = _db;
     final uid = currentUid;

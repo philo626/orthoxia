@@ -8,6 +8,7 @@ import '../../core/theme/app_palette.dart';
 import '../../core/widgets/coptic_cross.dart';
 import '../../core/widgets/diocese_church_picker.dart';
 import '../../core/widgets/luxe_widgets.dart';
+import '../../core/widgets/priest_qr_poster_sheet.dart';
 import '../../models/confession_models.dart';
 import '../onboarding/auth_view.dart';
 
@@ -1097,6 +1098,30 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
                   label: Text('مشاركة', style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold)),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: code.isEmpty
+                ? null
+                : () => PriestQrPosterSheet.show(
+                      context,
+                      priestFullName: profile.fullDisplayName,
+                      church: profile.church,
+                      diocese: profile.diocese,
+                      privateCode: code,
+                    ),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: p.surface,
+              foregroundColor: p.ink,
+              side: BorderSide(color: p.goldBorder),
+              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: Icon(Icons.qr_code_2_rounded, size: 19, color: p.gold),
+            label: Text(
+              'كارت QR Code جاهز للطباعة على باب المكتب',
+              style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold),
             ),
           ),
         ],

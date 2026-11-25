@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/services/confession_service.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/theme/app_palette.dart';
 import '../../models/confession_models.dart';
@@ -24,6 +25,7 @@ class PriestPastoralCareView extends StatefulWidget {
 class _PriestPastoralCareViewState extends State<PriestPastoralCareView>
     with SingleTickerProviderStateMixin {
   final StorageService _storage = StorageService();
+  final ConfessionService _confession = ConfessionService();
   late final TabController _tabCtrl;
 
   List<AltarNameItem> _altarNames = [];
@@ -638,6 +640,128 @@ class _PriestPastoralCareViewState extends State<PriestPastoralCareView>
               ),
             ),
             const SizedBox(height: 8),
+            // Incoming Altar Prayer Requests sent privately by Abouna's congregation children!
+            StreamBuilder<List<AltarPrayerRequest>>(
+              stream: _confession.watchIncomingAltarRequests(),
+              builder: (context, snap) {
+                final incoming = snap.data ?? [];
+                if (incoming.isEmpty) return const SizedBox.shrink();
+                return Container(
+                  margin: const EdgeInsets.fromLTRB(16, 2, 16, 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: p.goldSoft,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: p.goldBorder, width: 1.3),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.mark_email_unread_rounded, size: 18, color: p.gold),
+                          const SizedBox(width: 7),
+                          Expanded(
+                            child: Text(
+                              'طلبات صلاة جديدة للمذبح من أولاد قدسك (${incoming.length})',
+                              style: GoogleFonts.cairo(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.bold,
+                                color: p.ink,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ...incoming.take(5).map((req) => Container(
+                            margin: const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: p.surface,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: p.border),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${req.personName} (${_categoryLabel(req.category)})',
+                                        style: GoogleFonts.cairo(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: p.ink,
+                                        ),
+                                      ),
+                                      Text(
+                                        'بعتها: ${req.senderName}${req.note.isNotEmpty ? ' • ${req.note}' : ''}',
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.cairo(fontSize: 11, color: p.inkSecondary),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                FilledButton.tonal(
+                                  onPressed: () async {
+                                    HapticFeedback.lightImpact();
+                                    final messenger = ScaffoldMessenger.of(context);
+                                    final item = AltarNameItem(
+                                      id: DateTime.now().microsecondsSinceEpoch.toString(),
+                                      name: req.personName,
+                                      category: req.category,
+                                      note: req.note.isNotEmpty
+                                          ? '${req.note} (مرسل من ${req.senderName})'
+                                          : 'مرسل من ${req.senderName}',
+                                      createdAtIso: DateTime.now().toIso8601String(),
+                                    );
+                                    setState(() => _altarNames.insert(0, item));
+                                    await _saveAltarNames();
+                                    await _confession.dismissOrAcceptAltarRequest(req.id, delete: true);
+                                    if (mounted) {
+                                      messenger.showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'اتضاف «${req.personName}» لقايمة المذبح الخاصة بقدسك ✓',
+                                            style: GoogleFonts.cairo(),
+                                          ),
+                                          duration: const Duration(seconds: 2),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: p.sage.withValues(alpha: 0.16),
+                                    foregroundColor: p.sage,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: Text(
+                                    'إضافة ✓',
+                                    style: GoogleFonts.cairo(fontSize: 11.5, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'تجاهل',
+                                  constraints: const BoxConstraints(),
+                                  padding: const EdgeInsets.all(5),
+                                  icon: Icon(Icons.close_rounded, size: 17, color: p.inkMuted),
+                                  onPressed: () =>
+                                      _confession.dismissOrAcceptAltarRequest(req.id, delete: true),
+                                ),
+                              ],
+                            ),
+                          )),
+                    ],
+                  ),
+                );
+              },
+            ),
             Expanded(
               child: filtered.isEmpty
                   ? _emptyBox(

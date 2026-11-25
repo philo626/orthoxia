@@ -356,6 +356,17 @@ class StorageService {
     await _prefs?.setString('conscience_exam_notes', _encryption.encryptAes256(jsonStr));
   }
 
+  // ===========================================================================
+  // COMMUNION & CONFESSION READINESS TRACKER (100% LOCAL ON USER'S DEVICE)
+  // ===========================================================================
+  String getLastConfessionDateIso() => _prefs?.getString('last_confession_date_iso') ?? '';
+  Future<void> setLastConfessionDateIso(String iso) async =>
+      await _prefs?.setString('last_confession_date_iso', iso);
+
+  String getLastCommunionDateIso() => _prefs?.getString('last_communion_date_iso') ?? '';
+  Future<void> setLastCommunionDateIso(String iso) async =>
+      await _prefs?.setString('last_communion_date_iso', iso);
+
   Future<void> clearConscienceNotes() async {
     await _prefs?.remove('conscience_exam_notes');
   }

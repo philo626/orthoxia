@@ -415,6 +415,81 @@ class NotificationService {
     }
   }
 
+  /// Smart Confession Reminder: schedules a warm local reminder 1 hour before
+  /// the booked confession session (and reminds the user to review Conscience Exam!).
+  Future<bool> scheduleConfessionReminder({
+    required String sessionId,
+    required String fatherName,
+    required String dateIso,
+    required String startTimeAr,
+    required String dayLabelAr,
+  }) async {
+    await init();
+    if (!_initialized) return false;
+    final target = _parseConfessionDateTime(dateIso, startTimeAr);
+    if (target == null) return false;
+
+    final now = tz.TZDateTime.now(tz.local);
+    var remindAt = target.subtract(const Duration(hours: 1));
+    if (remindAt.isBefore(now)) {
+      // If less than 1 hour away but still in the future, remind 15 mins before
+      remindAt = target.subtract(const Duration(minutes: 15));
+      if (remindAt.isBefore(now)) return false;
+    }
+
+    final notifId = 8000 + (sessionId.hashCode.abs() % 900);
+    await _scheduleOneShot(
+      id: notifId,
+      scheduled: remindAt,
+      channelId: 'orthodoxia_confession_reminder',
+      channelName: 'منبّه ميعاد الاعتراف',
+      channelDesc: 'تذكير لطيف قبل ميعاد اعترافك بساعة لمراجعة فحص الضمير',
+      title: 'ميعاد اعترافك قرب مع $fatherName 🙏',
+      body: 'النهاردة ($dayLabelAr - $startTimeAr). فكّرنا نذكّرك تفتح «فحص الضمير» المشفّر تراجع نفسك بهدوء قبل ما تروح الكنيسة.',
+    );
+    return true;
+  }
+
+  Future<void> cancelConfessionReminder(String sessionId) async {
+    await init();
+    if (!_initialized) return;
+    final notifId = 8000 + (sessionId.hashCode.abs() % 900);
+    try {
+      await _plugin.cancel(notifId);
+    } catch (_) {}
+  }
+
+  static tz.TZDateTime? _parseConfessionDateTime(String dateIso, String startTimeAr) {
+    try {
+      final parts = dateIso.split('-');
+      if (parts.length != 3) return null;
+      final year = int.parse(parts[0]);
+      final month = int.parse(parts[1]);
+      final day = int.parse(parts[2]);
+
+      // Normalize Arabic digits ٠-٩ to 0-9
+      var norm = startTimeAr;
+      const ar = '٠١٢٣٤٥٦٧٨٩';
+      for (int i = 0; i < ar.length; i++) {
+        norm = norm.replaceAll(ar[i], '$i');
+      }
+      final match = RegExp(r'(\d{1,2})\s*:\s*(\d{2})').firstMatch(norm);
+      int hour = 17;
+      int minute = 0;
+      if (match != null) {
+        hour = int.parse(match.group(1)!);
+        minute = int.parse(match.group(2)!);
+        final isPm = norm.contains('مساء') || norm.contains('م') || norm.toLowerCase().contains('pm');
+        final isAm = norm.contains('صباح') || norm.contains('ص') || norm.toLowerCase().contains('am');
+        if (isPm && hour < 12) hour += 12;
+        if (isAm && hour == 12) hour = 0;
+      }
+      return tz.TZDateTime(tz.local, year, month, day, hour, minute);
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Privacy-First Lock-Screen Notification for Priests:
   /// ALWAYS displays generic text on the lock screen (ZERO personal name leaked!)
   /// while full attendee name & day appear ONLY inside Abona's signed-in dashboard.

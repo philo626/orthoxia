@@ -12,6 +12,7 @@ import '../../core/theme/app_palette.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/coptic_cross.dart';
 import '../../core/widgets/luxe_widgets.dart';
+import '../../core/widgets/priest_qr_poster_sheet.dart';
 import '../../models/confession_models.dart';
 import '../../models/katameros_model.dart';
 import '../../providers/church_mode_provider.dart';
@@ -481,31 +482,64 @@ class _PriestHomeDashboardViewState extends State<PriestHomeDashboardView> {
                             ],
                           ),
                           const SizedBox(height: 8),
-                          OutlinedButton.icon(
-                            onPressed: () {
-                              HapticFeedback.lightImpact();
-                              SharePlus.instance.share(
-                                ShareParams(
-                                  text: ConfessionService.buildPriestAppRecommendationText(
-                                    senderPriestName: prof?.fullDisplayName ?? priestName,
-                                    church: prof?.church ?? churchName,
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: displayCode.isEmpty
+                                      ? null
+                                      : () => PriestQrPosterSheet.show(
+                                            context,
+                                            priestFullName: prof?.fullDisplayName ?? priestName,
+                                            church: prof?.church ?? churchName,
+                                            diocese: prof?.diocese ?? _storage.getPriestDiocese(),
+                                            privateCode: displayCode,
+                                          ),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: p.ink,
+                                    side: BorderSide(color: p.goldBorder),
+                                    padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  icon: Icon(Icons.qr_code_2_rounded, size: 17, color: p.gold),
+                                  label: Text(
+                                    'كارت QR للطباعة',
+                                    style: GoogleFonts.cairo(fontSize: 11.5, fontWeight: FontWeight.bold),
                                   ),
                                 ),
-                              );
-                            },
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: p.ink,
-                              side: BorderSide(color: p.border),
-                              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
                               ),
-                            ),
-                            icon: Icon(Icons.groups_rounded, size: 18, color: p.gold),
-                            label: Text(
-                              'ابعت التطبيق لآباء كهنة زملاءك (جروب الكنيسة)',
-                              style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold),
-                            ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    HapticFeedback.lightImpact();
+                                    SharePlus.instance.share(
+                                      ShareParams(
+                                        text: ConfessionService.buildPriestAppRecommendationText(
+                                          senderPriestName: prof?.fullDisplayName ?? priestName,
+                                          church: prof?.church ?? churchName,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: p.ink,
+                                    side: BorderSide(color: p.border),
+                                    padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  icon: Icon(Icons.groups_rounded, size: 17, color: p.gold),
+                                  label: Text(
+                                    'دعوة آباء كهنة',
+                                    style: GoogleFonts.cairo(fontSize: 11.5, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),

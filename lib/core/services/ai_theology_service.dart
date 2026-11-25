@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -426,7 +427,7 @@ class AiTheologyService {
       }
     }
 
-    // 2. Search Orthodox Books (books.json) — require genuine multi-token relevance (never random 1-word hits!)
+    // 2. Search Orthodox Books (books.json) — require strong title or exact phrase relevance (never random off-topic hits!)
     final minTokensNeeded = tokens.length >= 2 ? 2 : 1;
     if (_booksCache != null && tokens.isNotEmpty) {
       final scoredBooks = <({int score, String snippet, String citation})>[];
@@ -439,15 +440,21 @@ class AiTheologyService {
           final cMap = ch as Map<String, dynamic>;
           final cTitle = '${cMap['title'] ?? ''}';
           final cContent = '${cMap['content'] ?? ''}';
-          int score = 0;
+          int titleHits = 0;
+          int contentHits = 0;
           for (final t in tokens) {
             if (title.contains(t) || cTitle.contains(t)) {
-              score += 3;
+              titleHits++;
             } else if (cContent.contains(t)) {
-              score += 1;
+              contentHits++;
             }
           }
-          if (score >= minTokensNeeded * 2) {
+          // Require either a title match with >=2 total token hits, OR every query token found in content
+          final isStrongMatch =
+              (titleHits >= 1 && (titleHits + contentHits) >= minTokensNeeded) ||
+                  (tokens.length >= 2 && (titleHits + contentHits) == tokens.length);
+          if (isStrongMatch) {
+            final score = titleHits * 4 + contentHits;
             final excerpt = cContent.length > 440
                 ? '${cContent.substring(0, 440)}...'
                 : cContent;
@@ -574,11 +581,11 @@ class AiTheologyService {
         history.length > 6 ? history.sublist(history.length - 6) : history;
 
     if (cfg.provider == AiProviderType.gemini) {
-      // Try latest official Google Gemini Flash models (supports both AIza... and AQ.... keys)
+      // Try stable Google Gemini Flash models first (supports both AIza... and AQ.... keys)
       for (final model in const [
-        'gemini-3.5-flash-lite',
-        'gemini-3.8-flash',
         'gemini-2.5-flash',
+        'gemini-2.5-flash-lite',
+        'gemini-3.5-flash-lite',
         'gemini-2.0-flash',
       ]) {
         final uri = Uri.parse(
@@ -690,7 +697,7 @@ class AiTheologyService {
             'temperature': 0.25,
           }),
         )
-        .timeout(const Duration(seconds: 22));
+        .timeout(const Duration(seconds: 28));
 
     if (res.statusCode == 200) {
       final decoded = jsonDecode(utf8.decode(res.bodyBytes));
@@ -701,6 +708,8 @@ class AiTheologyService {
       if (raw.isNotEmpty) return cleanMarkdownFormatting(raw);
     } else if (res.statusCode == 401 || res.statusCode == 403) {
       throw Exception('مفتاح API غير صالح (HTTP ${res.statusCode})');
+    } else if (res.statusCode >= 500 || res.statusCode == 429) {
+      throw HttpException('server_busy_${res.statusCode}');
     }
     return null;
   }
@@ -750,43 +759,62 @@ class AiTheologyService {
       );
     }
 
-    // 2. Always ground with Local Orthodox RAG first
+    // 2. Load local Orthodox RAG (only inject vetted direct hits into AI prompt so we never derail the LLM!)
     final rag = await _searchLocalRag(cleanQuery);
     final ragSnippets = (rag['snippets'] as List<String>? ?? []);
     final ragCitations = (rag['citations'] as List<String>? ?? []);
-    final ragContext = ragSnippets.isNotEmpty
-        ? '\n\nمراجع موثقة من مكتبة التطبيق الأرثوذكسية:\n${ragSnippets.join("\n\n")}'
+    final directContext = (rag['direct_hit'] == true && rag['direct_text'] != null)
+        ? '\n\nمرجع أرثوذكسي موثق للاستئناس فقط (أجب على سؤال المستخدم مباشرة):\n${rag['direct_text']}'
         : '';
 
-    // 3. Call user's configured REAL AI API (Gemini / Groq / Custom Proxy) if set
+    // 3. Call configured REAL AI API (Built-in Vercel Proxy / Gemini / Groq) with 1 automatic retry on transient spikes
     var cfg = await loadConfig();
     if (!cfg.isConfigured && apiKey != null && apiKey.trim().length >= 12) {
       cfg = AiApiConfig(provider: AiProviderType.gemini, apiKey: apiKey.trim());
     }
 
+    bool serverWasReachableButBusy = false;
     if (cfg.isConfigured) {
-      try {
-        final aiText = await _callConfiguredProvider(
-          cfg: cfg,
-          userPrompt: '$cleanQuery$ragContext',
-          history: history,
-        );
-        if (aiText != null && aiText.isNotEmpty) {
-          return AiMessage(
-            text: aiText,
-            isUser: false,
-            timestamp: DateTime.now(),
-            citations: ragCitations.isNotEmpty
-                ? ragCitations
-                : const ['تراث الكنيسة القبطية الأرثوذكسية'],
+      for (int attempt = 0; attempt < 2; attempt++) {
+        try {
+          final aiText = await _callConfiguredProvider(
+            cfg: cfg,
+            userPrompt: '$cleanQuery$directContext',
+            history: history,
           );
+          if (aiText != null && aiText.isNotEmpty) {
+            return AiMessage(
+              text: aiText,
+              isUser: false,
+              timestamp: DateTime.now(),
+              citations: rag['direct_hit'] == true && ragCitations.isNotEmpty
+                  ? ragCitations
+                  : const ['تراث الكنيسة القبطية الأرثوذكسية'],
+            );
+          }
+          serverWasReachableButBusy = true;
+        } on SocketException {
+          serverWasReachableButBusy = false;
+          break; // Genuine offline — don't waste time retrying!
+        } on HttpException {
+          serverWasReachableButBusy = true;
+        } catch (e) {
+          final msg = e.toString().toLowerCase();
+          if (msg.contains('socketexception') ||
+              msg.contains('failed host lookup') ||
+              msg.contains('network is unreachable')) {
+            serverWasReachableButBusy = false;
+            break;
+          }
+          serverWasReachableButBusy = true;
         }
-      } catch (_) {
-        // Fall through cleanly to zero-hallucination local Orthodox RAG!
+        if (attempt == 0) {
+          await Future.delayed(const Duration(milliseconds: 900));
+        }
       }
     }
 
-    // 4. Zero-hallucination Offline Patristic Knowledge Base + Local RAG Synthesis
+    // 4. Zero-hallucination Offline Patristic Knowledge Base + High-Confidence Local RAG Synthesis
     if (rag['direct_hit'] == true && rag['direct_text'] != null) {
       return AiMessage(
         text: rag['direct_text'] as String,
@@ -807,9 +835,11 @@ class AiTheologyService {
     }
 
     return AiMessage(
-      text:
-          'بخصوص سؤالك: «$cleanQuery»\n\n'
-          'يبدو أن الاتصال بالإنترنت غير متاح حالياً. يمكنك إعادة المحاولة عند عودة الاتصال، أو سؤالي مباشرة بدون إنترنت عن: التوبة، الثالوث، التجسد، الأسرار السبعة، الشفاعة، الصوم الكبير، صوم يونان، القداس، البصخة، التسبحة، المعمودية، أو أي آية أو قديس في السنكسار.',
+      text: serverWasReachableButBusy
+          ? 'بخصوص سؤالك: «$cleanQuery»\n\n'
+              'السيرفر عليه ضغط بسيط اللحظة دي 🙏 جرب تبعت نفس السؤال تاني كمان ثواني وهيرد عليك فوراً، أو اسألني أوفلاين من غير نت عن: التوبة، الاعتراف، التناول، الصلاة، القلق، الثالوث، التجسد، الأسرار السبعة، الشفاعة، الصوم الكبير، صوم يونان، القداس، البصخة، أو التسبحة.'
+          : 'بخصوص سؤالك: «$cleanQuery»\n\n'
+              'يبدو إن مفيش اتصال بالإنترنت على الموبايل دلوقتي. أول ما النت يرجع ابعت السؤال تاني وهرد عليك فوراً، أو اسألني دلوقتي أوفلاين من غير نت عن: التوبة، الاعتراف، التناول، الصلاة، القلق، الثالوث، التجسد، الأسرار السبعة، الشفاعة، الصوم الكبير، صوم يونان، القداس، البصخة، التسبحة، أو أي قديس في السنكسار.',
       isUser: false,
       timestamp: DateTime.now(),
       citations: const ['الموسوعة الآبائية — أرثوذكسيا'],

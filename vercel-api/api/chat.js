@@ -158,21 +158,21 @@ function buildCandidateModels(discovered) {
 
   function rank(m) {
     const n = m.toLowerCase();
-    // Put proven fast models & distinct families in Batch 1 (top 6)
-    if (n === 'gemini-3.5-flash-lite') return 1;
-    if (n === 'gemini-3.5-flash') return 2;
+    // Batch 1 (top 6): FULL high-accuracy models for pristine Arabic & Coptic theology
+    if (n === 'gemini-3.5-flash') return 1;
+    if (n === 'gemini-3.6-flash') return 2;
     if (n === 'gemma-4-31b-it') return 3;
-    if (n === 'gemini-3.6-flash') return 4;
+    if (n === 'gemini-3-flash-preview') return 4;
     if (n === 'gemini-4-argon') return 5;
-    if (n === 'gemini-3-flash-preview') return 6;
-    // Batch 2 (next 6)
-    if (n === 'gemini-4-neon') return 7;
+    if (n === 'gemini-4-neon') return 6;
+    // Batch 2 (next 6): fast fallback models if Batch 1 is temporarily busy
+    if (n === 'gemini-3.5-flash-lite') return 7;
     if (n === 'gemma-4-26b-a4b-it') return 8;
-    if (n === 'gemini-3.1-flash-lite') return 9;
+    if (n === 'gemini-4-carbon') return 9;
     if (n === 'gemini-4-hydrogen') return 10;
-    if (n === 'gemini-4-carbon') return 11;
-    if (n === 'gemini-3.1-flash-lite-preview') return 12;
-    if (n === 'gemini-flash-latest') return 13;
+    if (n === 'gemini-3.1-flash-lite') return 11;
+    if (n === 'gemini-flash-latest') return 12;
+    if (n === 'gemini-3.1-flash-lite-preview') return 13;
     if (n === 'gemini-flash-lite-latest') return 14;
     if (n === 'gemini-3.7-flash') return 18;
     if (n === 'gemini-3.8-flash') return 19;
@@ -267,6 +267,11 @@ async function callGemini(apiKey, userMessages) {
           .map((p) => p.text)
           .join('\n')
           .trim();
+        // Reject corrupted multilingual token leaks (e.g. stray Hebrew/CJK/Cyrillic inside Arabic answers)
+        const hasForeignScriptLeak = /[\u0590-\u05FF\u0400-\u04FF\u4E00-\u9FFF\u3040-\u30FF\u0900-\u097F]/.test(text);
+        if (hasForeignScriptLeak) {
+          return { ok: false, status: 200, msg: 'foreign_script_leak' };
+        }
         if (text.length >= 12) return { ok: true, text, model };
         return { ok: false, status: 200, msg: 'empty_response' };
       }
@@ -290,10 +295,10 @@ async function callGemini(apiKey, userMessages) {
     }
   }
 
-  // Race 6 diverse models in parallel per batch (Batch 1: 15s, Batch 2: 11s -> fits inside Vercel 30s limit!)
+  // Race 6 full models in Batch 1 (12s) for pristine Arabic & theology, then 6 fast fallbacks in Batch 2 (10s)
   const batches = [
-    { models: candidateModels.slice(0, 6), timeoutMs: 15000 },
-    { models: candidateModels.slice(6, 12), timeoutMs: 11000 },
+    { models: candidateModels.slice(0, 6), timeoutMs: 12000 },
+    { models: candidateModels.slice(6, 12), timeoutMs: 10000 },
   ];
 
   for (const b of batches) {
@@ -378,7 +383,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       status: 'ok',
       service: 'orthoxia-patristic-ai',
-      version: 'v4-fast-race',
+      version: 'v5-pure-arabic',
       host: 'vercel',
       providers: {
         gemini: hasGemini,

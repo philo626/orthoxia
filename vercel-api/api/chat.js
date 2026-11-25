@@ -53,10 +53,11 @@ function sleep(ms) {
 
 let cachedModelList = null;
 let cachedModelsAt = 0;
+let lastWorkingModel = null;
 
 /**
  * Discovers ALL active text-generation models available to this API key,
- * strictly prioritizing stable flash/gemma models and demoting preview/omni models.
+ * strictly prioritizing fast stable flash-lite / gemma models and demoting preview/omni models.
  */
 async function discoverActiveModels(apiKey) {
   const now = Date.now();
@@ -133,15 +134,20 @@ async function callGemini(apiKey, userMessages) {
   if (cleanMsgs.length === 0) return null;
 
   const discovered = await discoverActiveModels(apiKey);
+  const gemmaDiscovered = discovered.filter((m) => m.toLowerCase().startsWith('gemma'));
+  const geminiDiscovered = discovered.filter(
+    (m) => m.toLowerCase().startsWith('gemini') && !m.toLowerCase().includes('2.5-flash') || m === 'gemini-2.5-flash-lite',
+  );
   const candidateModels = [
-    ...discovered,
+    ...(lastWorkingModel ? [lastWorkingModel] : []),
     'gemini-2.5-flash-lite',
-    'gemini-2.0-flash',
+    'gemini-3.1-flash-lite',
     'gemma-3-27b-it',
     'gemma-3-12b-it',
+    ...gemmaDiscovered.slice(0, 2),
+    ...geminiDiscovered.slice(0, 3),
     'gemini-3.5-flash-lite',
     'gemini-3.8-flash',
-    'gemini-flash-latest',
   ];
 
   const tried = new Set();
@@ -152,7 +158,6 @@ async function callGemini(apiKey, userMessages) {
     let bodyObj;
 
     if (isGemma) {
-      // Gemma models on Gemini API do not accept `system_instruction`; prepend it cleanly to the first user message
       const contents = cleanMsgs.map((m, i) => ({
         role: m.role,
         parts: [
@@ -168,7 +173,7 @@ async function callGemini(apiKey, userMessages) {
         contents,
         generationConfig: {
           temperature: 0.25,
-          maxOutputTokens: 1024,
+          maxOutputTokens: 900,
         },
       };
     } else {
@@ -181,56 +186,59 @@ async function callGemini(apiKey, userMessages) {
         contents,
         generationConfig: {
           temperature: 0.25,
-          maxOutputTokens: 1024,
+          maxOutputTokens: 900,
         },
       };
     }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey,
-      },
-      body: JSON.stringify(bodyObj),
-    });
-
-    if (resp.ok) {
-      const data = await resp.json();
-      const parts = data?.candidates?.[0]?.content?.parts || [];
-      const text = parts
-        .map((p) => (typeof p?.text === 'string' ? p.text : ''))
-        .join('\n')
-        .trim();
-      if (text) return { ok: true, text, model };
-      return { ok: false, status: 200, msg: 'empty_response' };
-    }
-
-    let msg = '';
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 7500);
     try {
-      const errJson = await resp.json();
-      msg = String(errJson?.error?.message || '').slice(0, 120);
-    } catch (_) {}
-    return { ok: false, status: resp.status, msg };
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
+        body: JSON.stringify(bodyObj),
+        signal: controller.signal,
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        const parts = data?.candidates?.[0]?.content?.parts || [];
+        const text = parts
+          .map((p) => (typeof p?.text === 'string' ? p.text : ''))
+          .join('\n')
+          .trim();
+        if (text) return { ok: true, text, model };
+        return { ok: false, status: 200, msg: 'empty_response' };
+      }
+
+      let msg = '';
+      try {
+        const errJson = await resp.json();
+        msg = String(errJson?.error?.message || '').slice(0, 120);
+      } catch (_) {}
+      return { ok: false, status: resp.status, msg };
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   for (const model of candidateModels) {
-    if (!model || tried.has(model) || tried.size >= 8) continue;
+    if (!model || tried.has(model) || tried.size >= 6) continue;
     tried.add(model);
     try {
-      let r = await invokeOnce(model);
-      // Automatic 1-time retry on transient 503 high-demand spikes
-      if (!r.ok && r.status === 503) {
-        await sleep(650);
-        r = await invokeOnce(model);
-      }
+      const r = await invokeOnce(model);
       if (r.ok) {
+        lastWorkingModel = r.model;
         return { text: r.text, model: r.model };
       }
       errors.push(`${model}:${r.status}(${r.msg})`);
-    } catch (_) {
-      errors.push(`${model}:net`);
+    } catch (e) {
+      errors.push(`${model}:${e?.name === 'AbortError' ? 'timeout' : 'net'}`);
     }
   }
 

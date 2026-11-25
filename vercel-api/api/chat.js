@@ -159,10 +159,10 @@ function buildCandidateModels(discovered) {
   function rank(m) {
     const n = m.toLowerCase();
     // Batch 1 (top 6): FULL high-accuracy models for pristine Arabic & Coptic theology
-    if (n === 'gemini-3.5-flash') return 1;
-    if (n === 'gemini-3.6-flash') return 2;
-    if (n === 'gemma-4-31b-it') return 3;
-    if (n === 'gemini-3-flash-preview') return 4;
+    if (n === 'gemini-3-flash-preview') return 1;
+    if (n === 'gemini-3.5-flash') return 2;
+    if (n === 'gemini-3.6-flash') return 3;
+    if (n === 'gemma-4-31b-it') return 4;
     if (n === 'gemini-4-argon') return 5;
     if (n === 'gemini-4-neon') return 6;
     // Batch 2 (next 6): fast fallback models if Batch 1 is temporarily busy
@@ -227,7 +227,7 @@ async function callGemini(apiKey, userMessages) {
         contents,
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 1024,
+          maxOutputTokens: 2048,
         },
       };
     } else {
@@ -235,12 +235,13 @@ async function callGemini(apiKey, userMessages) {
         role: m.role,
         parts: [{ text: m.text }],
       }));
+      // Generous maxOutputTokens (4096) so thinking models NEVER truncate Arabic answers mid-sentence!
       bodyObj = {
         system_instruction: { parts: [{ text: SYSTEM_GUARDRAIL }] },
         contents,
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 1200,
+          maxOutputTokens: 4096,
         },
       };
     }
@@ -295,9 +296,9 @@ async function callGemini(apiKey, userMessages) {
     }
   }
 
-  // Race 6 full models in Batch 1 (12s) for pristine Arabic & theology, then 6 fast fallbacks in Batch 2 (10s)
+  // Race 6 full models in Batch 1 (16s) for pristine complete Arabic & theology, then 6 fast fallbacks in Batch 2 (10s)
   const batches = [
-    { models: candidateModels.slice(0, 6), timeoutMs: 12000 },
+    { models: candidateModels.slice(0, 6), timeoutMs: 16000 },
     { models: candidateModels.slice(6, 12), timeoutMs: 10000 },
   ];
 
@@ -383,7 +384,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       status: 'ok',
       service: 'orthoxia-patristic-ai',
-      version: 'v5-pure-arabic',
+      version: 'v6-full-output',
       host: 'vercel',
       providers: {
         gemini: hasGemini,

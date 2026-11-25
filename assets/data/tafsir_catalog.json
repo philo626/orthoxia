@@ -354,7 +354,7 @@
     "id": "tob",
     "name": "طوبيا",
     "testament": "OLD",
-    "chaptersCount": 2,
+    "chaptersCount": 14,
     "tadrosUrl": "https://st-takla.org/pub_Bible-Interpretations/Holy-Bible-Tafsir-01-Old-Testament/Father-Tadros-Yacoub-Malaty/17-Sefr-Tobit/Tafseer-Sefr-Tobia__00-index.html",
     "antoniosUrl": "https://st-takla.org/pub_Bible-Interpretations/Holy-Bible-Tafsir-01-Old-Testament/Father-Antonious-Fekry/17-Sefr-Tobit/Tafseer-Sefr-Tobia__00-index.html",
     "mattaQuery": ""
@@ -363,7 +363,7 @@
     "id": "jdt",
     "name": "يهوديت",
     "testament": "OLD",
-    "chaptersCount": 1,
+    "chaptersCount": 16,
     "tadrosUrl": "https://st-takla.org/pub_Bible-Interpretations/Holy-Bible-Tafsir-01-Old-Testament/Father-Tadros-Yacoub-Malaty/18-Sefr-Yahodet/Tafseer-Sefr-Yahodit__00-index.html",
     "antoniosUrl": "https://st-takla.org/pub_Bible-Interpretations/Holy-Bible-Tafsir-01-Old-Testament/Father-Antonious-Fekry/18-Sefr-Yahodet/Tafseer-Sefr-Yahodit__00-index.html",
     "mattaQuery": ""
@@ -381,7 +381,7 @@
     "id": "sir",
     "name": "يشوع بن سيراخ",
     "testament": "OLD",
-    "chaptersCount": 1,
+    "chaptersCount": 51,
     "tadrosUrl": "https://st-takla.org/pub_Bible-Interpretations/Holy-Bible-Tafsir-01-Old-Testament/Father-Tadros-Yacoub-Malaty/26-Sefr-Yashoue-Ebn-Sirakh/Tafseer-Sefr-Yasho3-Ibn-Sira5__00-index.html",
     "antoniosUrl": "https://st-takla.org/pub_Bible-Interpretations/Holy-Bible-Tafsir-01-Old-Testament/Father-Antonious-Fekry/26-Sefr-Yashoue-Ebn-Sirakh/Tafseer-Sefr-Yasho3-Ibn-Sira5__00-index.html",
     "mattaQuery": ""
@@ -390,7 +390,7 @@
     "id": "bar",
     "name": "باروخ",
     "testament": "OLD",
-    "chaptersCount": 1,
+    "chaptersCount": 6,
     "tadrosUrl": "",
     "antoniosUrl": "https://st-takla.org/pub_Bible-Interpretations/Holy-Bible-Tafsir-01-Old-Testament/Father-Antonious-Fekry/30-Sefr-Baroukh/Tafseer-Sefr-Barookh__00-index.html",
     "mattaQuery": ""
@@ -399,7 +399,7 @@
     "id": "1mac",
     "name": "المكابيين الأول",
     "testament": "OLD",
-    "chaptersCount": 1,
+    "chaptersCount": 16,
     "tadrosUrl": "",
     "antoniosUrl": "https://st-takla.org/pub_Bible-Interpretations/Holy-Bible-Tafsir-01-Old-Testament/Father-Antonious-Fekry/45-Sefr-Makabyeen-El-Awal/Tafseer-Sefr-El-Makabyein-El-Awal__00-index.html",
     "mattaQuery": ""
@@ -408,7 +408,7 @@
     "id": "2mac",
     "name": "المكابيين الثاني",
     "testament": "OLD",
-    "chaptersCount": 1,
+    "chaptersCount": 15,
     "tadrosUrl": "",
     "antoniosUrl": "https://st-takla.org/pub_Bible-Interpretations/Holy-Bible-Tafsir-01-Old-Testament/Father-Antonious-Fekry/46-Sefr-Makabieen-El-Thany/Tafseer-Sefr-El-Makabiein-El-Thani__00-index.html",
     "mattaQuery": ""

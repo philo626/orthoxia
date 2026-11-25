@@ -20,6 +20,9 @@ import '../../providers/theme_provider.dart';
 import '../bible/bible_reader_view.dart';
 import '../community/prayer_wall_view.dart';
 import '../community/trivia_game_view.dart';
+import '../confession/fathers_directory_view.dart';
+import '../confession/my_father_schedule_view.dart';
+import '../confession/priest_dashboard_view.dart';
 import '../conscience/conscience_exam_view.dart';
 import '../coptic_academy/coptic_academy_view.dart';
 import '../icons/christ_icons_gallery_view.dart';
@@ -468,6 +471,21 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
         onTap: () => Navigator.push(context, luxeRoute(const PrayerWallView())),
       ),
       (
+        title: 'مواعيد أبونا',
+        sub: StorageService().getConfessionFatherName().isNotEmpty
+            ? StorageService().getConfessionFatherName()
+            : 'دليل الآباء الكهنة وتسجيل حضور الاعتراف',
+        icon: Icons.event_available_outlined,
+        onTap: () async {
+          final hasFather = StorageService().getConfessionFatherUid().isNotEmpty;
+          await Navigator.push(
+            context,
+            luxeRoute(hasFather ? const MyFatherScheduleView() : const FathersDirectoryView()),
+          );
+          if (mounted) setState(() {});
+        },
+      ),
+      (
         title: 'مذكرة الاعتراف',
         sub: 'فحص ضمير خاص ومشفّر على جهازك',
         icon: Icons.lock_outline_rounded,
@@ -652,6 +670,105 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                           ],
                         ),
                       ),
+                    ),
+                  ),
+
+                  // 1c. Role-Aware Portal Banner: Priest Dashboard («لوحة أبونا») OR Congregation «مواعيد أبونا»
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                    child: Builder(
+                      builder: (ctx) {
+                        final st = StorageService();
+                        final isPriest = st.isPriestRole();
+                        final fatherName = st.getConfessionFatherName();
+                        final fatherChurch = st.getConfessionFatherChurch();
+                        final hasFather = st.getConfessionFatherUid().isNotEmpty;
+
+                        return PressScale(
+                          scale: 0.985,
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              luxeRoute(
+                                isPriest
+                                    ? const PriestDashboardView()
+                                    : (hasFather
+                                        ? const MyFatherScheduleView()
+                                        : const FathersDirectoryView()),
+                              ),
+                            );
+                            if (mounted) setState(() {});
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+                            decoration: BoxDecoration(
+                              color: isPriest ? p.goldSoft : p.surface,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: isPriest || hasFather ? p.goldBorder : p.border,
+                                width: isPriest ? 1.3 : 1,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 42,
+                                  height: 42,
+                                  decoration: BoxDecoration(
+                                    color: p.accentSoft,
+                                    borderRadius: BorderRadius.circular(13),
+                                  ),
+                                  child: Icon(
+                                    isPriest
+                                        ? Icons.church_rounded
+                                        : Icons.event_available_rounded,
+                                    color: p.accent,
+                                    size: 22,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        isPriest
+                                            ? 'لوحة أبونا · خدمتي النهارده'
+                                            : (hasFather
+                                                ? 'مواعيد أبونا • $fatherName'
+                                                : 'مواعيد أبونا · دليل الآباء الكهنة'),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.amiri(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: p.ink,
+                                        ),
+                                      ),
+                                      Text(
+                                        isPriest
+                                            ? 'فتح مواعيد الاعتراف، قائمة الحاضرين، ومكتبة أبونا الليتورجية'
+                                            : (hasFather
+                                                ? (fatherChurch.isNotEmpty
+                                                    ? '$fatherChurch • اضغط لتسجيل حضورك'
+                                                    : 'تابع مواعيد قدسه وسجّل حضورك بخصوصية')
+                                                : 'اختار أب اعترافك أو ابعت لقدسه دعوة ينضم للتطبيق'),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.cairo(
+                                          fontSize: 11.5,
+                                          color: p.inkSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(Icons.chevron_left_rounded, color: p.accent, size: 20),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
 

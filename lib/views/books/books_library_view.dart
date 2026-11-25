@@ -10,6 +10,7 @@ import '../../providers/books_provider.dart';
 import 'book_reader_view.dart';
 import 'online_book_reader_view.dart';
 import 'online_tafsir_reader_view.dart';
+import 'visual_book_pages_reader_view.dart';
 
 /// Unified Fine-Press Orthodox Digital Library & 73-Book Tafsir Encyclopedia:
 /// - Opens directly on rich clothbound readable Orthodox Books (13 rich offline classics + 98 full-chapter books)
@@ -175,7 +176,7 @@ class _BooksLibraryViewState extends State<BooksLibraryView>
           labelStyle: GoogleFonts.cairo(fontSize: 12.5, fontWeight: FontWeight.bold),
           unselectedLabelStyle: GoogleFonts.cairo(fontSize: 12),
           tabs: const [
-            Tab(text: 'الكتب المقروءة'),
+            Tab(text: 'الكتب المصوّرة'),
             Tab(text: 'التفاسير (٧٣ سفراً)'),
             Tab(text: 'المكتبة الشاملة'),
           ],
@@ -195,33 +196,34 @@ class _BooksLibraryViewState extends State<BooksLibraryView>
   }
 
   // ===========================================================================
-  // TAB 1: FULL READABLE BOOKS (OFFLINE CLASSICS SHELF FIRST + LIVE FULL CHAPTERS)
+  // TAB 1: REAL VISUAL PAGE-BY-PAGE ORTHODOX BOOKS (240+ SCANNED BOOKS WITH REAL COVERS!)
   // ===========================================================================
   Widget _buildReadableBooksTab(AppPalette p, BooksProvider booksProv) {
-    final inAppOnline = _onlineBooks.where((b) => b.readerType == 'in_app_chapters').toList();
-    final categories = <String>{'الكل', 'مكتبة أوفلاين'};
-    for (final b in inAppOnline) {
-      categories.add(b.category);
+    final visualBooks = _onlineBooks.where((b) => b.isVisualBook).toList();
+    final categories = <String>{'الكل'};
+    for (final b in visualBooks) {
+      if (b.category.isNotEmpty) categories.add(b.category);
     }
+    categories.add('مختارات أوفلاين');
 
     final q = _readableQuery.trim();
-    final offlineBooks = (_readableCategory == 'الكل' || _readableCategory == 'مكتبة أوفلاين')
-        ? booksProv.books.where((b) {
-            return q.isEmpty || b.title.contains(q) || b.author.contains(q) || b.description.contains(q);
-          }).toList()
-        : <Book>[];
-
-    final filteredOnline = _readableCategory == 'مكتبة أوفلاين'
+    final filteredVisual = _readableCategory == 'مختارات أوفلاين'
         ? <OnlineBookEntry>[]
-        : inAppOnline.where((b) {
+        : visualBooks.where((b) {
             final matchCat = _readableCategory == 'الكل' || b.category == _readableCategory;
             final matchQ = q.isEmpty || b.title.contains(q) || b.author.contains(q);
             return matchCat && matchQ;
           }).toList();
 
+    final offlineBooks = _readableCategory == 'مختارات أوفلاين'
+        ? booksProv.books.where((b) {
+            return q.isEmpty || b.title.contains(q) || b.author.contains(q) || b.description.contains(q);
+          }).toList()
+        : <Book>[];
+
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720),
+        constraints: const BoxConstraints(maxWidth: 740),
         child: Column(
           children: [
             Padding(
@@ -230,7 +232,7 @@ class _BooksLibraryViewState extends State<BooksLibraryView>
                 onChanged: (v) => setState(() => _readableQuery = v),
                 style: GoogleFonts.cairo(color: p.ink, fontSize: 13.5),
                 decoration: const InputDecoration(
-                  hintText: 'ابحث باسم الكتاب أو المؤلف (أثناسيوس، بستان الرهبان، الديداخي...)...',
+                  hintText: 'ابحث في الكتب المصوّرة (البابا شنودة، متى المسكين، بستان الرهبان...)...',
                   prefixIcon: Icon(Icons.search_rounded, size: 20),
                 ),
               ),
@@ -253,59 +255,31 @@ class _BooksLibraryViewState extends State<BooksLibraryView>
                 }).toList(),
               ),
             ),
-            const SizedBox(height: 10),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Row(
                 children: [
-                  // 1. REAL Full-Chapter Complete Orthodox Books FIRST (98 books, decoded cleanly in Arabic!)
-                  if (filteredOnline.isNotEmpty) ...[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'كتب أرثوذكسية كاملة الفصول (${filteredOnline.length} كتاباً)',
-                            style: GoogleFonts.amiri(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: p.ink,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'تُفتح فصلاً بفصل بالكامل داخل التطبيق وتُحفظ تلقائياً للقراءة بدون إنترنت.',
+                  Icon(Icons.auto_stories_rounded, size: 15, color: p.accent),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _readableCategory == 'مختارات أوفلاين'
+                          ? 'مختارات سريعة متاحة بدون إنترنت (${offlineBooks.length})'
+                          : 'كتب مصوّرة بصفحاتها الأصلية للتقليب داخل التطبيق (${filteredVisual.length} كتاباً)',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkMuted),
                     ),
-                    const SizedBox(height: 10),
-                    for (int i = 0; i < filteredOnline.length; i++) ...[
-                      _buildOnlineBookCard(
-                        p,
-                        filteredOnline[i],
-                        _clothSpineColors[i % _clothSpineColors.length],
-                      ),
-                      const SizedBox(height: 10),
-                    ],
-                    const SizedBox(height: 18),
-                  ],
-
-                  // 2. Quick Offline Reading Selections (when no internet inside church)
-                  if (offlineBooks.isNotEmpty) ...[
-                    Text(
-                      'مختارات آبائية سريعة بدون إنترنت (${offlineBooks.length})',
-                      style: GoogleFonts.amiri(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: p.ink,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _readableCategory == 'مختارات أوفلاين'
+                  ? GridView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
                         crossAxisSpacing: 12,
@@ -318,21 +292,168 @@ class _BooksLibraryViewState extends State<BooksLibraryView>
                         final coverColor = _clothSpineColors[idx % _clothSpineColors.length];
                         return _buildHardcoverBookCard(p, book, coverColor);
                       },
-                    ),
-                    const SizedBox(height: 24),
-                  ],
+                    )
+                  : filteredVisual.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+                            child: Text(
+                              'لا توجد نتائج مطابقة؛ جرّب البحث الحي في تبويب «المكتبة الشاملة».',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.cairo(color: p.inkMuted, fontSize: 13.5),
+                            ),
+                          ),
+                        )
+                      : GridView.builder(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 44),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 0.64,
+                          ),
+                          itemCount: filteredVisual.length,
+                          itemBuilder: (ctx, idx) {
+                            final book = filteredVisual[idx];
+                            final clothColor = _clothSpineColors[idx % _clothSpineColors.length];
+                            return _buildVisualPageBookCard(p, book, clothColor);
+                          },
+                        ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-                  if (filteredOnline.isEmpty && offlineBooks.isEmpty)
+  Widget _buildVisualPageBookCard(AppPalette p, OnlineBookEntry book, Color clothColor) {
+    final badgeText = book.pagesCount > 0
+        ? '${book.pagesCount} صفحة'
+        : (book.fileSizeMb > 0 ? '${book.fileSizeMb.toStringAsFixed(1)} MB' : 'كتاب مصوّر');
+
+    return PressScale(
+      scale: 0.97,
+      onTap: () {
+        Navigator.push(
+          context,
+          luxeRoute(VisualBookPagesReaderView(book: book)),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: p.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: p.border),
+          boxShadow: p.isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: p.shadow,
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Real Scanned Book Cover Thumbnail with Clothbound Fallback
+            Expanded(
+              flex: 12,
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: clothColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFFD8B872).withValues(alpha: 0.45),
+                  ),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Fallback cloth cover underneath
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 48),
-                      child: Center(
+                      padding: const EdgeInsets.all(10),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const CopticCross(size: 18, color: Color(0xFFEBD6A4)),
+                          const SizedBox(height: 8),
+                          Text(
+                            book.title,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.amiri(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFFFFFAF0),
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (book.coverUrl.isNotEmpty)
+                      Image.network(
+                        book.coverUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                    // Top-left visual pages badge
+                    Positioned(
+                      top: 6,
+                      left: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.68),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
                         child: Text(
-                          'لا توجد نتائج مطابقة؛ جرب البحث في تبويب «المكتبة الشاملة».',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.cairo(color: p.inkMuted, fontSize: 13.5),
+                          badgeText,
+                          style: GoogleFonts.cairo(
+                            fontSize: 9.5,
+                            color: const Color(0xFFF6E7C1),
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
+                  ],
+                ),
+              ),
+            ),
+            // Book Title & Author Footer
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    book.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.amiri(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.bold,
+                      color: p.ink,
+                      height: 1.25,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    book.author,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.cairo(
+                      fontSize: 10.5,
+                      color: p.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -729,14 +850,18 @@ class _BooksLibraryViewState extends State<BooksLibraryView>
   }
 
   Widget _buildOnlineBookCard(AppPalette p, OnlineBookEntry book, Color spineColor) {
-    final isInApp = book.readerType == 'in_app_chapters';
+    final isVisual = book.isVisualBook;
 
     return PressScale(
       scale: 0.985,
       onTap: () {
         Navigator.push(
           context,
-          luxeRoute(OnlineBookReaderView(book: book)),
+          luxeRoute(
+            isVisual
+                ? VisualBookPagesReaderView(book: book)
+                : OnlineBookReaderView(book: book),
+          ),
         );
       },
       child: Container(
@@ -771,7 +896,7 @@ class _BooksLibraryViewState extends State<BooksLibraryView>
               ),
               child: Center(
                 child: Icon(
-                  isInApp ? Icons.menu_book_rounded : Icons.picture_as_pdf_outlined,
+                  isVisual ? Icons.auto_stories_rounded : Icons.picture_as_pdf_outlined,
                   color: const Color(0xFFF6E7C1),
                   size: 20,
                 ),

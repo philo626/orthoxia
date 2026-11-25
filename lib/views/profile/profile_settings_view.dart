@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../../core/services/confession_service.dart';
 import '../../core/services/firebase_service.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/services/patron_saint_service.dart';
@@ -10,6 +11,10 @@ import '../../core/theme/app_palette.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/saint_icon_avatar.dart';
 import '../../providers/theme_provider.dart';
+import '../confession/admin_priest_review_view.dart';
+import '../confession/fathers_directory_view.dart';
+import '../confession/my_father_schedule_view.dart';
+import '../confession/priest_dashboard_view.dart';
 import '../conscience/conscience_exam_view.dart';
 import '../onboarding/auth_view.dart';
 import '../spiritual_tracker/spiritual_tracker_view.dart';
@@ -26,6 +31,21 @@ class ProfileSettingsView extends StatefulWidget {
 class _ProfileSettingsViewState extends State<ProfileSettingsView> {
   final StorageService _storage = StorageService();
   final FirebaseService _firebase = FirebaseService();
+  final ConfessionService _confession = ConfessionService();
+  bool _isAdminVerifier = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAdminStatus();
+  }
+
+  Future<void> _checkAdminStatus() async {
+    final ok = await _confession.isCurrentUserAdmin();
+    if (mounted && ok) {
+      setState(() => _isAdminVerifier = true);
+    }
+  }
 
   void _guardPersonalSection(String title, Widget destination) {
     final p = context.palette;
@@ -800,6 +820,138 @@ class _ProfileSettingsViewState extends State<ProfileSettingsView> {
                       ),
                   ],
                 ),
+                ),
+              ),
+
+              const SizedBox(height: 22),
+
+              // 3b. Church, Father of Confession & Priest Portal (Pages 01-04)
+              _sectionLabel(p, 'كنيستي وأب اعترافي وخدمة الكهنة'),
+              Container(
+                decoration: BoxDecoration(
+                  color: p.surfaceElevated,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: p.border),
+                ),
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading: Icon(Icons.event_available_rounded, color: p.accent),
+                        title: Text(
+                          _storage.getConfessionFatherName().isNotEmpty
+                              ? 'مواعيد أبونا • ${_storage.getConfessionFatherName()}'
+                              : 'اختيار أب الاعتراف (دليل الآباء الكهنة)',
+                          style: GoogleFonts.cairo(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: p.ink,
+                          ),
+                        ),
+                        subtitle: Text(
+                          _storage.getConfessionFatherChurch().isNotEmpty
+                              ? _storage.getConfessionFatherChurch()
+                              : 'ابحث باسم أبونا أو ابعت لقدسه دعوة ينضم للتطبيق',
+                          style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkMuted),
+                        ),
+                        trailing: Icon(Icons.chevron_left_rounded, color: p.inkSubtle),
+                        onTap: () async {
+                          final hasFather = _storage.getConfessionFatherUid().isNotEmpty;
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => hasFather
+                                  ? const MyFatherScheduleView()
+                                  : const FathersDirectoryView(),
+                            ),
+                          );
+                          if (mounted) setState(() {});
+                        },
+                      ),
+                      Divider(color: p.border, height: 1),
+                      ListTile(
+                        leading: Icon(Icons.person_search_rounded, color: p.accent),
+                        title: Text(
+                          'دليل الآباء الكهنة ومشاركة دعوة لأبونا',
+                          style: GoogleFonts.cairo(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: p.ink,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'اختيار أو تغيير أب الاعتراف في أي وقت بخصوصية',
+                          style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkMuted),
+                        ),
+                        trailing: Icon(Icons.chevron_left_rounded, color: p.inkSubtle),
+                        onTap: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const FathersDirectoryView(),
+                            ),
+                          );
+                          if (mounted) setState(() {});
+                        },
+                      ),
+                      Divider(color: p.border, height: 1),
+                      ListTile(
+                        leading: Icon(Icons.church_rounded, color: p.gold),
+                        title: Text(
+                          'لوحة أبونا · خدمتي النهارده (بوابة الآباء الكهنة)',
+                          style: GoogleFonts.cairo(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: p.ink,
+                          ),
+                        ),
+                        subtitle: Text(
+                          _storage.isPriestRole()
+                              ? 'حساب قدسك مفعّل كأب كاهن • فتح المواعيد والمكتبة'
+                              : 'توثيق صفة الكهنوت وفتح مواعيد الاعتراف والخدمة',
+                          style: GoogleFonts.cairo(fontSize: 11.5, color: p.accent),
+                        ),
+                        trailing: Icon(Icons.chevron_left_rounded, color: p.inkSubtle),
+                        onTap: () async {
+                          await _storage.setUserRole('priest');
+                          if (!context.mounted) return;
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const PriestDashboardView(),
+                            ),
+                          );
+                          if (mounted) setState(() {});
+                        },
+                      ),
+                      if (_isAdminVerifier) ...[
+                        Divider(color: p.border, height: 1),
+                        ListTile(
+                          leading: Icon(Icons.verified_rounded, color: p.sage),
+                          title: Text(
+                            'مراجعة وتفعيل صفة الآباء الكهنة (المسؤول)',
+                            style: GoogleFonts.cairo(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: p.sage,
+                            ),
+                          ),
+                          subtitle: Text(
+                            'اعتماد طلبات توثيق الكهنة في الإيبارشيات',
+                            style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkMuted),
+                          ),
+                          trailing: Icon(Icons.chevron_left_rounded, color: p.sage),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const AdminPriestReviewView(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
 

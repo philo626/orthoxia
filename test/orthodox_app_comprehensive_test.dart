@@ -29,6 +29,10 @@ import 'package:orthodox_app/providers/spiritual_tracker_provider.dart';
 import 'package:orthodox_app/providers/theme_provider.dart';
 import 'package:orthodox_app/views/ai_companion/ai_companion_view.dart';
 import 'package:orthodox_app/views/books/books_library_view.dart';
+import 'package:orthodox_app/views/confession/admin_priest_review_view.dart';
+import 'package:orthodox_app/views/confession/fathers_directory_view.dart';
+import 'package:orthodox_app/views/confession/my_father_schedule_view.dart';
+import 'package:orthodox_app/views/confession/priest_dashboard_view.dart';
 import 'package:orthodox_app/views/coptic_academy/coptic_academy_view.dart';
 import 'package:orthodox_app/views/home/spiritual_prescription_view.dart';
 import 'package:orthodox_app/views/liturgical/church_sacraments_rites_view.dart';
@@ -737,6 +741,108 @@ void main() {
         await tester.pumpWidget(
           MultiProvider(
             providers: [ChangeNotifierProvider(create: (_) => ThemeProvider())],
+            child: MaterialApp(
+              home: Directionality(
+                textDirection: TextDirection.rtl,
+                child: screen,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(find.byType(Scaffold), findsOneWidget);
+      }
+    });
+
+    test('Complete Verbatim Psalmody/Pascha/Sacraments, 200+ Visual Page Books & Audited 73-Book Tafsir', () {
+      // 1. Complete Verbatim Tasbeha, Weekdays, Kiahk, Doxologies & 7-Day Pascha
+      final tp = jsonDecode(File('assets/data/tasbeha_pascha_complete.json').readAsStringSync())
+          as Map<String, dynamic>;
+      expect((tp['weekday_tasbeha'] as List).length, greaterThanOrEqualTo(20));
+      expect((tp['kiahk_tasbeha'] as List).length, greaterThanOrEqualTo(40));
+      expect((tp['seasonal_doxologies'] as List).length, greaterThanOrEqualTo(70));
+      final paschaDays = tp['pascha_days'] as List;
+      expect(paschaDays.length, 7);
+      int totalPaschaHours = 0;
+      int totalPaschaChars = 0;
+      for (final d in paschaDays) {
+        final secs = d['sections'] as List;
+        totalPaschaHours += secs.length;
+        for (final s in secs) {
+          totalPaschaChars += '${s['text'] ?? s['arabic'] ?? ''}'.length;
+        }
+      }
+      expect(totalPaschaHours, greaterThanOrEqualTo(95));
+      expect(totalPaschaChars, greaterThanOrEqualTo(250000));
+
+      // 2. Complete Verbatim Sacraments & Rites (Qandil 7 prayers, Matrimony, Sagda, Lakkan, Baptism, Funeral)
+      final rites = jsonDecode(File('assets/data/sacraments_rites_complete.json').readAsStringSync()) as List;
+      expect(rites.length, 8);
+      final totalRiteSections = rites.fold<int>(0, (s, r) => s + (r['sections'] as List).length);
+      expect(totalRiteSections, greaterThanOrEqualTo(140));
+      final qandil = rites.firstWhere((r) => r['id'] == 'unction_sick');
+      expect((qandil['sections'] as List).length, greaterThanOrEqualTo(35));
+      final matrimony = rites.firstWhere((r) => r['id'] == 'matrimony');
+      expect((matrimony['sections'] as List).length, greaterThanOrEqualTo(30));
+
+      // 3. Real Visual Page-by-Page Orthodox Books Catalog (200+ strictly vetted visual books, zero polemics)
+      final books = jsonDecode(File('assets/data/online_books_catalog.json').readAsStringSync()) as List;
+      final visualBooks = books.where((b) => b['readerType'] == 'visual_pages').toList();
+      expect(visualBooks.length, greaterThanOrEqualTo(200));
+      expect(visualBooks.every((b) => '${b['embedUrl'] ?? ''}'.startsWith('https://archive.org/embed/')), isTrue);
+      expect(visualBooks.any((b) => '${b['title']}'.contains('أبو المنتصر')), isFalse);
+
+      // 4. Audited 73-Book Tafsir Catalog with exact Deuterocanonical chapter counts
+      final tafsir = jsonDecode(File('assets/data/tafsir_catalog.json').readAsStringSync()) as List;
+      expect(tafsir.length, 73);
+      final tobit = tafsir.firstWhere((t) => t['name'] == 'طوبيا');
+      expect(tobit['chaptersCount'], 14);
+      final sirach = tafsir.firstWhere((t) => t['name'] == 'يشوع بن سيراخ');
+      expect(sirach['chaptersCount'], 51);
+    });
+
+    testWidgets('Role-Based Priest Auth, Fathers Directory, Confession Schedule & Priest Dashboard render cleanly', (tester) async {
+      await tester.runAsync(() async {
+        SharedPreferences.setMockInitialValues({});
+        await StorageService().init();
+        await PatronSaintService.ensureLoaded();
+      });
+
+      // 1. AuthView Priest role toggle shows exact respectful welcome message (Page 01/04)
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [ChangeNotifierProvider(create: (_) => ThemeProvider())],
+          child: const MaterialApp(
+            home: Directionality(
+              textDirection: TextDirection.rtl,
+              child: AuthView(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('دخول كفرد من الشعب'), findsOneWidget);
+      expect(find.text('دخول كأب كاهن'), findsOneWidget);
+      await tester.tap(find.text('دخول كأب كاهن'));
+      await tester.pump();
+      expect(find.text('أهلاً بيك يا قدس أبونا — التطبيق نوّر بوجود قدسك'), findsOneWidget);
+
+      // 2. Render all 4 Confession & Priest Portal screens cleanly (graceful offline/test mode)
+      final confessionScreens = <Widget>[
+        const FathersDirectoryView(),
+        const MyFatherScheduleView(),
+        const PriestDashboardView(),
+        const AdminPriestReviewView(),
+      ];
+
+      for (final screen in confessionScreens) {
+        await tester.pumpWidget(
+          MultiProvider(
+            providers: [
+              ChangeNotifierProvider(create: (_) => ThemeProvider()),
+              ChangeNotifierProvider(create: (_) => LiturgyProvider()),
+            ],
             child: MaterialApp(
               home: Directionality(
                 textDirection: TextDirection.rtl,

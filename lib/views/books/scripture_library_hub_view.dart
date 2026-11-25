@@ -72,7 +72,7 @@ class _ScriptureLibraryHubViewState extends State<ScriptureLibraryHubView>
                           ),
                         ),
                         Text(
-                          '٧٣ سفراً • تفاسير الآباء • كتب كاملة',
+                          '٧٣ سفراً • تفاسير الآباء • كتب مصوّرة بصفحاتها',
                           style: GoogleFonts.cairo(fontSize: 12, color: p.inkSecondary),
                         ),
                       ],
@@ -108,7 +108,7 @@ class _ScriptureLibraryHubViewState extends State<ScriptureLibraryHubView>
                 tabs: const [
                   Tab(text: 'الكتاب المقدس'),
                   Tab(text: 'التفاسير (٧٣)'),
-                  Tab(text: 'الكتب الكاملة'),
+                  Tab(text: 'الكتب المصوّرة'),
                   Tab(text: 'المكتبة الشاملة'),
                 ],
               ),

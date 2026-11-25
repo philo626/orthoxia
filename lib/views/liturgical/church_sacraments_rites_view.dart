@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,9 +9,13 @@ import '../../core/theme/app_palette.dart';
 import '../../core/widgets/coptic_cross.dart';
 import '../../providers/theme_provider.dart';
 
-/// Complete Coptic Orthodox Sacraments & Liturgical Rites Reader (8 complete rites:
-/// Lakan, Pentecost Sagda, Baptism & Myron, Matrimony, Unction of the Sick / Qandil,
-/// Repentance & Confession, Funeral, and Home Blessing) — 100% adaptive to AppPalette.
+List<Map<String, dynamic>> _decodeRitesList(String raw) =>
+    (jsonDecode(raw) as List).map((e) => Map<String, dynamic>.from(e)).toList();
+
+/// Complete Coptic Orthodox Sacraments & Liturgical Rites Reader (8 complete verbatim rites:
+/// Lakan, Pentecost Sagda 3 Prostrations, Baptism & Myron, Holy Matrimony 37 prayers,
+/// Unction of the Sick / Qandil 7 full prayers, Repentance & Confession, Funeral, Home Blessing)
+/// — Lazy ListView.builder with instant prayer-index filter & 100% adaptive AppPalette.
 class ChurchSacramentsRitesView extends StatefulWidget {
   final bool embedded;
 
@@ -22,8 +27,11 @@ class ChurchSacramentsRitesView extends StatefulWidget {
 }
 
 class _ChurchSacramentsRitesViewState extends State<ChurchSacramentsRitesView> {
+  static List<Map<String, dynamic>>? _cachedRites;
+
   List<Map<String, dynamic>> _rites = [];
   int _selectedRiteIdx = 0;
+  int _selectedSectionIdx = -1; // -1 = all sections (lazy), >= 0 = focus on 1 prayer
   bool _loading = true;
 
   @override
@@ -34,10 +42,14 @@ class _ChurchSacramentsRitesViewState extends State<ChurchSacramentsRitesView> {
 
   Future<void> _loadRites() async {
     try {
-      final raw = await rootBundle
-          .loadString('assets/data/sacraments_rites_complete.json');
-      final list = jsonDecode(raw) as List;
-      _rites = list.map((e) => Map<String, dynamic>.from(e)).toList();
+      if (_cachedRites != null) {
+        _rites = _cachedRites!;
+      } else {
+        final raw = await rootBundle
+            .loadString('assets/data/sacraments_rites_complete.json');
+        _rites = await compute(_decodeRitesList, raw);
+        _cachedRites = _rites;
+      }
     } catch (_) {
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -48,6 +60,18 @@ class _ChurchSacramentsRitesViewState extends State<ChurchSacramentsRitesView> {
   void dispose() {
     SpeechPronunciationService().stop();
     super.dispose();
+  }
+
+  void _copyText(String text) {
+    if (text.trim().isEmpty) return;
+    HapticFeedback.lightImpact();
+    Clipboard.setData(ClipboardData(text: text.trim()));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(milliseconds: 1400),
+        content: Text('تم نسخ النص', style: GoogleFonts.cairo(fontSize: 12.5)),
+      ),
+    );
   }
 
   IconData _resolveIcon(String name) {
@@ -116,10 +140,27 @@ class _ChurchSacramentsRitesViewState extends State<ChurchSacramentsRitesView> {
     final sections = (rite['sections'] as List? ?? [])
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
+    final visibleSections =
+        (_selectedSectionIdx >= 0 && _selectedSectionIdx < sections.length)
+            ? [sections[_selectedSectionIdx]]
+            : sections;
+
     final riteIcon = _resolveIcon('${rite['icon'] ?? ''}');
     final riteTitle = '${rite['title'] ?? ''}';
     final riteOccasion = '${rite['occasion'] ?? ''}';
     final riteOverview = '${rite['overview'] ?? ''}';
+
+    final bodyStyle = GoogleFonts.amiri(
+      fontSize: 19 * fontScale,
+      height: 1.85,
+      color: p.ink,
+    );
+    final copticStyle = TextStyle(
+      fontFamily: 'Coptic',
+      fontSize: 14 * fontScale,
+      color: p.accent,
+      height: 1.55,
+    );
 
     return Column(
       children: [
@@ -134,7 +175,7 @@ class _ChurchSacramentsRitesViewState extends State<ChurchSacramentsRitesView> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 14),
             itemCount: _rites.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
             itemBuilder: (context, idx) {
               final r = _rites[idx];
               final sel = idx == safeIdx;
@@ -160,92 +201,156 @@ class _ChurchSacramentsRitesViewState extends State<ChurchSacramentsRitesView> {
                 onSelected: (_) {
                   HapticFeedback.selectionClick();
                   SpeechPronunciationService().stop();
-                  setState(() => _selectedRiteIdx = idx);
+                  setState(() {
+                    _selectedRiteIdx = idx;
+                    _selectedSectionIdx = -1;
+                  });
                 },
               );
             },
           ),
         ),
 
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 95),
-            children: [
-              // Overview Header Card
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: p.surfaceElevated,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: p.accent.withValues(alpha: 0.4)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: p.accentSoft,
-                          ),
-                          child: Icon(riteIcon, color: p.accent, size: 22),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                riteTitle,
-                                style: GoogleFonts.amiri(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700,
-                                  color: p.ink,
-                                ),
-                              ),
-                              Text(
-                                riteOccasion,
-                                style: GoogleFonts.cairo(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: p.accent,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      riteOverview,
+        // Quick Prayer / Section Filter Strip (especially helpful for 40-section Qandil & 37-section Matrimony!)
+        if (sections.length > 5)
+          Container(
+            height: 44,
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            decoration: BoxDecoration(
+              color: p.surfaceSubtle,
+              border: Border(bottom: BorderSide(color: p.border, width: 0.7)),
+            ),
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              itemCount: sections.length + 1,
+              separatorBuilder: (_, _) => const SizedBox(width: 6),
+              itemBuilder: (_, i) {
+                if (i == 0) {
+                  final sel = _selectedSectionIdx == -1;
+                  return ChoiceChip(
+                    showCheckmark: false,
+                    selected: sel,
+                    selectedColor: p.accent,
+                    backgroundColor: p.surface,
+                    side: BorderSide(color: sel ? p.accent : p.border),
+                    label: Text(
+                      'الكل (${sections.length})',
                       style: GoogleFonts.cairo(
-                        fontSize: 13,
-                        height: 1.6,
-                        color: p.inkMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: sel ? p.onAccent : p.ink,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    SpeechPlayStopButton(
-                      textToSpeak:
-                          '$riteTitle. $riteOverview. ${sections.map((s) => "${s['title']}: ${s['arabic']}").join(". ")}',
-                      label: riteTitle,
-                      playText: 'استماع للطقس كاملاً',
-                      stopText: 'إيقاف الصوت',
-                      compact: true,
+                    onSelected: (_) => setState(() => _selectedSectionIdx = -1),
+                  );
+                }
+                final sIdx = i - 1;
+                final sel = _selectedSectionIdx == sIdx;
+                final raw = '${sections[sIdx]['title'] ?? ''}';
+                final compact = raw.length > 24 ? '${raw.substring(0, 24)}…' : raw;
+                return ChoiceChip(
+                  showCheckmark: false,
+                  selected: sel,
+                  selectedColor: p.accent,
+                  backgroundColor: p.surface,
+                  side: BorderSide(color: sel ? p.accent : p.border),
+                  label: Text(
+                    '${sIdx + 1}. $compact',
+                    style: GoogleFonts.cairo(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: sel ? p.onAccent : p.ink,
                     ),
-                  ],
-                ),
-              ),
+                  ),
+                  onSelected: (_) {
+                    HapticFeedback.selectionClick();
+                    setState(() => _selectedSectionIdx = sIdx);
+                  },
+                );
+              },
+            ),
+          ),
 
-              const SizedBox(height: 14),
+        // Lazy Virtualized ListView.builder
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 95),
+            itemCount: visibleSections.length + 1,
+            itemBuilder: (ctx, idx) {
+              if (idx == 0) {
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 14),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: p.surfaceElevated,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: p.accent.withValues(alpha: 0.4)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: p.accentSoft,
+                            ),
+                            child: Icon(riteIcon, color: p.accent, size: 22),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  riteTitle,
+                                  style: GoogleFonts.amiri(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: p.ink,
+                                  ),
+                                ),
+                                Text(
+                                  '$riteOccasion • ${sections.length} قسماً كاملاً',
+                                  style: GoogleFonts.cairo(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: p.accent,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        riteOverview,
+                        style: GoogleFonts.cairo(
+                          fontSize: 13,
+                          height: 1.6,
+                          color: p.inkMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
 
-              // Complete Liturgical Sections
-              for (final sec in sections) ...[
-                Container(
+              final sec = visibleSections[idx - 1];
+              final role = '${sec['role'] ?? 'الكاهن'}';
+              final secTitle = '${sec['title'] ?? ''}';
+              final secCop = '${sec['coptic'] ?? ''}';
+              final secAr = '${sec['arabic'] ?? ''}';
+              final isPeople = role.contains('الشعب');
+
+              return GestureDetector(
+                onLongPress: () => _copyText('$secTitle\n$secAr'),
+                child: Container(
                   margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -261,29 +366,24 @@ class _ChurchSacramentsRitesViewState extends State<ChurchSacramentsRitesView> {
                           CopticCross(size: 14, color: p.accent),
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: '${sec['role']}' == 'الشعب'
-                                  ? p.crimsonSoft
-                                  : p.accentSoft,
+                              color: isPeople ? p.crimsonSoft : p.accentSoft,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              '${sec['role']}',
+                              role,
                               style: GoogleFonts.cairo(
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.w700,
-                                color: '${sec['role']}' == 'الشعب'
-                                    ? p.crimson
-                                    : p.accent,
+                                color: isPeople ? p.crimson : p.accent,
                               ),
                             ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              '${sec['title']}',
+                              secTitle,
                               style: GoogleFonts.cairo(
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w700,
@@ -292,49 +392,37 @@ class _ChurchSacramentsRitesViewState extends State<ChurchSacramentsRitesView> {
                             ),
                           ),
                           SpeechPlayStopButton(
-                            textToSpeak: '${sec['title']}. ${sec['arabic']}',
-                            label: '${sec['title']}',
+                            textToSpeak: '$secTitle. ${secAr.length > 1600 ? secAr.substring(0, 1600) : secAr}',
+                            label: secTitle,
                             playText: 'استماع',
                             stopText: 'إيقاف',
                             compact: true,
                           ),
                         ],
                       ),
-                      if ('${sec['coptic'] ?? ''}'.isNotEmpty) ...[
+                      if (secCop.isNotEmpty) ...[
                         const SizedBox(height: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
                             color: p.surfaceMuted,
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: SelectableText(
-                            '${sec['coptic']}',
+                          child: Text(
+                            secCop,
                             textDirection: TextDirection.ltr,
-                            style: GoogleFonts.cairo(
-                              fontSize: 13 * fontScale,
-                              fontWeight: FontWeight.w700,
-                              color: p.accent,
-                              height: 1.5,
-                            ),
+                            textAlign: TextAlign.left,
+                            style: copticStyle,
                           ),
                         ),
                       ],
                       const SizedBox(height: 10),
-                      SelectableText(
-                        '${sec['arabic']}',
-                        style: GoogleFonts.amiri(
-                          fontSize: 19 * fontScale,
-                          height: 1.85,
-                          color: p.ink,
-                        ),
-                      ),
+                      Text(secAr, style: bodyStyle),
                     ],
                   ),
                 ),
-              ],
-            ],
+              );
+            },
           ),
         ),
       ],

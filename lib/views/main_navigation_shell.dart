@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../core/services/confession_service.dart';
+import '../core/services/storage_service.dart';
 import '../core/theme/app_palette.dart';
 import '../providers/audio_provider.dart';
 import 'ai_companion/ai_companion_view.dart';
@@ -23,7 +25,16 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   final ValueNotifier<int> _librarySubTab = ValueNotifier<int>(0);
 
   @override
+  void initState() {
+    super.initState();
+    if (StorageService().isPriestRole()) {
+      ConfessionService().startPriestRealtimeAlertListener();
+    }
+  }
+
+  @override
   void dispose() {
+    ConfessionService().stopPriestRealtimeAlertListener();
     _liturgicalSubTab.dispose();
     _librarySubTab.dispose();
     super.dispose();

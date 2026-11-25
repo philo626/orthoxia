@@ -3,6 +3,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../models/liturgy_model.dart';
 
+List<Liturgy> _parseLiturgiesIsolate(String jsonString) {
+  final List<dynamic> data = json.decode(jsonString);
+  return data.map((item) => Liturgy.fromJson(item)).toList();
+}
+
 class LiturgyProvider extends ChangeNotifier {
   List<Liturgy> _liturgies = [];
   bool _isLoading = false;
@@ -25,8 +30,7 @@ class LiturgyProvider extends ChangeNotifier {
 
     try {
       final jsonString = await rootBundle.loadString('assets/data/liturgies.json');
-      final List<dynamic> data = json.decode(jsonString);
-      _liturgies = data.map((item) => Liturgy.fromJson(item)).toList();
+      _liturgies = await compute(_parseLiturgiesIsolate, jsonString);
       if (_liturgies.isNotEmpty && _selectedLiturgy == null) {
         _selectedLiturgy = _liturgies.first; // Default to St. Basil
       }

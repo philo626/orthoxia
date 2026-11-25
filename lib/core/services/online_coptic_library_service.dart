@@ -42,9 +42,13 @@ class OnlineBookEntry {
   final String category;
   final String source;
   final String url;
-  final String readerType; // 'in_app_chapters' | 'christianlib_post' | 'archive_org'
+  final String readerType; // 'visual_pages' | 'archive_org' | 'christianlib_post' | 'in_app_chapters'
   final String description;
   final String pdfUrl;
+  final String embedUrl;
+  final String coverUrl;
+  final int pagesCount;
+  final double fileSizeMb;
 
   const OnlineBookEntry({
     required this.id,
@@ -56,7 +60,17 @@ class OnlineBookEntry {
     required this.readerType,
     this.description = '',
     this.pdfUrl = '',
+    this.embedUrl = '',
+    this.coverUrl = '',
+    this.pagesCount = 0,
+    this.fileSizeMb = 0,
   });
+
+  bool get isVisualBook =>
+      readerType == 'visual_pages' ||
+      readerType == 'archive_org' ||
+      embedUrl.isNotEmpty ||
+      pdfUrl.toLowerCase().contains('.pdf');
 
   factory OnlineBookEntry.fromJson(Map<String, dynamic> j) => OnlineBookEntry(
         id: (j['id'] ?? '').toString(),
@@ -68,6 +82,10 @@ class OnlineBookEntry {
         readerType: (j['readerType'] ?? 'in_app_chapters').toString(),
         description: (j['description'] ?? '').toString(),
         pdfUrl: (j['pdfUrl'] ?? '').toString(),
+        embedUrl: (j['embedUrl'] ?? '').toString(),
+        coverUrl: (j['coverUrl'] ?? '').toString(),
+        pagesCount: (j['pagesCount'] as num?)?.toInt() ?? 0,
+        fileSizeMb: (j['fileSizeMb'] as num?)?.toDouble() ?? 0.0,
       );
 }
 
@@ -194,9 +212,9 @@ class OnlineCopticLibraryService {
     return _booksCache!;
   }
 
-  // Bumped to v2 so any previously cached broken mojibake chapters are auto-invalidated!
+  // Bumped to v3 so all Tafsir chapters re-extract cleanly without header/search/nav boilerplate!
   String _cacheKey(String prefix, String url) =>
-      'olib_v2_${prefix}_${url.hashCode.abs()}';
+      'olib_v3_${prefix}_${url.hashCode.abs()}';
 
   Future<String> _httpGetDecoded(String url, {int timeoutSec = 16}) async {
     final safeUrl = SecurityGuardService.upgradeToHttps(url);
@@ -303,6 +321,7 @@ class OnlineCopticLibraryService {
     }
 
     String html = await _httpGetDecoded(chapterUrl);
+    // Strip site-wide navigation, search bars, hidden chapter-index tables (<tr id="hidethis">), and footers!
     html = html
         .replaceAll(
             RegExp(r'<script\b[^>]*>.*?</script>',
@@ -330,7 +349,29 @@ class OnlineCopticLibraryService {
         .replaceAll(
             RegExp(r'<form\b[^>]*>.*?</form>',
                 caseSensitive: false, dotAll: true),
+            ' ')
+        .replaceAll(
+            RegExp(r'<tr\b[^>]*id=["\x27]hidethis["\x27][^>]*>.*?</tr>',
+                caseSensitive: false, dotAll: true),
             ' ');
+
+    // Slice cleanly at the main content body if st-takla hidden-index or main header exists
+    final h1End = html.indexOf('</h1>');
+    if (h1End > 0 && h1End < html.length * 0.6) {
+      html = html.substring(h1End + 5);
+    }
+    // Truncate bottom site directory / related links footer
+    for (final stopMarker in [
+      'تفاسير أسفار الكتاب المقدس',
+      'ابحث في موقع',
+      'مواقع مسيحية',
+      'كنيسة الأنبا تكلا هيمانوت الحبشي القس',
+    ]) {
+      final stopIdx = html.lastIndexOf(stopMarker);
+      if (stopIdx > html.length * 0.45) {
+        html = html.substring(0, stopIdx);
+      }
+    }
 
     final blockRe = RegExp(
       r'<(p|h1|h2|h3|h4|blockquote|li)\b[^>]*>(.*?)</\1>',
@@ -369,19 +410,26 @@ class OnlineCopticLibraryService {
     if (lower.contains('st-takla.org') ||
         trimmed.contains('موقع الأنبا تكلا') ||
         trimmed.contains('كنيسة الأنبا تكلا') ||
+        trimmed.contains('بحث الموقع') ||
+        trimmed.contains('بحث الكتاب المقدس') ||
+        trimmed.contains('بحث الصور') ||
+        trimmed.contains('تأملات في كتاب') ||
         trimmed.contains('اضغط هنا لإظهار الفهرس') ||
         trimmed.contains('اذهب مباشرةً لتفسير الآية') ||
-        trimmed.contains('تفاسير أسفار الكتاب المقدس 1-') ||
+        trimmed.contains('تفاسير أسفار الكتاب المقدس') ||
         trimmed.contains('ابحث في موقع') ||
         trimmed.contains('حقوق الطبع') ||
         trimmed.contains('الصفحة الرئيسية') ||
         trimmed.contains('مواقع مسيحية') ||
         trimmed.contains('اتصل بنا') ||
-        trimmed.startsWith('←')) {
+        trimmed.contains('معرض الصور') ||
+        trimmed.contains('الكتاب المقدس: بحث') ||
+        trimmed.startsWith('←') ||
+        trimmed.startsWith('»')) {
       return true;
     }
     // Drop dense chapter-jump horizontal index bars ("الأصحاح 1 | الأصحاح 2 | الأصحاح 3 ...")
-    if ('|'.allMatches(trimmed).length >= 4) return true;
+    if ('|'.allMatches(trimmed).length >= 3) return true;
     return false;
   }
 
@@ -542,13 +590,15 @@ class OnlineCopticLibraryService {
           id: 'arch_$id',
           title: title.isNotEmpty ? title : id,
           author: author,
-          category: 'أرشيف التراث القبطي',
-          source: 'أرشيف الكتب الكاملة (Archive.org)',
+          category: 'المكتبة المصوّرة',
+          source: 'المكتبة المصوّرة (صفحات أصلية)',
           url: 'https://archive.org/details/$id',
-          readerType: 'archive_org',
+          embedUrl: 'https://archive.org/embed/$id?ui=embed',
+          coverUrl: 'https://archive.org/services/img/$id',
+          readerType: 'visual_pages',
           description:
-              'نسخة مصوّرة كاملة متاحة للتصفح بالصفحات مباشرة داخل التطبيق.',
-          pdfUrl: 'https://archive.org/details/$id',
+              'كتاب مصوّر بصفحاته الأصلية — يُفتح للتقليب مباشرة داخل التطبيق.',
+          pdfUrl: '',
         );
       }).toList();
     } catch (_) {

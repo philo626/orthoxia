@@ -415,6 +415,38 @@ class NotificationService {
     }
   }
 
+  /// Privacy-First Lock-Screen Notification for Priests:
+  /// ALWAYS displays generic text on the lock screen (ZERO personal name leaked!)
+  /// while full attendee name & day appear ONLY inside Abona's signed-in dashboard.
+  Future<void> showPrivacySafePriestAlert({
+    bool isCancellation = false,
+  }) async {
+    await init();
+    if (!_initialized) return;
+    final body = isCancellation
+        ? 'يا أبونا، تم تحديث قائمة الحضور في مواعيد قدسك.'
+        : 'يا أبونا، فيه تسجيل حضور جديد.';
+    try {
+      await _plugin.show(
+        7701,
+        'خدمتي النهارده • أرثوذكسيا',
+        body,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            'orthodoxia_priest_service',
+            'إشعارات خدمة الاعترافات',
+            channelDescription: 'إشعار عام يحفظ خصوصية الأسماء على شاشة القفل',
+            importance: Importance.high,
+            priority: Priority.high,
+            visibility: NotificationVisibility.public,
+            styleInformation: BigTextStyleInformation(body),
+          ),
+          iOS: const DarwinNotificationDetails(),
+        ),
+      );
+    } catch (_) {}
+  }
+
   Future<void> sendTestDailyVerseNow() async {
     await init();
     if (!_initialized) return;

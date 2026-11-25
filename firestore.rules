@@ -12,17 +12,40 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isApprovedPriest(uid) {
+      return exists(/databases/$(database)/documents/priests/$(uid))
+        && get(/databases/$(database)/documents/priests/$(uid)).data.verificationStatus == 'approved';
+    }
+
     function validString(val, minLen, maxLen) {
       return val is string && val.size() >= minLen && val.size() <= maxLen;
     }
 
-    // 1. Public User Profiles (ONLY non-sensitive displayName, patronSaintId & optional Bible completedChapters; ZERO confession notes!)
+    // 0. Authorized Church / Diocese Verifiers (Read-only from client; granted only via Firebase Console)
+    match /admins/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
+
+    // 1. Public User Profiles (ONLY non-sensitive fields + private role & confessionFatherUid; ZERO confession notes!)
     match /users/{uid} {
       allow read: if isOwner(uid);
       allow create, update: if isOwner(uid)
-        && request.resource.data.keys().hasOnly(['displayName', 'patronSaintId', 'completedChapters', 'updatedAt'])
+        && request.resource.data.keys().hasOnly([
+             'displayName', 'patronSaintId', 'completedChapters',
+             'role', 'confessionFatherUid', 'updatedAt'
+           ])
         && validString(request.resource.data.displayName, 1, 60)
         && validString(request.resource.data.patronSaintId, 1, 60)
+        && (!('role' in request.resource.data)
+            || request.resource.data.role in ['member', 'priest'])
+        && (!('confessionFatherUid' in request.resource.data)
+            || request.resource.data.confessionFatherUid == null
+            || validString(request.resource.data.confessionFatherUid, 0, 128))
         && (!('completedChapters' in request.resource.data)
             || (request.resource.data.completedChapters is list
                 && request.resource.data.completedChapters.size() <= 1500));
@@ -45,7 +68,6 @@ service cloud.firestore {
         && request.resource.data.authorName.size() <= 60
         && request.resource.data.prayedCount == 1;
 
-      // Only allow authenticated users to increment or decrement prayedCount by strictly 1
       allow update: if isSignedIn()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['prayedCount'])
         && request.resource.data.prayedCount is int
@@ -55,11 +77,107 @@ service cloud.firestore {
              || (resource.data.prayedCount > 0 && request.resource.data.prayedCount == resource.data.prayedCount - 1)
            );
 
-      // Only the original author may delete their prayer request
       allow delete: if isSignedIn() && resource.data.authorUid == request.auth.uid;
     }
 
-    // 3. Default Deny ALL other collections & documents (Zero-Trust)
+    // 3. Verified Coptic Priests Directory & Diocese Verification Queue
+    match /priests/{priestUid} {
+      // Only approved priests are visible publicly; pending/needs_info visible only to priest himself or admin
+      allow read: if resource.data.verificationStatus == 'approved'
+        || isOwner(priestUid)
+        || isAdmin();
+
+      // Priest submits verification request — CANNOT self-approve!
+      allow create: if isOwner(priestUid)
+        && request.resource.data.priestUid == priestUid
+        && request.resource.data.verificationStatus == 'pending'
+        && validString(request.resource.data.displayName, 2, 80)
+        && validString(request.resource.data.diocese, 2, 80)
+        && validString(request.resource.data.church, 2, 120);
+
+      allow update: if (
+        // Priest updating own profile or resubmitting after 'needs_info' (cannot elevate to approved)
+        isOwner(priestUid)
+        && request.resource.data.priestUid == priestUid
+        && validString(request.resource.data.displayName, 2, 80)
+        && validString(request.resource.data.diocese, 2, 80)
+        && validString(request.resource.data.church, 2, 120)
+        && (
+             request.resource.data.verificationStatus == resource.data.verificationStatus
+             || (resource.data.verificationStatus == 'needs_info'
+                 && request.resource.data.verificationStatus == 'pending')
+           )
+      ) || (
+        // Authorized Church/Diocese Verifier approving or requesting completion
+        isAdmin()
+        && request.resource.data.verificationStatus in ['pending', 'approved', 'needs_info']
+      );
+
+      allow delete: if isOwner(priestUid) || isAdmin();
+    }
+
+    // 4. Published Confession Sessions (Open start time + optional cap + instant close toggle)
+    match /confession_sessions/{sessionId} {
+      allow read: if true;
+
+      allow create: if isSignedIn()
+        && request.resource.data.priestUid == request.auth.uid
+        && isApprovedPriest(request.auth.uid)
+        && validString(request.resource.data.dayLabelAr, 2, 60)
+        && validString(request.resource.data.startTimeAr, 2, 40)
+        && request.resource.data.isOpen is bool
+        && request.resource.data.confirmedCount == 0
+        && request.resource.data.waitlistCount == 0;
+
+      allow update: if (
+        // Priest managing own session (open/close registration, edit time/note/cap, sync counts)
+        isSignedIn()
+        && resource.data.priestUid == request.auth.uid
+      ) || (
+        // Congregation member atomically incrementing/decrementing confirmedCount or waitlistCount by ±1
+        isSignedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['confirmedCount', 'waitlistCount', 'updatedAt'])
+        && request.resource.data.confirmedCount is int
+        && request.resource.data.waitlistCount is int
+        && request.resource.data.confirmedCount >= 0
+        && request.resource.data.waitlistCount >= 0
+        && request.resource.data.confirmedCount <= resource.data.confirmedCount + 1
+        && request.resource.data.confirmedCount >= resource.data.confirmedCount - 1
+        && request.resource.data.waitlistCount <= resource.data.waitlistCount + 1
+        && request.resource.data.waitlistCount >= resource.data.waitlistCount - 1
+      );
+
+      allow delete: if isSignedIn() && resource.data.priestUid == request.auth.uid;
+
+      // 4b. Session Attendees (STRICT PRIVACY: readable ONLY by the Priest or the attendee himself; Doc ID = attendeeUid guarantees 0 duplicates!)
+      match /attendees/{attendeeUid} {
+        allow read: if isOwner(attendeeUid)
+          || (isSignedIn() && get(/databases/$(database)/documents/confession_sessions/$(sessionId)).data.priestUid == request.auth.uid);
+
+        allow create, update: if isOwner(attendeeUid)
+          && request.resource.data.attendeeUid == request.auth.uid
+          && request.resource.data.sessionId == sessionId
+          && request.resource.data.status in ['confirmed', 'waitlist', 'cancelled']
+          && validString(request.resource.data.attendeeName, 1, 60);
+
+        allow delete: if isOwner(attendeeUid)
+          || (isSignedIn() && get(/databases/$(database)/documents/confession_sessions/$(sessionId)).data.priestUid == request.auth.uid);
+      }
+    }
+
+    // 5. Privacy-First Priest Attendance Notifications (Generic lock-screen alert; full name visible ONLY inside Abona's signed-in account)
+    match /priest_notifications/{priestUid}/items/{notifId} {
+      allow read, update, delete: if isOwner(priestUid);
+
+      allow create: if isSignedIn()
+        && request.resource.data.attendeeUid == request.auth.uid
+        && request.resource.data.type in ['registered', 'waitlist', 'cancelled']
+        && validString(request.resource.data.attendeeName, 1, 60)
+        && validString(request.resource.data.dayLabelAr, 2, 60)
+        && request.resource.data.read == false;
+    }
+
+    // 6. Default Deny ALL other collections & documents (Zero-Trust)
     match /{document=**} {
       allow read, write: if false;
     }

@@ -80,6 +80,61 @@ class StorageService {
     await _prefs?.setString('patron_saint_id', saintId);
   }
 
+  // Account Role ('member' = فرد من الشعب, 'priest' = أب كاهن)
+  String getUserRole() => _prefs?.getString('user_role_v1') ?? 'member';
+  bool isPriestRole() => getUserRole() == 'priest';
+  Future<void> setUserRole(String role) async {
+    await _prefs?.setString('user_role_v1', role == 'priest' ? 'priest' : 'member');
+  }
+
+  // Private Selected Father of Confession (stored privately on user's device & private user doc)
+  String getConfessionFatherUid() => _prefs?.getString('confession_father_uid_v1') ?? '';
+  String getConfessionFatherName() => _prefs?.getString('confession_father_name_v1') ?? '';
+  String getConfessionFatherChurch() => _prefs?.getString('confession_father_church_v1') ?? '';
+  String getConfessionFatherDiocese() => _prefs?.getString('confession_father_diocese_v1') ?? '';
+
+  Future<void> setConfessionFather({
+    required String uid,
+    required String name,
+    required String church,
+    required String diocese,
+  }) async {
+    await _prefs?.setString('confession_father_uid_v1', uid.trim());
+    await _prefs?.setString('confession_father_name_v1', name.trim());
+    await _prefs?.setString('confession_father_church_v1', church.trim());
+    await _prefs?.setString('confession_father_diocese_v1', diocese.trim());
+  }
+
+  Future<void> clearConfessionFather() async {
+    await _prefs?.remove('confession_father_uid_v1');
+    await _prefs?.remove('confession_father_name_v1');
+    await _prefs?.remove('confession_father_church_v1');
+    await _prefs?.remove('confession_father_diocese_v1');
+  }
+
+  // Priest Liturgical Bookmark («حفظ موضع القراءة جوه الكنيسة»)
+  Map<String, String>? getPriestBookmark() {
+    final raw = _prefs?.getString('priest_liturgical_bookmark_v1') ?? '';
+    if (raw.isEmpty) return null;
+    try {
+      final map = jsonDecode(raw) as Map<String, dynamic>;
+      return map.map((k, v) => MapEntry(k, '$v'));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> savePriestBookmark({
+    required String bookKey,
+    required String title,
+    required String note,
+  }) async {
+    await _prefs?.setString(
+      'priest_liturgical_bookmark_v1',
+      jsonEncode({'bookKey': bookKey, 'title': title, 'note': note}),
+    );
+  }
+
   // Daily Verse & Optional Family Prayer Notifications
   bool isNotificationPromptShown() => _prefs?.getBool('notif_prompt_shown') ?? false;
   Future<void> setNotificationPromptShown(bool val) async =>

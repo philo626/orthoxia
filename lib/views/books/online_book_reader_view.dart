@@ -10,6 +10,7 @@ import '../../core/services/speech_pronunciation_service.dart';
 import '../../core/theme/app_palette.dart';
 import '../../providers/theme_provider.dart';
 import '../liturgical/widgets/floating_church_bar.dart';
+import 'visual_book_pages_reader_view.dart';
 
 /// Unified full-book reader for Orthodox books across all sources:
 /// - `in_app_chapters`: reads every full chapter directly inside the app with Windows-1256 support & offline caching.
@@ -171,15 +172,29 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
   }
 
   void _openInAppViewer(String url, {String? title}) {
-    final viewerUrl = _resolveInAppViewerUrl(url);
-    if (!SecurityGuardService.isSafeExternalUrl(viewerUrl)) return;
+    final safe = SecurityGuardService.upgradeToHttps(url);
+    if (!SecurityGuardService.isSafeExternalUrl(safe)) return;
+    // Open direct PDFs or Archive.org books straight into the true Visual Page-by-Page Book Reader!
+    if (safe.toLowerCase().contains('.pdf') || safe.contains('archive.org/')) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => VisualBookPagesReaderView(
+            book: widget.book,
+            overridePdfUrl: safe.toLowerCase().contains('.pdf') ? safe : null,
+          ),
+        ),
+      );
+      return;
+    }
+    final viewerUrl = _resolveInAppViewerUrl(safe);
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => _InAppFullBookWebView(
           title: title ?? widget.book.title,
           viewerUrl: viewerUrl,
-          originalUrl: SecurityGuardService.upgradeToHttps(url),
+          originalUrl: safe,
         ),
       ),
     );
@@ -265,6 +280,11 @@ class _OnlineBookReaderViewState extends State<OnlineBookReaderView> {
 
   @override
   Widget build(BuildContext context) {
+    // Visual page-by-page books open IMMEDIATELY as real scanned book pages inside the app!
+    if (widget.book.isVisualBook) {
+      return VisualBookPagesReaderView(book: widget.book);
+    }
+
     final p = context.palette;
     final fontScale = context.watch<ThemeProvider>().fontScale;
 

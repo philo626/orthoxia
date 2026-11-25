@@ -11,6 +11,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_marks.dart';
 import '../../core/widgets/saint_icon_avatar.dart';
 import '../../providers/theme_provider.dart';
+import '../confession/fathers_directory_view.dart';
+import '../confession/priest_dashboard_view.dart';
 import '../main_navigation_shell.dart';
 import '../profile/privacy_policy_view.dart';
 
@@ -30,6 +32,7 @@ class _AuthViewState extends State<AuthView> {
   final _passCtrl = TextEditingController();
 
   late String _selectedSaintId;
+  String _selectedRole = 'member'; // 'member' = فرد من الشعب | 'priest' = أب كاهن
   int _step = 0; // 0 = Clean Sign-In / Sign-Up, 1 = Serene Personalization (Name + Patron Saint)
   bool _isLogin = true;
   bool _obscure = true;
@@ -42,6 +45,7 @@ class _AuthViewState extends State<AuthView> {
   void initState() {
     super.initState();
     _selectedSaintId = _storage.getPatronSaintId();
+    _selectedRole = _storage.getUserRole();
     if (_storage.hasCustomUserName()) {
       _nameCtrl.text = _storage.getUserName();
     }
@@ -89,6 +93,7 @@ class _AuthViewState extends State<AuthView> {
     final finalName = rawName.isNotEmpty ? rawName : 'صديق أرثوذكسيا';
 
     await _storage.setUserName(finalName);
+    await _storage.setUserRole(_selectedRole);
     if (_pendingEmail != null && _pendingEmail!.trim().isNotEmpty) {
       await _storage.setUserEmail(_pendingEmail!.trim());
     }
@@ -105,6 +110,7 @@ class _AuthViewState extends State<AuthView> {
     }
 
     if (!mounted) return;
+    final openPriestPortal = _selectedRole == 'priest' && !_pendingGuest;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 450),
@@ -115,6 +121,15 @@ class _AuthViewState extends State<AuthView> {
         ),
       ),
     );
+    if (openPriestPortal) {
+      Future.delayed(const Duration(milliseconds: 200), () {
+        if (mounted) {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const PriestDashboardView()),
+          );
+        }
+      });
+    }
   }
 
   Future<void> _submitEmailAuth() async {
@@ -448,6 +463,78 @@ class _AuthViewState extends State<AuthView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Role Selector (Page 01/04: فرد من الشعب vs أب كاهن)
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: p.surfaceSubtle,
+                    borderRadius: BorderRadius.circular(13),
+                    border: Border.all(color: p.border),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _segmentedTab(
+                          p: p,
+                          label: 'دخول كفرد من الشعب',
+                          active: _selectedRole == 'member',
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() => _selectedRole = 'member');
+                          },
+                        ),
+                      ),
+                      Expanded(
+                        child: _segmentedTab(
+                          p: p,
+                          label: 'دخول كأب كاهن',
+                          active: _selectedRole == 'priest',
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() => _selectedRole = 'priest');
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                if (_selectedRole == 'priest') ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: p.goldSoft,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: p.goldBorder),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'أهلاً بيك يا قدس أبونا — التطبيق نوّر بوجود قدسك',
+                          style: GoogleFonts.amiri(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: p.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          'بعد تسجيل الدخول، تقدر تكمّل توثيق صفة الكهنوت وتفتح مواعيد الاعتراف وتستخدم مكتبة أبونا الليتورجية فوراً.',
+                          style: GoogleFonts.cairo(
+                            fontSize: 11.5,
+                            color: p.inkSecondary,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 14),
+
                 // 1. Authentic One-Tap Google Sign-In
                 OutlinedButton(
                   onPressed: _busy ? null : _handleGoogleSignIn,
@@ -837,7 +924,63 @@ class _AuthViewState extends State<AuthView> {
             ),
           ),
 
-          const SizedBox(height: 32),
+          const SizedBox(height: 22),
+
+          if (_selectedRole == 'member') ...[
+            InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () async {
+                HapticFeedback.selectionClick();
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const FathersDirectoryView(isFirstTimeFlow: true),
+                  ),
+                );
+                if (mounted) setState(() {});
+              },
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: p.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: p.goldBorder),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.church_outlined, color: p.accent, size: 22),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _storage.getConfessionFatherName().isNotEmpty
+                                ? 'أب اعترافي: ${_storage.getConfessionFatherName()}'
+                                : 'اختيار أب الاعتراف (اختياري)',
+                            style: GoogleFonts.cairo(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: p.ink,
+                            ),
+                          ),
+                          Text(
+                            _storage.getConfessionFatherChurch().isNotEmpty
+                                ? _storage.getConfessionFatherChurch()
+                                : 'تقدر تختار قدسه دلوقتي أو تختار بعدين في أي وقت',
+                            style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkMuted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_left_rounded, color: p.accent),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ] else
+            const SizedBox(height: 10),
 
           ElevatedButton(
             onPressed: _busy ? null : _finalizeAndEnter,

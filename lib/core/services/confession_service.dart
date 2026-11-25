@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../../models/confession_models.dart';
@@ -7,25 +8,54 @@ import 'notification_service.dart';
 import 'security_guard_service.dart';
 import 'storage_service.dart';
 
-/// Complete Pastoral Confession & Priest Directory Service:
-/// Implements all 4 flows from the Coptic Orthodox Platform Usage Blueprint:
-/// 1) Role-Based Entry & Diocese Priest Verification (pending -> approved / needs_info)
-/// 2) Priest Dashboard («خدمتي النهارده»): open-ended start-time confession days, optional cap, 1-tap close
-/// 3) Private Father of Confession Directory + Ready Priest Invite Share Text
-/// 4) Atomic Deduplicated «هحضر» Confirmation + Optional Waitlist + Privacy-First Lock-Screen Notifications
+/// Complete Pastoral Confession, Dual-Code Trust & Priest Directory Service:
+/// 1) Private Confession Code (`AB-XXXX`): Fixed code per priest — works IMMEDIATELY for
+///    Abona's own confession children (via WhatsApp / church), WITHOUT listing publicly.
+/// 2) Peer-Priest Single-Use Vouch Code (`KN-XXXX`): Verified priests issue unique 1-time
+///    7-day codes to vouch for fellow priests -> instant Public Directory ✓ verification!
+/// 3) Diocese/Admin Verification Queue (pending -> approved / needs_info)
+/// 4) Open-Start-Time Confession Sessions + Atomic Deduplicated «هحضر» + Privacy-First Alerts
 class ConfessionService {
   static final ConfessionService _instance = ConfessionService._internal();
   factory ConfessionService() => _instance;
   ConfessionService._internal();
 
-  /// Exact public invitation text for inviting Abona (personal choice remains private!)
+  /// General invitation text when a congregation member invites their priest to join
   static const String priestInviteShareText =
-      'يا أبونا، يسعدنا انضمام قدسك لتطبيق أرثوذكسيا. '
-      'تقدر تسجّل كأب كاهن وتضيف مواعيد خدمة الاعترافات للشعب وتقرأ الخولاجي والأجبية والقطمارس من هنا:\n'
+      'يا قدس أبونا، يسعدنا انضمام قدسك لتطبيق أرثوذكسيا.\n'
+      'التطبيق يضم واجهة خاصة للآباء الكهنة (الخولاجي بصلوات الكاهن السرية، رفع البخور، الـ ٣٩ قسمة، القطمارس، دفتر الافتقاد وأسماء المذبح، وتنظيم مواعيد الاعتراف بكود خاص لأولاد قدسك):\n'
       'https://github.com/philo626/orthoxia';
+
+  /// Share text for Abona's PRIVATE fixed code (`AB-XXXX`) to his confession children
+  static String buildConfessionChildrenShareText({
+    required String priestFullName,
+    required String church,
+    required String privateCode,
+  }) {
+    final churchLine = church.trim().isNotEmpty ? ' ($church)' : '';
+    return 'سلام ونعمة،\n'
+        'لمتابعة مواعيد الاعتراف وتسجيل الحضور مع $priestFullName$churchLine على تطبيق أرثوذكسيا:\n'
+        '١) افتح التطبيق واضغط «مواعيد أبونا»\n'
+        '٢) اختر «ربط بكود أب اعترافي» وأدخل الكود الخاص:\n'
+        '🔑 الكود: $privateCode\n\n'
+        'رابط التطبيق: https://github.com/philo626/orthoxia';
+  }
+
+  /// Share text for a SINGLE-USE peer-priest vouch invite code (`KN-XXXX`)
+  static String buildPeerPriestVouchShareText({
+    required String issuerName,
+    required String inviteCode,
+  }) {
+    return 'سلام ونعمة يا قدس أبونا،\n'
+        'أدعو قدسك للانضمام لبوابة الآباء الكهنة الموثّقة في تطبيق أرثوذكسيا (بتزكية من $issuerName).\n\n'
+        'بعد تسجيل الدخول كأب كاهن، أدخل كود التزكية الخاص (صالح لاستخدام واحد لمدة ٧ أيام) لتوثيق حساب قدسك فوراً والظهور في الدليل:\n'
+        '✝️ كود التزكية: $inviteCode\n\n'
+        'رابط التطبيق: https://github.com/philo626/orthoxia';
+  }
 
   final FirebaseService _firebase = FirebaseService();
   final StorageService _storage = StorageService();
+  final Random _rng = Random.secure();
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _notifSub;
   final Set<String> _alertedNotifIds = {};
   bool _initialNotifBatchLoaded = false;
@@ -35,8 +65,47 @@ class ConfessionService {
 
   String? get currentUid => _firebase.currentUser?.uid;
 
+  /// Generates a clean readable code without ambiguous characters (0/O/1/I)
+  String _generateCode(String prefix, {int length = 4}) {
+    const digits = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    final buf = StringBuffer('$prefix-');
+    for (int i = 0; i < length; i++) {
+      buf.write(digits[_rng.nextInt(digits.length)]);
+    }
+    return buf.toString();
+  }
+
+  /// Normalizes user-entered codes: handles spaces, lowercase, missing dash, Arabic digits
+  static String normalizeCode(String raw, {required String defaultPrefix}) {
+    var s = raw.trim().toUpperCase();
+    // Convert Arabic-Indic digits ٠١٢٣٤٥٦٧٨٩ to Western digits
+    const ar = '٠١٢٣٤٥٦٧٨٩';
+    for (int i = 0; i < ar.length; i++) {
+      s = s.replaceAll(ar[i], '$i');
+    }
+    s = s.replaceAll(RegExp(r'[\s_–—]+'), '-');
+    if (s.isEmpty) return '';
+    if (!s.contains('-')) {
+      if (s.startsWith(defaultPrefix) && s.length > defaultPrefix.length) {
+        s = '$defaultPrefix-${s.substring(defaultPrefix.length)}';
+      } else if (s.length == 4) {
+        s = '$defaultPrefix-$s';
+      }
+    }
+    return s;
+  }
+
+  /// Ensures a priest always has a local private code even before going online
+  Future<String> ensureLocalPrivateCode() async {
+    final existing = _storage.getLocalPriestCode();
+    if (existing.isNotEmpty) return existing;
+    final fresh = _generateCode('AB');
+    await _storage.setLocalPriestCode(fresh);
+    return fresh;
+  }
+
   // ===========================================================================
-  // 1. PRIEST VERIFICATION & ADMIN REVIEW
+  // 1. PRIEST PROFILE, PRIVATE CODE & VERIFICATION
   // ===========================================================================
 
   Future<(bool, String)> submitOrUpdatePriestVerification({
@@ -47,12 +116,7 @@ class ConfessionService {
     String verificationNote = '',
     String phoneForVerification = '',
   }) async {
-    final db = _db;
-    final uid = currentUid;
-    if (db == null || uid == null) {
-      return (false, 'يُرجى تسجيل الدخول أولاً لإرسال طلب التفعيل.');
-    }
-
+    final safePrefix = titlePrefix == 'القمص' ? 'القمص' : 'القس';
     final safeName = SecurityGuardService.sanitizeText(displayName, maxLength: 80, allowNewlines: false);
     final safeDiocese = SecurityGuardService.sanitizeText(diocese, maxLength: 80, allowNewlines: false);
     final safeChurch = SecurityGuardService.sanitizeText(church, maxLength: 120, allowNewlines: false);
@@ -63,35 +127,82 @@ class ConfessionService {
       return (false, 'من فضلك أكمل اسم قدسك والإيبارشية والكنيسة بشكل واضح.');
     }
 
+    // Always persist locally so Abona's sanctuary header & tools personalize immediately
+    await _storage.setUserRole('priest');
+    await _storage.setPriestTitlePrefix(safePrefix);
+    await _storage.setUserName(safeName);
+    await _storage.setPriestChurch(safeChurch);
+    await _storage.setPriestDiocese(safeDiocese);
+    final localCode = await ensureLocalPrivateCode();
+
+    final db = _db;
+    final uid = currentUid;
+    if (db == null || uid == null) {
+      return (true, 'تم حفظ بيانات قدسك محلياً. يُرجى تسجيل الدخول لتفعيل كود الاعتراف والمواعيد السحابية.');
+    }
+
     try {
       final ref = db.collection('priests').doc(uid);
       final existing = await ref.get();
-      final currentStatus = existing.data()?['verificationStatus']?.toString();
-
-      // If previously approved, preserve approved status; if needs_info or new, set pending
+      final existingData = existing.data();
+      final currentStatus = existingData?['verificationStatus']?.toString();
       final nextStatus = currentStatus == 'approved' ? 'approved' : 'pending';
+
+      // Reuse existing cloud privateCode if set; otherwise allocate a fresh unique AB-XXXX code
+      var privateCode = '${existingData?['privateCode'] ?? ''}'.trim().toUpperCase();
+      if (privateCode.isEmpty) {
+        privateCode = localCode;
+        for (int attempt = 0; attempt < 5; attempt++) {
+          final codeDoc = await db.collection('priest_codes').doc(privateCode).get();
+          if (!codeDoc.exists || codeDoc.data()?['priestUid'] == uid) {
+            break;
+          }
+          privateCode = _generateCode('AB');
+        }
+      }
+      await _storage.setLocalPriestCode(privateCode);
+
+      final fullDisplay = (safeName.startsWith('أبونا') ||
+              safeName.startsWith('القس') ||
+              safeName.startsWith('القمص'))
+          ? safeName
+          : '$safePrefix $safeName';
 
       await ref.set({
         'priestUid': uid,
-        'titlePrefix': titlePrefix == 'القمص' ? 'القمص' : 'القس',
+        'titlePrefix': safePrefix,
         'displayName': safeName,
         'diocese': safeDiocese,
         'church': safeChurch,
+        'privateCode': privateCode,
         'verificationStatus': nextStatus,
         'verificationNote': safeNote,
         'phoneForVerification': safePhone,
-        'adminFeedback': currentStatus == 'needs_info' ? '' : (existing.data()?['adminFeedback'] ?? ''),
+        'adminFeedback': currentStatus == 'needs_info' ? '' : (existingData?['adminFeedback'] ?? ''),
         if (!existing.exists) 'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      await _storage.setUserRole('priest');
-      await _storage.setUserName('$titlePrefix $safeName');
+      // Publish private lookup card under priest_codes/{code} so children with the code can link immediately!
+      try {
+        await db.collection('priest_codes').doc(privateCode).set({
+          'code': privateCode,
+          'priestUid': uid,
+          'titlePrefix': safePrefix,
+          'displayName': safeName,
+          'fullDisplayName': fullDisplay,
+          'church': safeChurch,
+          'diocese': safeDiocese,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (e) {
+        if (kDebugMode) debugPrint('priest_codes sync warning: $e');
+      }
 
       // Sync non-sensitive role marker to user profile
       try {
         await db.collection('users').doc(uid).set({
-          'displayName': '$titlePrefix $safeName',
+          'displayName': fullDisplay,
           'patronSaintId': _storage.getPatronSaintId(),
           'role': 'priest',
           'updatedAt': FieldValue.serverTimestamp(),
@@ -101,12 +212,199 @@ class ConfessionService {
       return (
         true,
         nextStatus == 'approved'
-            ? 'تم تحديث بيانات قدسك بنجاح.'
-            : 'تم إرسال طلب تفعيل صفة الكاهن بنجاح. سيقوم المسؤول المفوّض بمراجعته قريباً.'
+            ? 'تم حفظ وتحديث بيانات قدسك بنجاح.'
+            : 'تم حفظ بيانات قدسك وتجهيز كود أولاد الاعتراف ($privateCode) فوراً! يمكنك نشر المواعيد لأولادك الآن، وللظهور في الدليل العام أدخل كود تزكية من كاهن موثّق أو انتظر المراجعة.'
       );
     } catch (e) {
       if (kDebugMode) debugPrint('submitOrUpdatePriestVerification err: $e');
-      return (false, 'تعذر إرسال الطلب حالياً. تأكد من الاتصال بالإنترنت وحاول مرة أخرى.');
+      return (false, 'تعذر الحفظ على الخادم حالياً. تأكد من الاتصال بالإنترنت وتحديث قواعد Firebase.');
+    }
+  }
+
+  /// Looks up ANY priest (private or verified) by his Private Code (e.g. AB-4829)
+  Future<(PriestProfile?, String)> findPriestByPrivateCode(String rawCode) async {
+    final normalized = normalizeCode(rawCode, defaultPrefix: 'AB');
+    if (normalized.length < 6) {
+      return (null, 'من فضلك أدخل الكود بشكل صحيح (مثال: AB-4829).');
+    }
+    final db = _db;
+    if (db == null) {
+      return (null, 'تعذر البحث بالكود بدون اتصال بالإنترنت.');
+    }
+    try {
+      final doc = await db.collection('priest_codes').doc(normalized).get();
+      if (!doc.exists || doc.data() == null) {
+        return (null, 'لم نجد أب كاهن بهذا الكود ($normalized). تأكد من الكود الذي أرسله قدس أبونا.');
+      }
+      final data = doc.data()!;
+      final priestUid = '${data['priestUid'] ?? ''}';
+      if (priestUid.isEmpty) {
+        return (null, 'الكود غير مكتمل، يُرجى مراجعة قدس أبونا.');
+      }
+      final profile = PriestProfile(
+        priestUid: priestUid,
+        titlePrefix: '${data['titlePrefix'] ?? 'القس'}',
+        displayName: '${data['displayName'] ?? data['fullDisplayName'] ?? ''}',
+        diocese: '${data['diocese'] ?? ''}',
+        church: '${data['church'] ?? ''}',
+        verificationStatus: PriestVerificationStatus.pending,
+        privateCode: normalized,
+      );
+      return (profile, 'تم العثور على ${profile.fullDisplayName} بنجاح.');
+    } catch (e) {
+      if (kDebugMode) debugPrint('findPriestByPrivateCode err: $e');
+      return (null, 'تعذر التحقق من الكود حالياً. تأكد من الاتصال بالإنترنت.');
+    }
+  }
+
+  // ===========================================================================
+  // 1b. PEER-PRIEST SINGLE-USE VOUCH CODES (`KN-XXXX`)
+  // ===========================================================================
+
+  /// Verified Priest (or Admin) generates a BRAND-NEW single-use 7-day code for a fellow priest
+  Future<(PriestVouchInvite?, String)> generatePeerPriestInviteCode(
+    PriestProfile issuer,
+  ) async {
+    final db = _db;
+    final uid = currentUid;
+    if (db == null || uid == null) {
+      return (null, 'يُرجى تسجيل الدخول والاتصال بالإنترنت أولاً.');
+    }
+    final isAdmin = await isCurrentUserAdmin();
+    if (!issuer.isVerifiedPublic && !isAdmin) {
+      return (null, 'إصدار أكواد التزكية متاح للآباء الكهنة الموثّقين فقط.');
+    }
+
+    try {
+      String code = _generateCode('KN');
+      for (int i = 0; i < 6; i++) {
+        final existing = await db.collection('priest_invites').doc(code).get();
+        if (!existing.exists) break;
+        code = _generateCode('KN');
+      }
+
+      final now = DateTime.now();
+      final expiresAt = now.add(const Duration(days: 7));
+      await db.collection('priest_invites').doc(code).set({
+        'code': code,
+        'issuerUid': uid,
+        'issuerName': issuer.fullDisplayName,
+        'issuerChurch': issuer.church,
+        'used': false,
+        'usedByUid': '',
+        'usedByName': '',
+        'createdAt': FieldValue.serverTimestamp(),
+        'expiresAt': Timestamp.fromDate(expiresAt),
+      });
+
+      final invite = PriestVouchInvite(
+        code: code,
+        issuerUid: uid,
+        issuerName: issuer.fullDisplayName,
+        issuerChurch: issuer.church,
+        used: false,
+        createdAt: now,
+        expiresAt: expiresAt,
+      );
+      return (invite, 'تم إصدار كود تزكية جديد صالح لاستخدام واحد ($code).');
+    } catch (e) {
+      if (kDebugMode) debugPrint('generatePeerPriestInviteCode err: $e');
+      return (null, 'تعذر إصدار كود التزكية حالياً. تأكد من الاتصال بالإنترنت.');
+    }
+  }
+
+  Stream<List<PriestVouchInvite>> watchMyIssuedInvites() {
+    final db = _db;
+    final uid = currentUid;
+    if (db == null || uid == null) return Stream.value(const []);
+    return db
+        .collection('priest_invites')
+        .where('issuerUid', isEqualTo: uid)
+        .snapshots()
+        .map((snap) {
+      final list = snap.docs
+          .map((d) => PriestVouchInvite.fromMap(d.id, d.data()))
+          .toList();
+      list.sort((a, b) => (b.createdAt ?? DateTime(2000)).compareTo(a.createdAt ?? DateTime(2000)));
+      return list;
+    });
+  }
+
+  /// Fellow Priest redeems a single-use `KN-XXXX` code -> instant Public Directory ✓ verification & burns the code!
+  Future<(bool, String)> redeemPeerPriestInviteCode(String rawCode) async {
+    final db = _db;
+    final uid = currentUid;
+    if (db == null || uid == null) {
+      return (false, 'يُرجى تسجيل الدخول أولاً.');
+    }
+    final normalized = normalizeCode(rawCode, defaultPrefix: 'KN');
+    if (normalized.length < 6) {
+      return (false, 'من فضلك أدخل كود التزكية بشكل صحيح (مثال: KN-7391).');
+    }
+
+    final inviteRef = db.collection('priest_invites').doc(normalized);
+    final priestRef = db.collection('priests').doc(uid);
+
+    try {
+      final msg = await db.runTransaction<String>((tx) async {
+        final inviteSnap = await tx.get(inviteRef);
+        if (!inviteSnap.exists || inviteSnap.data() == null) {
+          throw Exception('NOT_FOUND');
+        }
+        final inv = PriestVouchInvite.fromMap(inviteSnap.id, inviteSnap.data()!);
+        if (inv.used) {
+          throw Exception('ALREADY_USED');
+        }
+        if (inv.isExpired) {
+          throw Exception('EXPIRED');
+        }
+        if (inv.issuerUid == uid) {
+          throw Exception('SELF_VOUCH');
+        }
+
+        final priestSnap = await tx.get(priestRef);
+        if (!priestSnap.exists || priestSnap.data() == null) {
+          throw Exception('NO_PROFILE');
+        }
+        final pData = priestSnap.data()!;
+        final pProfile = PriestProfile.fromMap(uid, pData);
+
+        // Atomically burn the single-use invite AND approve the priest!
+        tx.update(inviteRef, {
+          'used': true,
+          'usedByUid': uid,
+          'usedByName': pProfile.fullDisplayName,
+          'usedAt': FieldValue.serverTimestamp(),
+        });
+        tx.update(priestRef, {
+          'verificationStatus': 'approved',
+          'vouchInviteCode': normalized,
+          'vouchedByUid': inv.issuerUid,
+          'vouchedByName': inv.issuerName,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        return 'تم توثيق حساب قدسك فوراً بتزكية ${inv.issuerName} ✓ وأصبح ظاهراً الآن في الدليل العام.';
+      });
+      return (true, msg);
+    } catch (e) {
+      final s = e.toString();
+      if (s.contains('NOT_FOUND')) {
+        return (false, 'كود التزكية ($normalized) غير موجود. تأكد من الكود المرسل لقدسك.');
+      }
+      if (s.contains('ALREADY_USED')) {
+        return (false, 'هذا الكود تم استخدامه مسبقاً. كل كود تزكية يعمل لمرة واحدة فقط — اطلب كوداً جديداً من الأب الكاهن.');
+      }
+      if (s.contains('EXPIRED')) {
+        return (false, 'انتهت صلاحية كود التزكية (٧ أيام). يُرجى طلب كود جديد.');
+      }
+      if (s.contains('SELF_VOUCH')) {
+        return (false, 'لا يمكن استخدام كود تزكية صادر من نفس الحساب.');
+      }
+      if (s.contains('NO_PROFILE')) {
+        return (false, 'يرجى حفظ بيانات قدسك (الاسم والإيبارشية والكنيسة) أولاً ثم إدخال كود التزكية.');
+      }
+      if (kDebugMode) debugPrint('redeemPeerPriestInviteCode err: $e');
+      return (false, 'تعذر تفعيل كود التزكية حالياً. تأكد من الاتصال بالإنترنت.');
     }
   }
 
@@ -151,7 +449,6 @@ class ConfessionService {
     return db.collection('priests').snapshots().map((snap) {
       final list = snap.docs.map((d) => PriestProfile.fromMap(d.id, d.data())).toList();
       list.sort((a, b) {
-        // Pending first, then needsInfo, then approved
         int rank(PriestVerificationStatus s) =>
             s == PriestVerificationStatus.pending ? 0 : (s == PriestVerificationStatus.needsInfo ? 1 : 2);
         return rank(a.verificationStatus).compareTo(rank(b.verificationStatus));
@@ -225,7 +522,7 @@ class ConfessionService {
   }
 
   // ===========================================================================
-  // 3. PRIEST CONFESSION SESSIONS (OPEN START TIME, OPTIONAL CAP, INSTANT CLOSE)
+  // 3. PRIEST CONFESSION SESSIONS (WORKS IMMEDIATELY VIA PRIVATE CODE & PUBLIC)
   // ===========================================================================
 
   Future<(bool, String)> publishConfessionSession({
@@ -240,9 +537,6 @@ class ConfessionService {
     final uid = currentUid;
     if (db == null || uid == null) {
       return (false, 'يُرجى تسجيل الدخول والاتصال بالإنترنت أولاً.');
-    }
-    if (priest.verificationStatus != PriestVerificationStatus.approved) {
-      return (false, 'نشر المواعيد للشعب يبدأ بعد التحقق من صفة الكاهن.');
     }
 
     final iso =
@@ -265,7 +559,12 @@ class ConfessionService {
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      return (true, 'تم نشر الموعد للشعب بنجاح.');
+      return (
+        true,
+        priest.isVerifiedPublic
+            ? 'تم نشر الموعد بنجاح لأبنائك.'
+            : 'تم نشر الموعد بنجاح لأبنائك المرتبطين بكود قدسك (${priest.privateCode}).'
+      );
     } catch (e) {
       if (kDebugMode) debugPrint('publishConfessionSession err: $e');
       return (false, 'تعذر نشر الموعد حالياً. تأكد من الاتصال بالإنترنت.');
@@ -351,7 +650,6 @@ class ConfessionService {
         final aSnap = await tx.get(attendeeRef);
         final prevStatus = aSnap.exists ? '${aSnap.data()?['status'] ?? ''}' : '';
 
-        // 1. Mathematical deduplication: tapping «هحضر» twice NEVER duplicates the name!
         if (prevStatus == 'confirmed') {
           return const AttendanceActionResult(
             status: AttendanceActionStatus.alreadyConfirmed,
@@ -365,7 +663,6 @@ class ConfessionService {
           );
         }
 
-        // 2. Check if Abona closed registration
         if (!liveSession.isOpen) {
           return const AttendanceActionResult(
             status: AttendanceActionStatus.sessionClosed,
@@ -373,7 +670,6 @@ class ConfessionService {
           );
         }
 
-        // 3. Check optional daily limit
         if (liveSession.isFull) {
           if (!allowWaitlist) {
             return const AttendanceActionResult(
@@ -402,7 +698,6 @@ class ConfessionService {
           );
         }
 
-        // 4. Open & space available -> Confirm attendance!
         final wasWaitlist = prevStatus == 'waitlist';
         tx.set(attendeeRef, {
           'attendeeUid': uid,
@@ -427,7 +722,6 @@ class ConfessionService {
         );
       });
 
-      // Emit ONE privacy-safe notification document for Abona (only on fresh confirmation/waitlist)
       if (result.status == AttendanceActionStatus.confirmed ||
           result.status == AttendanceActionStatus.waitlisted) {
         try {
@@ -509,7 +803,6 @@ class ConfessionService {
         });
       });
 
-      // Notify Abona that the list updated
       try {
         await db
             .collection('priest_notifications')
@@ -612,8 +905,6 @@ class ConfessionService {
     } catch (_) {}
   }
 
-  /// Starts real-time listener for Abona so new arrivals trigger the privacy-safe
-  /// lock-screen alert: «يا أبونا، فيه تسجيل حضور جديد» (ZERO name leaked on lock screen!).
   void startPriestRealtimeAlertListener() {
     final db = _db;
     final uid = currentUid;

@@ -48,6 +48,9 @@ class PriestProfile {
   final String diocese;
   final String church;
   final PriestVerificationStatus verificationStatus;
+  final String privateCode; // e.g. 'AB-4829' — fixed private code for Abona's own confession children
+  final String vouchedByUid;
+  final String vouchedByName;
   final String verificationNote;
   final String adminFeedback;
   final String phoneForVerification;
@@ -60,6 +63,9 @@ class PriestProfile {
     required this.diocese,
     required this.church,
     required this.verificationStatus,
+    this.privateCode = '',
+    this.vouchedByUid = '',
+    this.vouchedByName = '',
     this.verificationNote = '',
     this.adminFeedback = '',
     this.phoneForVerification = '',
@@ -73,6 +79,8 @@ class PriestProfile {
     }
     return '${titlePrefix.isNotEmpty ? titlePrefix : 'القس'} $name';
   }
+
+  bool get isVerifiedPublic => verificationStatus == PriestVerificationStatus.approved;
 
   static PriestVerificationStatus parseStatus(String? raw) {
     switch (raw) {
@@ -105,10 +113,56 @@ class PriestProfile {
       diocese: '${data['diocese'] ?? ''}',
       church: '${data['church'] ?? ''}',
       verificationStatus: parseStatus(data['verificationStatus']?.toString()),
+      privateCode: '${data['privateCode'] ?? ''}',
+      vouchedByUid: '${data['vouchedByUid'] ?? ''}',
+      vouchedByName: '${data['vouchedByName'] ?? ''}',
       verificationNote: '${data['verificationNote'] ?? ''}',
       adminFeedback: '${data['adminFeedback'] ?? ''}',
       phoneForVerification: '${data['phoneForVerification'] ?? ''}',
       updatedAt: ts is Timestamp ? ts.toDate() : null,
+    );
+  }
+}
+
+/// Single-use peer-priest vouch invite code (e.g. KN-7391) issued by an approved priest
+class PriestVouchInvite {
+  final String code;
+  final String issuerUid;
+  final String issuerName;
+  final String issuerChurch;
+  final bool used;
+  final String usedByUid;
+  final String usedByName;
+  final DateTime? createdAt;
+  final DateTime? expiresAt;
+
+  const PriestVouchInvite({
+    required this.code,
+    required this.issuerUid,
+    required this.issuerName,
+    required this.issuerChurch,
+    required this.used,
+    this.usedByUid = '',
+    this.usedByName = '',
+    this.createdAt,
+    this.expiresAt,
+  });
+
+  bool get isExpired => expiresAt != null && DateTime.now().isAfter(expiresAt!);
+
+  factory PriestVouchInvite.fromMap(String code, Map<String, dynamic> data) {
+    final cTs = data['createdAt'];
+    final eTs = data['expiresAt'];
+    return PriestVouchInvite(
+      code: code,
+      issuerUid: '${data['issuerUid'] ?? ''}',
+      issuerName: '${data['issuerName'] ?? ''}',
+      issuerChurch: '${data['issuerChurch'] ?? ''}',
+      used: data['used'] == true,
+      usedByUid: '${data['usedByUid'] ?? ''}',
+      usedByName: '${data['usedByName'] ?? ''}',
+      createdAt: cTs is Timestamp ? cTs.toDate() : null,
+      expiresAt: eTs is Timestamp ? eTs.toDate() : null,
     );
   }
 }
@@ -270,4 +324,147 @@ class AttendanceActionResult {
   final String message;
 
   const AttendanceActionResult({required this.status, required this.message});
+}
+
+// =============================================================================
+// PRIEST PRIVATE ON-DEVICE PASTORAL CARE MODELS (100% AES-256 LOCAL ONLY)
+// =============================================================================
+
+/// Altar Litany Commemoration Name (المرضى • الراقدين • المسافرين • ضيقات • شكر)
+class AltarNameItem {
+  final String id;
+  final String name;
+  final String category; // 'sick' | 'departed' | 'travelers' | 'distressed' | 'thanksgiving'
+  final String note;
+  final String createdAtIso;
+
+  const AltarNameItem({
+    required this.id,
+    required this.name,
+    required this.category,
+    this.note = '',
+    required this.createdAtIso,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'category': category,
+        'note': note,
+        'createdAtIso': createdAtIso,
+      };
+
+  factory AltarNameItem.fromJson(Map<String, dynamic> j) => AltarNameItem(
+        id: '${j['id'] ?? ''}',
+        name: '${j['name'] ?? ''}',
+        category: '${j['category'] ?? 'sick'}',
+        note: '${j['note'] ?? ''}',
+        createdAtIso: '${j['createdAtIso'] ?? ''}',
+      );
+}
+
+/// Private Pastoral Visitation Entry (دفتر الافتقاد — محلي مشفر 100%)
+class VisitationEntry {
+  final String id;
+  final String personName;
+  final String area;
+  final String phone;
+  final String tag; // 'مريض' | 'أسرة' | 'مسن' | 'شاب' | 'ضيقة'
+  final String note;
+  final bool visited;
+  final String updatedAtIso;
+
+  const VisitationEntry({
+    required this.id,
+    required this.personName,
+    this.area = '',
+    this.phone = '',
+    this.tag = 'أسرة',
+    this.note = '',
+    this.visited = false,
+    required this.updatedAtIso,
+  });
+
+  VisitationEntry copyWith({
+    String? personName,
+    String? area,
+    String? phone,
+    String? tag,
+    String? note,
+    bool? visited,
+    String? updatedAtIso,
+  }) =>
+      VisitationEntry(
+        id: id,
+        personName: personName ?? this.personName,
+        area: area ?? this.area,
+        phone: phone ?? this.phone,
+        tag: tag ?? this.tag,
+        note: note ?? this.note,
+        visited: visited ?? this.visited,
+        updatedAtIso: updatedAtIso ?? this.updatedAtIso,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'personName': personName,
+        'area': area,
+        'phone': phone,
+        'tag': tag,
+        'note': note,
+        'visited': visited,
+        'updatedAtIso': updatedAtIso,
+      };
+
+  factory VisitationEntry.fromJson(Map<String, dynamic> j) => VisitationEntry(
+        id: '${j['id'] ?? ''}',
+        personName: '${j['personName'] ?? ''}',
+        area: '${j['area'] ?? ''}',
+        phone: '${j['phone'] ?? ''}',
+        tag: '${j['tag'] ?? 'أسرة'}',
+        note: '${j['note'] ?? ''}',
+        visited: j['visited'] == true,
+        updatedAtIso: '${j['updatedAtIso'] ?? ''}',
+      );
+}
+
+/// Priest Sermon Preparation Note (تحضير العظات — محلي 100%)
+class SermonNote {
+  final String id;
+  final String title;
+  final String occasion;
+  final String scriptureRef;
+  final String points;
+  final String patristicQuote;
+  final String updatedAtIso;
+
+  const SermonNote({
+    required this.id,
+    required this.title,
+    this.occasion = '',
+    this.scriptureRef = '',
+    this.points = '',
+    this.patristicQuote = '',
+    required this.updatedAtIso,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'occasion': occasion,
+        'scriptureRef': scriptureRef,
+        'points': points,
+        'patristicQuote': patristicQuote,
+        'updatedAtIso': updatedAtIso,
+      };
+
+  factory SermonNote.fromJson(Map<String, dynamic> j) => SermonNote(
+        id: '${j['id'] ?? ''}',
+        title: '${j['title'] ?? ''}',
+        occasion: '${j['occasion'] ?? ''}',
+        scriptureRef: '${j['scriptureRef'] ?? ''}',
+        points: '${j['points'] ?? ''}',
+        patristicQuote: '${j['patristicQuote'] ?? ''}',
+        updatedAtIso: '${j['updatedAtIso'] ?? ''}',
+      );
 }

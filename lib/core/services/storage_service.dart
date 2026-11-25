@@ -87,6 +87,75 @@ class StorageService {
     await _prefs?.setString('user_role_v1', role == 'priest' ? 'priest' : 'member');
   }
 
+  // Priest Local Profile Metadata (for instant sanctuary personalization & private code)
+  String getPriestTitlePrefix() => _prefs?.getString('priest_title_prefix_v1') ?? 'القس';
+  Future<void> setPriestTitlePrefix(String prefix) async =>
+      await _prefs?.setString('priest_title_prefix_v1', prefix == 'القمص' ? 'القمص' : 'القس');
+
+  String getPriestChurch() => _prefs?.getString('priest_church_v1') ?? '';
+  Future<void> setPriestChurch(String church) async =>
+      await _prefs?.setString('priest_church_v1', church.trim());
+
+  String getPriestDiocese() => _prefs?.getString('priest_diocese_v1') ?? '';
+  Future<void> setPriestDiocese(String diocese) async =>
+      await _prefs?.setString('priest_diocese_v1', diocese.trim());
+
+  String getLocalPriestCode() => _prefs?.getString('priest_private_code_v1') ?? '';
+  Future<void> setLocalPriestCode(String code) async =>
+      await _prefs?.setString('priest_private_code_v1', code.trim().toUpperCase());
+
+  // Priest Private Encrypted Pastoral Stores (100% on-device AES-256, ZERO cloud!)
+  String? getEncryptedAltarNamesJson() {
+    final raw = _prefs?.getString('priest_altar_names_enc_v1');
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return _encryption.decryptAes256(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> saveEncryptedAltarNamesJson(String plainJson) async {
+    await _prefs?.setString(
+      'priest_altar_names_enc_v1',
+      _encryption.encryptAes256(plainJson),
+    );
+  }
+
+  String? getEncryptedVisitationJson() {
+    final raw = _prefs?.getString('priest_visitation_enc_v1');
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return _encryption.decryptAes256(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> saveEncryptedVisitationJson(String plainJson) async {
+    await _prefs?.setString(
+      'priest_visitation_enc_v1',
+      _encryption.encryptAes256(plainJson),
+    );
+  }
+
+  String? getEncryptedSermonsJson() {
+    final raw = _prefs?.getString('priest_sermons_enc_v1');
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return _encryption.decryptAes256(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> saveEncryptedSermonsJson(String plainJson) async {
+    await _prefs?.setString(
+      'priest_sermons_enc_v1',
+      _encryption.encryptAes256(plainJson),
+    );
+  }
+
   // Private Selected Father of Confession (stored privately on user's device & private user doc)
   String getConfessionFatherUid() => _prefs?.getString('confession_father_uid_v1') ?? '';
   String getConfessionFatherName() => _prefs?.getString('confession_father_name_v1') ?? '';

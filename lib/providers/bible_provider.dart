@@ -4,7 +4,18 @@ import 'package:flutter/services.dart';
 import '../models/bible_model.dart';
 
 class BibleProvider extends ChangeNotifier {
+  bool _disposed = false;
   List<BibleBook> _allBooks = [];
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  void _safeNotify() {
+    if (!_disposed) notifyListeners();
+  }
   bool _isLoading = false;
   String _searchQuery = '';
   List<BibleSearchResult> _searchResults = [];
@@ -48,10 +59,11 @@ class BibleProvider extends ChangeNotifier {
   Future<void> loadBible() async {
     if (_allBooks.isNotEmpty) return;
     _isLoading = true;
-    notifyListeners();
+    _safeNotify();
 
     try {
       final jsonString = await rootBundle.loadString('assets/data/bible.json');
+      if (_disposed) return;
       final List<dynamic> data = json.decode(jsonString);
       
       _allBooks = [];
@@ -71,7 +83,7 @@ class BibleProvider extends ChangeNotifier {
       debugPrint('Error loading Bible: $e');
     } finally {
       _isLoading = false;
-      notifyListeners();
+      _safeNotify();
     }
   }
 

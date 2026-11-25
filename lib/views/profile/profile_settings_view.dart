@@ -14,9 +14,10 @@ import '../../providers/theme_provider.dart';
 import '../confession/admin_priest_review_view.dart';
 import '../confession/fathers_directory_view.dart';
 import '../confession/my_father_schedule_view.dart';
-import '../confession/priest_dashboard_view.dart';
 import '../conscience/conscience_exam_view.dart';
+import '../main_navigation_shell.dart';
 import '../onboarding/auth_view.dart';
+import '../priest/priest_navigation_shell.dart';
 import '../spiritual_tracker/spiritual_tracker_view.dart';
 import '../synaxarium/my_patron_saint_view.dart';
 import 'privacy_policy_view.dart';
@@ -897,9 +898,14 @@ class _ProfileSettingsViewState extends State<ProfileSettingsView> {
                       ),
                       Divider(color: p.border, height: 1),
                       ListTile(
-                        leading: Icon(Icons.church_rounded, color: p.gold),
+                        leading: Icon(
+                          _storage.isPriestRole() ? Icons.people_outline_rounded : Icons.church_rounded,
+                          color: p.gold,
+                        ),
                         title: Text(
-                          'لوحة أبونا · خدمتي النهارده (بوابة الآباء الكهنة)',
+                          _storage.isPriestRole()
+                              ? 'التبديل إلى واجهة الشعب (التطبيق العادي)'
+                              : 'الدخول إلى بوابة الأب الكاهن الكاملة',
                           style: GoogleFonts.cairo(
                             fontSize: 13.5,
                             fontWeight: FontWeight.w700,
@@ -908,21 +914,23 @@ class _ProfileSettingsViewState extends State<ProfileSettingsView> {
                         ),
                         subtitle: Text(
                           _storage.isPriestRole()
-                              ? 'حساب قدسك مفعّل كأب كاهن • فتح المواعيد والمكتبة'
-                              : 'توثيق صفة الكهنوت وفتح مواعيد الاعتراف والخدمة',
+                              ? 'الرجوع للرئيسية العادية والألحان والمرشد الآبائي'
+                              : 'واجهة خاصة للمذبح والخولاجي والاعترافات والافتقاد',
                           style: GoogleFonts.cairo(fontSize: 11.5, color: p.accent),
                         ),
-                        trailing: Icon(Icons.chevron_left_rounded, color: p.inkSubtle),
+                        trailing: Icon(Icons.swap_horiz_rounded, color: p.gold),
                         onTap: () async {
-                          await _storage.setUserRole('priest');
+                          final switchToPriest = !_storage.isPriestRole();
+                          await _storage.setUserRole(switchToPriest ? 'priest' : 'member');
                           if (!context.mounted) return;
-                          await Navigator.push(
-                            context,
+                          Navigator.of(context).pushAndRemoveUntil(
                             MaterialPageRoute(
-                              builder: (_) => const PriestDashboardView(),
+                              builder: (_) => switchToPriest
+                                  ? const PriestNavigationShell()
+                                  : const MainNavigationShell(),
                             ),
+                            (_) => false,
                           );
-                          if (mounted) setState(() {});
                         },
                       ),
                       if (_isAdminVerifier) ...[

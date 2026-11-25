@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:orthodox_app/core/services/ai_theology_service.dart';
 import 'package:orthodox_app/core/services/bible_reading_progress_service.dart';
+import 'package:orthodox_app/core/services/confession_service.dart';
 import 'package:orthodox_app/core/services/coptic_calendar_service.dart';
 import 'package:orthodox_app/core/services/coptic_fast_service.dart';
 import 'package:orthodox_app/core/services/coptic_youtube_registry.dart';
@@ -22,6 +23,7 @@ import 'package:orthodox_app/core/theme/app_palette.dart';
 import 'package:orthodox_app/core/theme/app_theme.dart';
 import 'package:orthodox_app/models/spiritual_tracker_model.dart';
 import 'package:orthodox_app/providers/ai_companion_provider.dart';
+import 'package:orthodox_app/providers/bible_provider.dart';
 import 'package:orthodox_app/providers/books_provider.dart';
 import 'package:orthodox_app/providers/church_mode_provider.dart';
 import 'package:orthodox_app/providers/liturgy_provider.dart';
@@ -42,6 +44,9 @@ import 'package:orthodox_app/views/liturgical/remember_them_view.dart';
 import 'package:orthodox_app/views/liturgical/tasbeha_pascha_view.dart';
 import 'package:orthodox_app/views/liturgies/liturgy_reader_view.dart';
 import 'package:orthodox_app/views/onboarding/auth_view.dart';
+import 'package:orthodox_app/views/priest/priest_altar_hub_view.dart';
+import 'package:orthodox_app/views/priest/priest_navigation_shell.dart';
+import 'package:orthodox_app/views/priest/priest_pastoral_care_view.dart';
 import 'package:orthodox_app/views/synaxarium/my_patron_saint_view.dart';
 import 'package:orthodox_app/views/synaxarium/synaxarium_daily_view.dart';
 import 'package:orthodox_app/views/treasures/church_history_view.dart';
@@ -633,8 +638,8 @@ void main() {
       expect(find.textContaining('AES-256'), findsNothing);
 
       // Step 2: Tap Guest to verify smooth personalization transition
-      await tester.ensureVisible(find.text('متابعة كزائر'));
-      await tester.tap(find.text('متابعة كزائر'));
+      await tester.ensureVisible(find.text('متابعة كزائر بدون تسجيل'));
+      await tester.tap(find.text('متابعة كزائر بدون تسجيل'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.text('اختر شفيعك الشخصي'), findsOneWidget);
@@ -802,17 +807,25 @@ void main() {
       expect(sirach['chaptersCount'], 51);
     });
 
-    testWidgets('Role-Based Priest Auth, Fathers Directory, Confession Schedule & Priest Dashboard render cleanly', (tester) async {
+    testWidgets('Animated Christ AuthView, Dual-Code Trust, Dedicated Priest Shell & Pastoral Care render cleanly', (tester) async {
       await tester.runAsync(() async {
         SharedPreferences.setMockInitialValues({});
         await StorageService().init();
         await PatronSaintService.ensureLoaded();
       });
 
-      // 1. AuthView Priest role toggle shows exact respectful welcome message (Page 01/04)
+      // 0. Dual-Code normalization handles spaces, lowercase, dashless & Arabic digits
+      expect(ConfessionService.normalizeCode('ab4829', defaultPrefix: 'AB'), 'AB-4829');
+      expect(ConfessionService.normalizeCode('٤٨٢٩', defaultPrefix: 'AB'), 'AB-4829');
+      expect(ConfessionService.normalizeCode('kn 7391', defaultPrefix: 'KN'), 'KN-7391');
+
+      // 1. Animated Christ AuthView role cards switch cleanly to Priest Mode
       await tester.pumpWidget(
         MultiProvider(
-          providers: [ChangeNotifierProvider(create: (_) => ThemeProvider())],
+          providers: [
+            ChangeNotifierProvider(create: (_) => ThemeProvider()),
+            ChangeNotifierProvider(create: (_) => ChurchModeProvider()),
+          ],
           child: const MaterialApp(
             home: Directionality(
               textDirection: TextDirection.rtl,
@@ -822,26 +835,32 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(find.text('دخول كفرد من الشعب'), findsOneWidget);
-      expect(find.text('دخول كأب كاهن'), findsOneWidget);
-      await tester.tap(find.text('دخول كأب كاهن'));
-      await tester.pump();
-      expect(find.text('أهلاً بيك يا قدس أبونا — التطبيق نوّر بوجود قدسك'), findsOneWidget);
+      expect(find.text('فرد من الشعب'), findsOneWidget);
+      expect(find.text('أب كاهن'), findsOneWidget);
+      await tester.tap(find.text('أب كاهن'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('سلام ونعمة يا قدس أبونا'), findsOneWidget);
 
-      // 2. Render all 4 Confession & Priest Portal screens cleanly (graceful offline/test mode)
-      final confessionScreens = <Widget>[
+      // 2. Render dedicated Priest Shell + Sanctuary Altar + Pastoral Care + Confession screens
+      final priestAndConfessionScreens = <Widget>[
+        const PriestNavigationShell(),
+        const PriestAltarHubView(),
+        const PriestPastoralCareView(),
         const FathersDirectoryView(),
         const MyFatherScheduleView(),
         const PriestDashboardView(),
         const AdminPriestReviewView(),
       ];
 
-      for (final screen in confessionScreens) {
+      for (final screen in priestAndConfessionScreens) {
         await tester.pumpWidget(
           MultiProvider(
             providers: [
               ChangeNotifierProvider(create: (_) => ThemeProvider()),
+              ChangeNotifierProvider(create: (_) => ChurchModeProvider()),
               ChangeNotifierProvider(create: (_) => LiturgyProvider()),
+              ChangeNotifierProvider(create: (_) => BibleProvider()),
+              ChangeNotifierProvider(create: (_) => BooksProvider()),
             ],
             child: MaterialApp(
               home: Directionality(
@@ -853,7 +872,7 @@ void main() {
         );
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 200));
-        expect(find.byType(Scaffold), findsOneWidget);
+        expect(find.byType(Scaffold), findsWidgets);
       }
     });
   });

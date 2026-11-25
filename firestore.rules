@@ -16,6 +16,10 @@ service cloud.firestore {
       return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
+    function isRegisteredPriest(uid) {
+      return exists(/databases/$(database)/documents/priests/$(uid));
+    }
+
     function isApprovedPriest(uid) {
       return exists(/databases/$(database)/documents/priests/$(uid))
         && get(/databases/$(database)/documents/priests/$(uid)).data.verificationStatus == 'approved';
@@ -25,7 +29,7 @@ service cloud.firestore {
       return val is string && val.size() >= minLen && val.size() <= maxLen;
     }
 
-    // 0. Authorized Church / Diocese Verifiers (Read-only from client; granted only via Firebase Console)
+    // 0. Authorized Church / Diocese Verifiers (granted only via Firebase Console)
     match /admins/{uid} {
       allow read: if isOwner(uid);
       allow write: if false;
@@ -52,7 +56,7 @@ service cloud.firestore {
       allow delete: if isOwner(uid);
     }
 
-    // 2. Community Prayer Wall (Hardened against spam, spoofing, counter tampering & arbitrary edits)
+    // 2. Community Prayer Wall
     match /prayer_requests/{docId} {
       allow read: if true;
 
@@ -80,14 +84,14 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.authorUid == request.auth.uid;
     }
 
-    // 3. Verified Coptic Priests Directory & Diocese Verification Queue
+    // 3. Verified Coptic Priests Directory & Dual-Code Trust Verification
     match /priests/{priestUid} {
-      // Only approved priests are visible publicly; pending/needs_info visible only to priest himself or admin
+      // Public directory ONLY lists approved priests; private/pending readable only by owner or admin
       allow read: if resource.data.verificationStatus == 'approved'
         || isOwner(priestUid)
         || isAdmin();
 
-      // Priest submits verification request — CANNOT self-approve!
+      // Priest creates profile (starts pending for Public Directory; private code works immediately!)
       allow create: if isOwner(priestUid)
         && request.resource.data.priestUid == priestUid
         && request.resource.data.verificationStatus == 'pending'
@@ -96,7 +100,7 @@ service cloud.firestore {
         && validString(request.resource.data.church, 2, 120);
 
       allow update: if (
-        // Priest updating own profile or resubmitting after 'needs_info' (cannot elevate to approved)
+        // Priest updating own profile or resubmitting after 'needs_info' (cannot self-approve without valid invite)
         isOwner(priestUid)
         && request.resource.data.priestUid == priestUid
         && validString(request.resource.data.displayName, 2, 80)
@@ -108,6 +112,15 @@ service cloud.firestore {
                  && request.resource.data.verificationStatus == 'pending')
            )
       ) || (
+        // Peer-Priest Vouching: atomic transaction redeeming an UNUSED invite code issued by an approved priest
+        isOwner(priestUid)
+        && request.resource.data.verificationStatus == 'approved'
+        && ('vouchInviteCode' in request.resource.data)
+        && validString(request.resource.data.vouchInviteCode, 5, 20)
+        && exists(/databases/$(database)/documents/priest_invites/$(request.resource.data.vouchInviteCode))
+        && get(/databases/$(database)/documents/priest_invites/$(request.resource.data.vouchInviteCode)).data.used == false
+        && get(/databases/$(database)/documents/priest_invites/$(request.resource.data.vouchInviteCode)).data.issuerUid != priestUid
+      ) || (
         // Authorized Church/Diocese Verifier approving or requesting completion
         isAdmin()
         && request.resource.data.verificationStatus in ['pending', 'approved', 'needs_info']
@@ -116,13 +129,47 @@ service cloud.firestore {
       allow delete: if isOwner(priestUid) || isAdmin();
     }
 
+    // 3b. Private Fixed Priest Lookup Codes (`AB-XXXX`) — direct lookup by exact code only (not listable!)
+    match /priest_codes/{code} {
+      allow get: if true;
+      allow list: if false; // Prevents scraping private/unverified priests!
+      allow create, update: if isSignedIn()
+        && request.resource.data.priestUid == request.auth.uid
+        && request.resource.data.code == code;
+      allow delete: if isSignedIn() && resource.data.priestUid == request.auth.uid;
+    }
+
+    // 3c. Single-Use Peer-Priest Vouch Invites (`KN-XXXX`)
+    match /priest_invites/{code} {
+      // Exact code lookup allowed for signed-in priests; issuer can list their own issued invites
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && resource.data.issuerUid == request.auth.uid;
+
+      // ONLY already-approved priests or admins can issue new single-use vouch codes
+      allow create: if isSignedIn()
+        && (isApprovedPriest(request.auth.uid) || isAdmin())
+        && request.resource.data.issuerUid == request.auth.uid
+        && request.resource.data.used == false
+        && request.resource.data.code == code;
+
+      // Single-use burn: redeemable ONCE by another signed-in priest
+      allow update: if isSignedIn()
+        && resource.data.used == false
+        && resource.data.issuerUid != request.auth.uid
+        && request.resource.data.used == true
+        && request.resource.data.usedByUid == request.auth.uid;
+
+      allow delete: if isSignedIn() && (resource.data.issuerUid == request.auth.uid || isAdmin());
+    }
+
     // 4. Published Confession Sessions (Open start time + optional cap + instant close toggle)
     match /confession_sessions/{sessionId} {
       allow read: if true;
 
+      // Any registered priest can publish sessions for his Private Code children &/or Public Directory
       allow create: if isSignedIn()
         && request.resource.data.priestUid == request.auth.uid
-        && isApprovedPriest(request.auth.uid)
+        && isRegisteredPriest(request.auth.uid)
         && validString(request.resource.data.dayLabelAr, 2, 60)
         && validString(request.resource.data.startTimeAr, 2, 40)
         && request.resource.data.isOpen is bool
@@ -130,11 +177,9 @@ service cloud.firestore {
         && request.resource.data.waitlistCount == 0;
 
       allow update: if (
-        // Priest managing own session (open/close registration, edit time/note/cap, sync counts)
         isSignedIn()
         && resource.data.priestUid == request.auth.uid
       ) || (
-        // Congregation member atomically incrementing/decrementing confirmedCount or waitlistCount by ±1
         isSignedIn()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['confirmedCount', 'waitlistCount', 'updatedAt'])
         && request.resource.data.confirmedCount is int
@@ -149,7 +194,7 @@ service cloud.firestore {
 
       allow delete: if isSignedIn() && resource.data.priestUid == request.auth.uid;
 
-      // 4b. Session Attendees (STRICT PRIVACY: readable ONLY by the Priest or the attendee himself; Doc ID = attendeeUid guarantees 0 duplicates!)
+      // 4b. Session Attendees (STRICT PRIVACY: readable ONLY by the Priest or the attendee himself)
       match /attendees/{attendeeUid} {
         allow read: if isOwner(attendeeUid)
           || (isSignedIn() && get(/databases/$(database)/documents/confession_sessions/$(sessionId)).data.priestUid == request.auth.uid);
@@ -160,24 +205,22 @@ service cloud.firestore {
           && request.resource.data.status in ['confirmed', 'waitlist', 'cancelled']
           && validString(request.resource.data.attendeeName, 1, 60);
 
-        allow delete: if isOwner(attendeeUid)
-          || (isSignedIn() && get(/databases/$(database)/documents/confession_sessions/$(sessionId)).data.priestUid == request.auth.uid);
+        allow delete: if isOwner(attendeeUid);
       }
     }
 
-    // 5. Privacy-First Priest Attendance Notifications (Generic lock-screen alert; full name visible ONLY inside Abona's signed-in account)
-    match /priest_notifications/{priestUid}/items/{notifId} {
+    // 5. Privacy-First Priest In-App Notification Inbox
+    match /priest_notifications/{priestUid}/items/{itemId} {
       allow read, update, delete: if isOwner(priestUid);
 
       allow create: if isSignedIn()
         && request.resource.data.attendeeUid == request.auth.uid
         && request.resource.data.type in ['registered', 'waitlist', 'cancelled']
-        && validString(request.resource.data.attendeeName, 1, 60)
-        && validString(request.resource.data.dayLabelAr, 2, 60)
-        && request.resource.data.read == false;
+        && request.resource.data.read == false
+        && validString(request.resource.data.attendeeName, 1, 60);
     }
 
-    // 6. Default Deny ALL other collections & documents (Zero-Trust)
+    // Deny everything else by default
     match /{document=**} {
       allow read, write: if false;
     }

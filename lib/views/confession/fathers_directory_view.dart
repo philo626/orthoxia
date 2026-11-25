@@ -35,15 +35,37 @@ class _FathersDirectoryViewState extends State<FathersDirectoryView> {
   final StorageService _storage = StorageService();
   final TextEditingController _searchCtrl = TextEditingController();
   final TextEditingController _churchFilterCtrl = TextEditingController();
+  final TextEditingController _codeCtrl = TextEditingController();
 
   String _selectedDiocese = 'كل الإيبارشيات';
   bool _showOptionalFilters = false;
+  bool _lookingUpCode = false;
 
   @override
   void dispose() {
     _searchCtrl.dispose();
     _churchFilterCtrl.dispose();
+    _codeCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _lookupByPrivateCode() async {
+    final raw = _codeCtrl.text.trim();
+    if (raw.isEmpty) return;
+    HapticFeedback.lightImpact();
+    FocusScope.of(context).unfocus();
+    setState(() => _lookingUpCode = true);
+    final (priest, msg) = await _service.findPriestByPrivateCode(raw);
+    if (!mounted) return;
+    setState(() => _lookingUpCode = false);
+    if (priest == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg, style: GoogleFonts.cairo())),
+      );
+      return;
+    }
+    _codeCtrl.clear();
+    _openPriestCard(priest);
   }
 
   void _sharePriestInvite() {
@@ -220,9 +242,92 @@ class _FathersDirectoryViewState extends State<FathersDirectoryView> {
           constraints: const BoxConstraints(maxWidth: 720),
           child: Column(
             children: [
+              // 0. Quick Link by Abona's Private Code (AB-XXXX — works immediately!)
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: p.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: p.goldBorder, width: 1.2),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.vpn_key_rounded, color: p.gold, size: 19),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'عندك كود أب اعترافك؟ (الربط السريع)',
+                            style: GoogleFonts.cairo(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: p.ink,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'اكتب الكود اللي بعتهولك أبونا في الكنيسة أو على جروب الاعتراف عشان تتابع مواعيده فوراً:',
+                      style: GoogleFonts.cairo(fontSize: 11, color: p.inkSecondary, height: 1.4),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _codeCtrl,
+                            textCapitalization: TextCapitalization.characters,
+                            onSubmitted: (_) => _lookupByPrivateCode(),
+                            style: GoogleFonts.cairo(
+                              color: p.ink,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: 'مثال: AB-4829',
+                              isDense: true,
+                              prefixIcon: Icon(Icons.qr_code_rounded, size: 19),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: _lookingUpCode ? null : _lookupByPrivateCode,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: p.gold,
+                            foregroundColor: const Color(0xFF19130A),
+                            minimumSize: const Size(0, 44),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: _lookingUpCode
+                              ? const SizedBox(
+                                  width: 17,
+                                  height: 17,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Color(0xFF19130A),
+                                  ),
+                                )
+                              : Text(
+                                  'ربط',
+                                  style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
               // 1. Top Priest Invite Strip (Exact Page 03/04 UX)
               Container(
-                margin: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+                margin: const EdgeInsets.fromLTRB(16, 2, 16, 10),
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: p.goldSoft,

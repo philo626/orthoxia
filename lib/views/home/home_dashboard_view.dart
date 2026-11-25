@@ -22,7 +22,6 @@ import '../community/prayer_wall_view.dart';
 import '../community/trivia_game_view.dart';
 import '../confession/fathers_directory_view.dart';
 import '../confession/my_father_schedule_view.dart';
-import '../confession/priest_dashboard_view.dart';
 import '../conscience/conscience_exam_view.dart';
 import '../coptic_academy/coptic_academy_view.dart';
 import '../icons/christ_icons_gallery_view.dart';
@@ -32,6 +31,7 @@ import '../liturgical/raising_of_incense_view.dart';
 import '../liturgical/remember_them_view.dart';
 import '../onboarding/auth_view.dart';
 import '../prayer_rope/coptic_prayer_rope_view.dart';
+import '../priest/priest_navigation_shell.dart';
 import '../profile/profile_settings_view.dart';
 import '../search/global_search_view.dart';
 import '../spiritual_tracker/spiritual_tracker_view.dart';
@@ -687,14 +687,19 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                         return PressScale(
                           scale: 0.985,
                           onTap: () async {
+                            if (isPriest) {
+                              Navigator.of(context).pushAndRemoveUntil(
+                                luxeRoute(const PriestNavigationShell()),
+                                (_) => false,
+                              );
+                              return;
+                            }
                             await Navigator.push(
                               context,
                               luxeRoute(
-                                isPriest
-                                    ? const PriestDashboardView()
-                                    : (hasFather
-                                        ? const MyFatherScheduleView()
-                                        : const FathersDirectoryView()),
+                                hasFather
+                                    ? const MyFatherScheduleView()
+                                    : const FathersDirectoryView(),
                               ),
                             );
                             if (mounted) setState(() {});

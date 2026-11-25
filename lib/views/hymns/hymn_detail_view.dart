@@ -29,6 +29,8 @@ class _HymnDetailViewState extends State<HymnDetailView>
   bool _showThreeColumnCards = true; // Clean 3-script Cantor Study View by default
   bool _useYouTubeMode = true;
   Duration _youtubePosition = Duration.zero;
+  final ScrollController _lyricsScrollCtrl = ScrollController();
+  int _lastScrolledIdx = -1;
 
   late final AnimationController _waveController = AnimationController(
     vsync: this,
@@ -39,17 +41,20 @@ class _HymnDetailViewState extends State<HymnDetailView>
   void initState() {
     super.initState();
     _activeHymn = widget.hymn;
-    // Prefer exact verified YouTube video when available; otherwise direct audio player
-    _useYouTubeMode = _activeHymn.exactYoutube;
+    // Prefer direct MP3 audio when available so Media Notification + Dynamic Island + synced lyrics work seamlessly!
+    _useYouTubeMode = _activeHymn.audioUrl.isEmpty && _activeHymn.exactYoutube;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final audioProv = context.read<AudioProvider>();
+      if (widget.playlist != null && widget.playlist!.isNotEmpty) {
+        audioProv.setPlaylist(widget.playlist!);
+      }
       audioProv.clearError();
       if (_useYouTubeMode) {
         audioProv.pause();
       } else {
         if (audioProv.currentHymn?.id != _activeHymn.id || !audioProv.isPlaying) {
-          audioProv.play(_activeHymn);
+          audioProv.play(_activeHymn, playlist: widget.playlist);
         }
       }
     });
@@ -57,8 +62,24 @@ class _HymnDetailViewState extends State<HymnDetailView>
 
   @override
   void dispose() {
+    _lyricsScrollCtrl.dispose();
     _waveController.dispose();
     super.dispose();
+  }
+
+  void _maybeAutoScrollToActiveVerse(int activeIdx, int totalVerses) {
+    if (activeIdx == _lastScrolledIdx || totalVerses <= 1) return;
+    _lastScrolledIdx = activeIdx;
+    if (!_lyricsScrollCtrl.hasClients) return;
+    final maxExtent = _lyricsScrollCtrl.position.maxScrollExtent;
+    if (maxExtent <= 0) return;
+    final target = ((activeIdx / (totalVerses - 1).clamp(1, 999)) * maxExtent)
+        .clamp(0.0, maxExtent);
+    _lyricsScrollCtrl.animateTo(
+      target,
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   String _formatClock(Duration d, {bool negative = false}) {
@@ -511,6 +532,89 @@ class _HymnDetailViewState extends State<HymnDetailView>
                     audioError: audioError,
                   ),
 
+                // 4a. LIVE «اللي بيتقال دلوقتي» (Now Chanting Spotlight Card)
+                if (verses.isNotEmpty) ...[
+                  Builder(
+                    builder: (_) {
+                      final safeIdx = activeIdx.clamp(0, verses.length - 1);
+                      final cur = verses[safeIdx];
+                      if (isAudioPlaying || _useYouTubeMode) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) _maybeAutoScrollToActiveVerse(safeIdx, verses.length);
+                        });
+                      }
+                      return Container(
+                        margin: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+                        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                        decoration: BoxDecoration(
+                          color: p.goldSoft,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: p.gold, width: 1.4),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  isAudioPlaying
+                                      ? Icons.graphic_eq_rounded
+                                      : Icons.subtitles_outlined,
+                                  size: 16,
+                                  color: p.accent,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'اللي بيتقال دلوقتي • فقرة ${safeIdx + 1} من ${verses.length}',
+                                  style: GoogleFonts.cairo(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: p.accent,
+                                  ),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  'اضغط أي فقرة تحت للانتقال',
+                                  style: GoogleFonts.cairo(fontSize: 10, color: p.inkMuted),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            if (cur.arabized.isNotEmpty)
+                              Text(
+                                cur.arabized,
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.cairo(
+                                  fontSize: 13 * fontScale,
+                                  fontWeight: FontWeight.bold,
+                                  color: p.crimson,
+                                  height: 1.4,
+                                ),
+                              ),
+                            if (cur.arabic.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                cur.arabic,
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.amiri(
+                                  fontSize: 17 * fontScale,
+                                  fontWeight: FontWeight.bold,
+                                  color: p.ink,
+                                  height: 1.45,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ],
+
                 // 4. Lyrics View Mode Toggle Bar
                 Padding(
                   padding: const EdgeInsets.fromLTRB(18, 4, 18, 4),
@@ -947,6 +1051,7 @@ class _HymnDetailViewState extends State<HymnDetailView>
     }
 
     return ListView.builder(
+      controller: _lyricsScrollCtrl,
       padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
       itemCount: verses.length,
       itemBuilder: (context, idx) {
@@ -1019,6 +1124,7 @@ class _HymnDetailViewState extends State<HymnDetailView>
     double fontScale,
   ) {
     return ListView.separated(
+      controller: _lyricsScrollCtrl,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       itemCount: _activeHymn.verses.length,
       separatorBuilder: (_, __) => const SizedBox(height: 10),

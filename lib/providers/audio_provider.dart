@@ -82,13 +82,24 @@ class AudioProvider with ChangeNotifier {
     Hymn hymn, {
     String? customAudioUrl,
     String? customCantor,
+    List<Hymn>? playlist,
   }) {
+    if (playlist != null && playlist.isNotEmpty) {
+      _service.setPlaylist(playlist);
+    }
     return _service.playHymn(
       hymn,
       customAudioUrl: customAudioUrl,
       customCantor: customCantor,
     );
   }
+
+  void setPlaylist(List<Hymn> playlist) {
+    _service.setPlaylist(playlist);
+  }
+
+  void skipNext() => _service.skipRelative(1);
+  void skipPrevious() => _service.skipRelative(-1);
 
   void clearError() {
     _service.clearError();

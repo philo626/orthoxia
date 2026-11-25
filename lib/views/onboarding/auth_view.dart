@@ -48,6 +48,7 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
   bool _obscure = true;
   bool _busy = false;
   bool _pendingGuest = false;
+  bool _confirmedOrdainedPriest = false;
   String? _pendingEmail;
   String? _errorMsg;
 
@@ -152,18 +153,26 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
       await _confession.ensureLocalPrivateCode();
 
       // If signed in and church selected, sync initial Priest Profile + Private Code immediately
-      if (!_pendingGuest && churchClean.length >= 2 && finalName.length >= 2) {
-        await _confession.submitOrUpdatePriestVerification(
-          titlePrefix: _priestTitlePrefix,
+      if (!_pendingGuest) {
+        await _firebase.syncPublicProfile(
           displayName: finalName,
-          diocese: _selectedDiocese,
-          church: churchClean,
+          patronSaintId: _selectedSaintId,
+          role: 'priest',
         );
+        if (churchClean.length >= 2 && finalName.length >= 2) {
+          await _confession.submitOrUpdatePriestVerification(
+            titlePrefix: _priestTitlePrefix,
+            displayName: finalName,
+            diocese: _selectedDiocese,
+            church: churchClean,
+          );
+        }
       }
     } else if (!_pendingGuest) {
       await _firebase.syncPublicProfile(
         displayName: finalName,
         patronSaintId: _selectedSaintId,
+        role: 'member',
       );
     }
 
@@ -186,20 +195,81 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
     );
   }
 
+  bool _ensurePriestGuardAccepted() {
+    if (_selectedRole == 'priest' && !_confirmedOrdainedPriest) {
+      setState(() {
+        _errorMsg =
+            'عشان متتلخبطش: من فضلك علّم علامة التأكيد إنك أب كاهن مرسوم، أو اختار «فرد من الشعب» لو حضرتك من الشعب.';
+      });
+      return false;
+    }
+    return true;
+  }
+
+  /// Prevents accidental role mix-up when signing into an existing account
+  /// whose saved role in Firebase differs from the selected tile on login.
+  Future<bool> _confirmRoleIfAccountMismatch() async {
+    final savedRole = await _firebase.fetchSavedAccountRole();
+    if (!mounted || savedRole == null || savedRole == _selectedRole) return true;
+
+    final p = context.palette;
+    final savedLabel = savedRole == 'priest' ? 'أب كاهن' : 'فرد من الشعب';
+    final pickedLabel = _selectedRole == 'priest' ? 'أب كاهن' : 'فرد من الشعب';
+
+    final decision = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: p.surface,
+        title: Text(
+          'تأكيد نوع الحساب',
+          style: GoogleFonts.amiri(fontWeight: FontWeight.bold, fontSize: 22, color: p.ink),
+        ),
+        content: Text(
+          'الحساب ده متسجل قبل كده على «$savedLabel»، وحضرتك اخترت «$pickedLabel» في شاشة الدخول.\nتحب تدخل بوضعه الأساسي عشان متتلخبطش؟',
+          style: GoogleFonts.cairo(fontSize: 13, color: p.inkSecondary, height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'keep_picked'),
+            child: Text(
+              'لا، أدخل كـ $pickedLabel',
+              style: GoogleFonts.cairo(color: p.inkMuted, fontSize: 12),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, 'use_saved'),
+            child: Text(
+              'أدخل كـ $savedLabel',
+              style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return false;
+    if (decision == 'use_saved') {
+      setState(() => _selectedRole = savedRole);
+    }
+    return true;
+  }
+
   Future<void> _submitEmailAuth() async {
     HapticFeedback.lightImpact();
     FocusScope.of(context).unfocus();
+    if (!_ensurePriestGuardAccepted()) return;
 
     final name = _nameCtrl.text.trim();
     final email = _emailCtrl.text.trim();
     final pass = _passCtrl.text;
 
     if (!_isLogin && name.isEmpty) {
-      setState(() => _errorMsg = 'من فضلك اكتب اسمك أولاً.');
+      setState(() => _errorMsg = 'من فضلك اكتب اسمك الأول.');
       return;
     }
     if (email.isEmpty || !email.contains('@')) {
-      setState(() => _errorMsg = 'من فضلك أدخل بريدك الإلكتروني بشكل صحيح.');
+      setState(() => _errorMsg = 'من فضلك اكتب الإيميل بتاعك صح.');
       return;
     }
     if (!_isLogin) {
@@ -209,7 +279,7 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
         return;
       }
     } else if (pass.length < 6) {
-      setState(() => _errorMsg = 'من فضلك أدخل كلمة المرور بشكل صحيح.');
+      setState(() => _errorMsg = 'من فضلك اكتب كلمة المرور صح.');
       return;
     }
 
@@ -234,6 +304,11 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
       return;
     }
 
+    if (_isLogin) {
+      await _confirmRoleIfAccountMismatch();
+      if (!mounted) return;
+    }
+
     _proceedToPersonalization(
       guest: false,
       resolvedName: res.displayName ?? name,
@@ -244,6 +319,7 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
   Future<void> _handleGoogleSignIn() async {
     HapticFeedback.lightImpact();
     FocusScope.of(context).unfocus();
+    if (!_ensurePriestGuardAccepted()) return;
     setState(() {
       _busy = true;
       _errorMsg = null;
@@ -253,6 +329,8 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
       final res = await _firebase.signInWithGoogle();
       if (!mounted) return;
       if (res.success) {
+        await _confirmRoleIfAccountMismatch();
+        if (!mounted) return;
         _proceedToPersonalization(
           guest: false,
           resolvedName: res.displayName ?? _nameCtrl.text.trim(),
@@ -269,7 +347,7 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
 
     setState(() {
       _busy = false;
-      _errorMsg = 'تعذر الاتصال بخدمة Google حالياً. يمكنك الدخول بالبريد الإلكتروني أو المتابعة كزائر.';
+      _errorMsg = 'مش قادرين نوصل لـ Google دلوقتي. تقدر تدخل بالإيميل أو تكمل كزائر.';
     });
   }
 
@@ -577,10 +655,13 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
                           active: _selectedRole == 'member',
                           icon: Icons.menu_book_rounded,
                           title: 'فرد من الشعب',
-                          subtitle: 'صلواتي • الكتاب • أب اعترافي',
+                          subtitle: 'صلواتك • الكتاب • مواعيد أبونا',
                           onTap: () {
                             HapticFeedback.selectionClick();
-                            setState(() => _selectedRole = 'member');
+                            setState(() {
+                              _selectedRole = 'member';
+                              _errorMsg = null;
+                            });
                           },
                         ),
                       ),
@@ -595,14 +676,17 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
                           isPriestCard: true,
                           onTap: () {
                             HapticFeedback.selectionClick();
-                            setState(() => _selectedRole = 'priest');
+                            setState(() {
+                              _selectedRole = 'priest';
+                              _errorMsg = null;
+                            });
                           },
                         ),
                       ),
                     ],
                   ),
 
-                  // Animated Dignified Welcome Strip for Priest Mode
+                  // Animated Dignified Welcome + Explicit Role Safeguard Checkbox for Priest Mode
                   AnimatedSize(
                     duration: const Duration(milliseconds: 260),
                     curve: Curves.easeOutCubic,
@@ -613,37 +697,85 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
                             decoration: BoxDecoration(
                               color: p.goldSoft,
                               borderRadius: BorderRadius.circular(15),
-                              border: Border.all(color: p.goldBorder),
+                              border: Border.all(color: p.goldBorder, width: 1.2),
                             ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 2),
-                                  child: CopticCross(size: 18, color: p.gold),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 2),
+                                      child: CopticCross(size: 18, color: p.gold),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'سلام ونعمة يا قدس أبونا',
+                                            style: GoogleFonts.amiri(
+                                              fontSize: 17.5,
+                                              fontWeight: FontWeight.bold,
+                                              color: p.ink,
+                                            ),
+                                          ),
+                                          Text(
+                                            'كل سنة وقدسك طيب! الواجهة دي معمولة مخصوص لخدمة قدسك: الخولاجي السري، مواعيد الاعتراف، أسماء المذبح، ودفتر الافتقاد.',
+                                            style: GoogleFonts.cairo(
+                                              fontSize: 11.5,
+                                              color: p.inkSecondary,
+                                              height: 1.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'سلام ونعمة يا قدس أبونا',
-                                        style: GoogleFonts.amiri(
-                                          fontSize: 17,
-                                          fontWeight: FontWeight.bold,
-                                          color: p.ink,
-                                        ),
+                                const SizedBox(height: 8),
+                                InkWell(
+                                  borderRadius: BorderRadius.circular(11),
+                                  onTap: () {
+                                    HapticFeedback.selectionClick();
+                                    setState(() {
+                                      _confirmedOrdainedPriest = !_confirmedOrdainedPriest;
+                                      if (_confirmedOrdainedPriest) _errorMsg = null;
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                    decoration: BoxDecoration(
+                                      color: p.surface,
+                                      borderRadius: BorderRadius.circular(11),
+                                      border: Border.all(
+                                        color: _confirmedOrdainedPriest ? p.sage : p.goldBorder,
                                       ),
-                                      Text(
-                                        'سيفتح التطبيق مباشرة بواجهة خاصة لخدمة قدسك: الخولاجي السري، جدول الاعترافات، أسماء المذبح، ودفتر الافتقاد.',
-                                        style: GoogleFonts.cairo(
-                                          fontSize: 11.5,
-                                          color: p.inkSecondary,
-                                          height: 1.5,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          _confirmedOrdainedPriest
+                                              ? Icons.check_box_rounded
+                                              : Icons.check_box_outline_blank_rounded,
+                                          size: 20,
+                                          color: _confirmedOrdainedPriest ? p.sage : p.gold,
                                         ),
-                                      ),
-                                    ],
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'أؤكد إني أب كاهن مرسوم في الكنيسة القبطية الأرثوذكسية',
+                                            style: GoogleFonts.cairo(
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.bold,
+                                              color: p.ink,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ],
@@ -863,9 +995,14 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
 
             const SizedBox(height: 14),
 
-            // Secondary Guest / Preview Entry (respects chosen role so user can explore Priest Portal too!)
+            // Secondary Guest / Preview Entry (guards priest mode too so no accidental mix-up!)
             OutlinedButton.icon(
-              onPressed: _busy ? null : () => _proceedToPersonalization(guest: true),
+              onPressed: _busy
+                  ? null
+                  : () {
+                      if (!_ensurePriestGuardAccepted()) return;
+                      _proceedToPersonalization(guest: true);
+                    },
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 46),
                 backgroundColor: p.surface,
@@ -875,8 +1012,8 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
               icon: Icon(Icons.arrow_back_rounded, size: 17, color: p.inkSecondary),
               label: Text(
                 _selectedRole == 'priest'
-                    ? 'معاينة بوابة الأب الكاهن كزائر'
-                    : 'متابعة كزائر بدون تسجيل',
+                    ? 'معاينة بوابة قدس أبونا كزائر'
+                    : 'كمّل كزائر من غير تسجيل',
                 style: GoogleFonts.cairo(fontSize: 13, fontWeight: FontWeight.w600, color: p.ink),
               ),
             ),
@@ -1142,7 +1279,7 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    isPriest ? 'تجهيز بوابة قدس أبونا' : 'أهلاً بك في أرثوذكسيا',
+                    isPriest ? 'تجهيز بوابة قدس أبونا' : 'نوّرت أرثوذكسيا',
                     style: GoogleFonts.amiri(
                       fontSize: 27,
                       fontWeight: FontWeight.bold,
@@ -1155,8 +1292,8 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
             const SizedBox(height: 4),
             Text(
               isPriest
-                  ? 'بيانات سريعة لتخصيص واجهة قدسك وتجهيز كود الاعتراف الخاص بأولادك فوراً.'
-                  : 'خطوة سريعة لنخصّص لك التحية اليومية وأقوال شفيعك الشخصي.',
+                  ? 'اختيارات بسيطة عشان نجهز واجهة قدسك ونطلّع كود أولاد اعترافك علطول.'
+                  : 'خطوة سريعة عشان نجهزلك التحية اليومية وأقوال شفيعك الشخصي.',
               style: GoogleFonts.cairo(fontSize: 12.5, color: p.inkSecondary, height: 1.55),
             ),
             const SizedBox(height: 18),

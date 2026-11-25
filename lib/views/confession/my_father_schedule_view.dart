@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../core/services/confession_service.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/theme/app_palette.dart';
@@ -156,6 +157,119 @@ class _MyFatherScheduleViewState extends State<MyFatherScheduleView> {
     );
   }
 
+  void _showGreetFatherSheet(String fatherName) {
+    final p = context.palette;
+    final myName = _storage.hasCustomUserName() ? _storage.getUserName().trim() : '';
+    final sig = myName.isNotEmpty ? '\nابنك / ابنتك: $myName' : '';
+    final templates = <({String title, String emoji, String body})>[
+      (
+        title: 'تهنئة بعيد أو مناسبة حلوة',
+        emoji: '✨',
+        body:
+            'سلام ونعمة يا قدس $fatherName، كل سنة وقدسك طيب وبخير دايماً! ربنا يديم كهنوتك ويبارك تعبك وخدمتك ويفرح قلبك دايماً. اذكرنا في صلوات قدسك.$sig',
+      ),
+      (
+        title: 'تهنئة بعيد سيامة قدسك',
+        emoji: '🕊️',
+        body:
+            'ألف مبروك عيد سيامة قدسك يا قدس $fatherName! عقبال سنين كتير مليانة نعمة وثمر في خدمة المذبح والكنيسة. بركة صلوات قدسك تكون معانا.$sig',
+      ),
+      (
+        title: 'سلام واطمئنان وطلب صلاة',
+        emoji: '🙏',
+        body:
+            'سلام ونعمة يا قدس $fatherName، حبيت أسلم على قدسك وأطمن على صحتك وأطلب صلواتك من أجلنا ومن أجل البيت كله.$sig',
+      ),
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+        decoration: BoxDecoration(
+          color: p.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border(top: BorderSide(color: p.border)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(color: p.border, borderRadius: BorderRadius.circular(4)),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'ابعت تهنئة أو سلام لـ $fatherName',
+              style: GoogleFonts.amiri(fontSize: 21, fontWeight: FontWeight.bold, color: p.ink),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'اختار رسالة جاهزة بالعامية المحترمة وابعتها لقدس أبونا على واتساب أو أي تطبيق:',
+              style: GoogleFonts.cairo(fontSize: 12, color: p.inkMuted),
+            ),
+            const SizedBox(height: 12),
+            ...templates.map(
+              (tpl) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () async {
+                    HapticFeedback.lightImpact();
+                    Navigator.pop(ctx);
+                    await SharePlus.instance.share(ShareParams(text: tpl.body));
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: p.surfaceSubtle,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: p.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(tpl.emoji, style: const TextStyle(fontSize: 15)),
+                            const SizedBox(width: 6),
+                            Text(
+                              tpl.title,
+                              style: GoogleFonts.cairo(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: p.ink,
+                              ),
+                            ),
+                            const Spacer(),
+                            Icon(Icons.share_rounded, size: 16, color: p.gold),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          tpl.body,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkSecondary, height: 1.45),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
@@ -197,7 +311,7 @@ class _MyFatherScheduleViewState extends State<MyFatherScheduleView> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 36),
             children: [
-              // 1. Selected Father Identity Card
+              // 1. Selected Father Identity Card + 1-Tap Greeting/Congratulation Button
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -205,46 +319,67 @@ class _MyFatherScheduleViewState extends State<MyFatherScheduleView> {
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: p.goldBorder),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: p.surface,
-                        border: Border.all(color: p.goldBorder),
-                      ),
-                      child: Center(child: CopticCross(size: 22, color: p.accent)),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            fatherName,
-                            style: GoogleFonts.amiri(
-                              fontSize: 21,
-                              fontWeight: FontWeight.bold,
-                              color: p.ink,
-                            ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: p.surface,
+                            border: Border.all(color: p.goldBorder),
                           ),
-                          if (fatherChurch.isNotEmpty)
-                            Text(
-                              fatherChurch,
-                              style: GoogleFonts.cairo(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.bold,
-                                color: p.accent,
+                          child: Center(child: CopticCross(size: 22, color: p.accent)),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                fatherName,
+                                style: GoogleFonts.amiri(
+                                  fontSize: 21,
+                                  fontWeight: FontWeight.bold,
+                                  color: p.ink,
+                                ),
                               ),
-                            ),
-                          if (fatherDiocese.isNotEmpty)
-                            Text(
-                              'إيبارشية: $fatherDiocese',
-                              style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkSecondary),
-                            ),
-                        ],
+                              if (fatherChurch.isNotEmpty)
+                                Text(
+                                  fatherChurch,
+                                  style: GoogleFonts.cairo(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: p.accent,
+                                  ),
+                                ),
+                              if (fatherDiocese.isNotEmpty)
+                                Text(
+                                  'إيبارشية: $fatherDiocese',
+                                  style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkSecondary),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: () => _showGreetFatherSheet(fatherName),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: p.surface,
+                        foregroundColor: p.accent,
+                        side: BorderSide(color: p.goldBorder),
+                        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      icon: const Icon(Icons.favorite_outline_rounded, size: 17),
+                      label: Text(
+                        'ابعت تهنئة أو سلام لقدس أبونا',
+                        style: GoogleFonts.cairo(fontSize: 12.5, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
@@ -267,7 +402,7 @@ class _MyFatherScheduleViewState extends State<MyFatherScheduleView> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'الساعة المكتوبة هي بداية استقبال قدس أبونا في الكنيسة؛ كل شخص يدخل في دوره ويأخذ الوقت الذي يحتاجه.',
+                        'الساعة المكتوبة دي بداية استقبال قدس أبونا في الكنيسة؛ كل واحد بيدخل في دوره وياخد وقته براحته.',
                         style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkSecondary, height: 1.5),
                       ),
                     ),

@@ -921,6 +921,55 @@ class _ProfileSettingsViewState extends State<ProfileSettingsView> {
                         trailing: Icon(Icons.swap_horiz_rounded, color: p.gold),
                         onTap: () async {
                           final switchToPriest = !_storage.isPriestRole();
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              backgroundColor: p.surfaceElevated,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                side: BorderSide(color: p.goldBorder),
+                              ),
+                              title: Text(
+                                switchToPriest
+                                    ? 'التحويل لبوابة الأب الكاهن؟'
+                                    : 'الرجوع لواجهة الشعب العادية؟',
+                                style: GoogleFonts.amiri(
+                                  fontSize: 21,
+                                  fontWeight: FontWeight.bold,
+                                  color: p.ink,
+                                ),
+                              ),
+                              content: Text(
+                                switchToPriest
+                                    ? 'الواجهة دي مخصصة للآباء الكهنة فقط (الخولاجي السري، مواعيد الاعتراف، أسماء المذبح، ودفتر الافتقاد). متأكد إنك عايز تدخل عليها؟'
+                                    : 'هترجع لواجهة الشعب العادية (الصلوات، الألحان، المرشد الآبائي، ومواعيد أب اعترافك). تقدر تبدّل تاني في أي وقت.',
+                                style: GoogleFonts.cairo(
+                                  fontSize: 13,
+                                  color: p.inkSecondary,
+                                  height: 1.55,
+                                ),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: Text('إلغاء', style: GoogleFonts.cairo(color: p.inkMuted)),
+                                ),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: switchToPriest ? p.gold : p.accent,
+                                    foregroundColor:
+                                        switchToPriest ? const Color(0xFF19130A) : p.onAccent,
+                                  ),
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: Text(
+                                    switchToPriest ? 'أيوة، دخول بوابة أبونا' : 'أيوة، رجوع لواجهة الشعب',
+                                    style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirmed != true) return;
                           await _storage.setUserRole(switchToPriest ? 'priest' : 'member');
                           if (!context.mounted) return;
                           Navigator.of(context).pushAndRemoveUntil(

@@ -18,6 +18,7 @@ import 'package:orthodox_app/core/services/online_coptic_library_service.dart';
 import 'package:orthodox_app/core/services/patron_saint_service.dart';
 import 'package:orthodox_app/core/services/reading_state_service.dart';
 import 'package:orthodox_app/core/services/security_guard_service.dart';
+import 'package:orthodox_app/core/services/speech_pronunciation_service.dart';
 import 'package:orthodox_app/core/services/storage_service.dart';
 import 'package:orthodox_app/core/theme/app_palette.dart';
 import 'package:orthodox_app/core/theme/app_theme.dart';
@@ -178,9 +179,9 @@ void main() {
       }
     });
 
-    test('All 317 hymns have 100% unique 1-to-1 audio URLs and verified YouTube IDs (zero duplicates or mismatches)', () {
+    test('All 338+ hymns have 100% unique 1-to-1 audio URLs and verified YouTube IDs (zero duplicates or mismatches)', () {
       final hymns = jsonDecode(File('assets/data/hymns.json').readAsStringSync()) as List;
-      expect(hymns.length, greaterThanOrEqualTo(315));
+      expect(hymns.length, greaterThanOrEqualTo(338));
       final deadIds = {'3_p4J6p-gV4', 'n0YqZ7Ld3K0', 'o3N_uTz9h44', 'sW8p1q6tV5U'};
       final audioUrls = <String>{};
       final youtubeIds = <String>{};
@@ -638,8 +639,8 @@ void main() {
       expect(find.textContaining('AES-256'), findsNothing);
 
       // Step 2: Tap Guest to verify smooth personalization transition
-      await tester.ensureVisible(find.text('متابعة كزائر بدون تسجيل'));
-      await tester.tap(find.text('متابعة كزائر بدون تسجيل'));
+      await tester.ensureVisible(find.text('كمّل كزائر من غير تسجيل'));
+      await tester.tap(find.text('كمّل كزائر من غير تسجيل'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.text('اختر شفيعك الشخصي'), findsOneWidget);
@@ -814,10 +815,20 @@ void main() {
         await PatronSaintService.ensureLoaded();
       });
 
-      // 0. Dual-Code normalization handles spaces, lowercase, dashless & Arabic digits
+      // 0. Dual-Code normalization + Bohairic Coptic phonetic transliteration + MediaService registration
       expect(ConfessionService.normalizeCode('ab4829', defaultPrefix: 'AB'), 'AB-4829');
       expect(ConfessionService.normalizeCode('٤٨٢٩', defaultPrefix: 'AB'), 'AB-4829');
       expect(ConfessionService.normalizeCode('kn 7391', defaultPrefix: 'KN'), 'KN-7391');
+
+      final spokenCoptic = CopticPhoneticEngine.prepareForSpeech('Ⲡⲓⲭ̀ⲣⲓⲥⲧⲟⲥ Ⲑⲉⲟ̀ⲧⲟⲕⲟⲥ Ⲁ̀ⲙⲏⲛ');
+      expect(spokenCoptic.contains('إِخْرِيسْتُوس'), isTrue);
+      expect(spokenCoptic.contains('ثِيئُوطُوكُوس'), isTrue);
+      expect(spokenCoptic.contains('آمِين'), isTrue);
+      expect(RegExp(r'[\u2C80-\u2CFF\u03E2-\u03EF]').hasMatch(spokenCoptic), isFalse);
+
+      final manifestXml = File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
+      expect(manifestXml.contains('HymnMediaService'), isTrue);
+      expect(manifestXml.contains('FOREGROUND_SERVICE_MEDIA_PLAYBACK'), isTrue);
 
       // 1. Animated Christ AuthView role cards switch cleanly to Priest Mode
       await tester.pumpWidget(

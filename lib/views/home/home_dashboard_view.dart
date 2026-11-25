@@ -112,7 +112,7 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
     if (h >= 5 && h < 9) {
       return (
         hourTitle: 'صلاة باكر',
-        subtitle: 'بداية يومك بشكر الله ومزامير الصباح',
+        subtitle: 'ابدأ يومك بشكر ربنا ومزامير الصبح الحلوة',
         imageAsset: 'assets/images/christ_good_shepherd.jpg',
       );
     } else if (h >= 9 && h < 12) {
@@ -124,31 +124,31 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
     } else if (h >= 12 && h < 15) {
       return (
         hourTitle: 'صلاة الساعة السادسة',
-        subtitle: 'تذكار صلب رب المجد في منتصف النهار',
+        subtitle: 'تذكار صلب رب المجد في نص النهار',
         imageAsset: 'assets/images/christ_pantocrator.jpg',
       );
     } else if (h >= 15 && h < 17) {
       return (
         hourTitle: 'صلاة الساعة التاسعة',
-        subtitle: 'وقفة صلاة وتأمل عند المساء',
+        subtitle: 'وقفة صلاة هادية وتأمل آخر النهار',
         imageAsset: 'assets/images/christ_good_shepherd.jpg',
       );
     } else if (h >= 17 && h < 20) {
       return (
         hourTitle: 'صلاة الغروب',
-        subtitle: 'بداية اليوم القبطي الجديد بعشية هادئة',
+        subtitle: 'بداية اليوم القبطي الجديد بعشية كلها سلام',
         imageAsset: 'assets/images/christ_resurrection.jpg',
       );
     } else if (h >= 20 && h < 23) {
       return (
         hourTitle: 'صلاة النوم',
-        subtitle: 'سلام المساء وتسليم اليوم بين يدي الرب',
+        subtitle: 'اختم يومك بسلام وسلم كل حاجة في إيد ربنا',
         imageAsset: 'assets/images/christ_resurrection.jpg',
       );
     }
     return (
       hourTitle: 'صلاة نصف الليل',
-      subtitle: 'سهر هادئ وتسبيح مع الكنيسة',
+      subtitle: 'سهرة هادية وتسبيح حلو مع الكنيسة',
       imageAsset: 'assets/images/christ_resurrection.jpg',
     );
   }
@@ -159,10 +159,10 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
     final firstName = hasName ? storage.getUserName().split(' ').first : '';
     final h = DateTime.now().hour;
     final prefix = (h >= 5 && h < 12)
-        ? 'صباح النور'
+        ? 'صباح النور والنعمة'
         : (h >= 12 && h < 17)
             ? 'سلام ونعمة'
-            : 'مساء الخير';
+            : 'مساء الخير والبركة';
     return firstName.isNotEmpty ? '$prefix يا $firstName' : prefix;
   }
 

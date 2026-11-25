@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
-import 'dart:typed_data';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import '../../models/hymn_model.dart';
 import 'security_guard_service.dart';
@@ -10,11 +10,17 @@ class AudioPlayerService {
   static final AudioPlayerService _instance = AudioPlayerService._internal();
   factory AudioPlayerService() => _instance;
 
+  static const MethodChannel _mediaChannel =
+      MethodChannel('com.orthodox.app/media_controls');
+
   final AudioPlayer _player = AudioPlayer();
   final LinkedHashMap<String, Uint8List> _audioCache =
       LinkedHashMap<String, Uint8List>();
   static const int _maxCachedTracks = 3;
   static const int _maxAudioBytes = 25 * 1024 * 1024; // 25 MB safety cap
+
+  List<Hymn> _playlist = [];
+  DateTime _lastNotifSync = DateTime.fromMillisecondsSinceEpoch(0);
 
   Hymn? _currentHymn;
   String _activeAudioUrl = '';
@@ -53,6 +59,25 @@ class AudioPlayerService {
   bool get isLooping => _isLooping;
 
   AudioPlayerService._internal() {
+    _mediaChannel.setMethodCallHandler((call) async {
+      if (call.method != 'onMediaAction') return;
+      final cmd = '${call.arguments ?? ''}';
+      if (cmd == 'play') {
+        await resume();
+      } else if (cmd == 'pause') {
+        await pause();
+      } else if (cmd == 'stop') {
+        await stop();
+      } else if (cmd == 'next') {
+        await skipRelative(1);
+      } else if (cmd == 'previous') {
+        await skipRelative(-1);
+      } else if (cmd.startsWith('seek:')) {
+        final ms = int.tryParse(cmd.substring(5)) ?? 0;
+        await seek(Duration(milliseconds: ms));
+      }
+    });
+
     _player.setPlayerMode(PlayerMode.mediaPlayer);
     _player.setAudioContext(
       AudioContext(
@@ -76,18 +101,21 @@ class AudioPlayerService {
         _loadingStreamController.add(false);
       }
       _playingStreamController.add(_isPlaying);
+      _syncNativeMediaNotification(force: true);
     });
 
     _player.onDurationChanged.listen((newDuration) {
       if (newDuration > Duration.zero) {
         _duration = newDuration;
         _durationStreamController.add(_duration);
+        _syncNativeMediaNotification(force: true);
       }
     });
 
     _player.onPositionChanged.listen((newPosition) {
       _position = newPosition;
       _positionStreamController.add(_position);
+      _syncNativeMediaNotification();
     });
 
     _player.onPlayerComplete.listen((_) {
@@ -99,8 +127,45 @@ class AudioPlayerService {
         _position = Duration.zero;
         _playingStreamController.add(false);
         _positionStreamController.add(Duration.zero);
+        _syncNativeMediaNotification(force: true);
       }
     });
+  }
+
+  void setPlaylist(List<Hymn> playlist) {
+    _playlist = List<Hymn>.from(playlist);
+  }
+
+  Future<void> skipRelative(int delta) async {
+    if (_playlist.isEmpty || _currentHymn == null) return;
+    final idx = _playlist.indexWhere((h) => h.id == _currentHymn!.id);
+    if (idx == -1) return;
+    final nextIdx = (idx + delta) % _playlist.length;
+    final resolved = nextIdx < 0 ? _playlist.length - 1 : nextIdx;
+    await playHymn(_playlist[resolved]);
+  }
+
+  void _syncNativeMediaNotification({bool force = false}) {
+    final hymn = _currentHymn;
+    if (hymn == null) return;
+    final now = DateTime.now();
+    if (!force && now.difference(_lastNotifSync).inMilliseconds < 4000) return;
+    _lastNotifSync = now;
+    try {
+      _mediaChannel.invokeMethod('updateMediaNotification', {
+        'title': hymn.title,
+        'cantor': _activeCantor.isNotEmpty ? _activeCantor : hymn.cantor,
+        'isPlaying': _isPlaying,
+        'durationMs': _duration.inMilliseconds,
+        'positionMs': _position.inMilliseconds,
+      });
+    } catch (_) {}
+  }
+
+  void _clearNativeMediaNotification() {
+    try {
+      _mediaChannel.invokeMethod('clearMediaNotification');
+    } catch (_) {}
   }
 
   String _normalizeUrl(String url) {
@@ -237,6 +302,7 @@ class AudioPlayerService {
         _playingStreamController.add(true);
         _errorStreamController.add(null);
         _hymnStreamController.add(_currentHymn);
+        _syncNativeMediaNotification(force: true);
         return true;
       }
     }
@@ -256,6 +322,7 @@ class AudioPlayerService {
   Future<void> pause() async {
     _isPlaying = false;
     _playingStreamController.add(false);
+    _syncNativeMediaNotification(force: true);
     try {
       await _player.pause();
     } catch (_) {}
@@ -268,6 +335,7 @@ class AudioPlayerService {
     }
     _isPlaying = true;
     _playingStreamController.add(true);
+    _syncNativeMediaNotification(force: true);
     try {
       await _player.resume();
     } catch (_) {}
@@ -290,6 +358,7 @@ class AudioPlayerService {
     _currentHymn = null;
     _activeAudioUrl = '';
     _hymnStreamController.add(null);
+    _clearNativeMediaNotification();
   }
 
   Future<void> seek(Duration target) async {

@@ -1,24 +1,28 @@
 package com.orthodox.app.orthodox_app
 
-import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.Executors
 
 class MainActivity : FlutterFragmentActivity() {
     private val securityChannel = "com.orthodox.app/security"
     private val pdfChannel = "com.orthodox.app/pdf_renderer"
+    private val ttsChannel = "com.orthodox.app/tts"
+    private val mediaChannelName = "com.orthodox.app/media_controls"
 
     private data class OpenPdfDoc(
         val pfd: ParcelFileDescriptor,
@@ -29,9 +33,16 @@ class MainActivity : FlutterFragmentActivity() {
     private val pdfExecutor = Executors.newSingleThreadExecutor()
     private val openDocs = mutableMapOf<String, OpenPdfDoc>()
 
+    // Native offline Android TextToSpeech (Arabic Egypt / Arabic fallback)
+    private var nativeTts: TextToSpeech? = null
+    private var ttsReady: Boolean = false
+    private var ttsMethodChannel: MethodChannel? = null
+    private var mediaMethodChannel: MethodChannel? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
+        // 1. Security & Integrity Channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, securityChannel)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -49,7 +60,7 @@ class MainActivity : FlutterFragmentActivity() {
                     "checkDeviceIntegrity" -> {
                         val info = mapOf(
                             "isRooted" to isDeviceRooted(),
-                            "isDebuggable" to ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0),
+                            "isDebuggable" to ((applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0),
                             "isEmulator" to isRunningOnEmulator()
                         )
                         result.success(info)
@@ -58,6 +69,7 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
 
+        // 2. Native PDF Renderer Channel (Visual Page-by-Page Orthodox Books)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, pdfChannel)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -145,9 +157,125 @@ class MainActivity : FlutterFragmentActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        // 3. Native Offline Arabic/Coptic-Phonetic TTS + Cache Directory Channel
+        val ttsCh = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ttsChannel)
+        ttsMethodChannel = ttsCh
+        initNativeTts()
+
+        ttsCh.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getTtsCacheDir" -> {
+                    val dir = File(cacheDir, "coptic_tts_cache")
+                    if (!dir.exists()) dir.mkdirs()
+                    result.success(dir.absolutePath)
+                }
+                "speakOffline" -> {
+                    val text = call.argument<String>("text") ?: ""
+                    val rate = (call.argument<Double>("rate") ?: 0.90).toFloat()
+                    if (text.isBlank()) {
+                        result.success(false)
+                        return@setMethodCallHandler
+                    }
+                    if (!ttsReady) {
+                        initNativeTts()
+                        result.success(false)
+                        return@setMethodCallHandler
+                    }
+                    try {
+                        nativeTts?.setSpeechRate(rate.coerceIn(0.6f, 1.3f))
+                        nativeTts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "coptic_utt_${System.currentTimeMillis()}")
+                        result.success(true)
+                    } catch (_: Exception) {
+                        result.success(false)
+                    }
+                }
+                "stopOffline" -> {
+                    try { nativeTts?.stop() } catch (_: Exception) {}
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // 4. Native MediaSession & Dynamic Island / Notification Shade Controls Bridge
+        val mediaCh = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, mediaChannelName)
+        mediaMethodChannel = mediaCh
+        HymnMediaService.actionListener = { cmd ->
+            runOnUiThread {
+                try {
+                    mediaMethodChannel?.invokeMethod("onMediaAction", cmd)
+                } catch (_: Exception) {}
+            }
+        }
+
+        mediaCh.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "updateMediaNotification" -> {
+                    val title = call.argument<String>("title") ?: "ألحان أرثوذكسيا"
+                    val cantor = call.argument<String>("cantor") ?: "أرثوذكسيا"
+                    val isPlaying = call.argument<Boolean>("isPlaying") ?: false
+                    val durationMs = (call.argument<Number>("durationMs") ?: 0L).toLong()
+                    val positionMs = (call.argument<Number>("positionMs") ?: 0L).toLong()
+                    HymnMediaService.startOrUpdate(
+                        this,
+                        title = title,
+                        cantor = cantor,
+                        isPlaying = isPlaying,
+                        durationMs = durationMs,
+                        positionMs = positionMs
+                    )
+                    result.success(true)
+                }
+                "clearMediaNotification" -> {
+                    HymnMediaService.stopService(this)
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun initNativeTts() {
+        if (nativeTts != null) return
+        try {
+            nativeTts = TextToSpeech(this) { status ->
+                if (status == TextToSpeech.SUCCESS) {
+                    val eg = Locale("ar", "EG")
+                    val res = nativeTts?.setLanguage(eg)
+                    if (res == TextToSpeech.LANG_MISSING_DATA || res == TextToSpeech.LANG_NOT_SUPPORTED) {
+                        nativeTts?.setLanguage(Locale("ar"))
+                    }
+                    nativeTts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                        override fun onStart(utteranceId: String?) {}
+                        override fun onDone(utteranceId: String?) {
+                            runOnUiThread {
+                                try {
+                                    ttsMethodChannel?.invokeMethod("onOfflineDone", null)
+                                } catch (_: Exception) {}
+                            }
+                        }
+                        @Deprecated("Deprecated in Java")
+                        override fun onError(utteranceId: String?) {
+                            runOnUiThread {
+                                try {
+                                    ttsMethodChannel?.invokeMethod("onOfflineDone", null)
+                                } catch (_: Exception) {}
+                            }
+                        }
+                    })
+                    ttsReady = true
+                }
+            }
+        } catch (_: Exception) {}
     }
 
     override fun onDestroy() {
+        HymnMediaService.actionListener = null
+        try {
+            nativeTts?.stop()
+            nativeTts?.shutdown()
+        } catch (_: Exception) {}
         pdfExecutor.execute {
             for (doc in openDocs.values) {
                 try { doc.renderer.close() } catch (_: Exception) {}

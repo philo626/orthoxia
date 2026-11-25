@@ -83,6 +83,17 @@ class _PriestHomeDashboardViewState extends State<PriestHomeDashboardView> {
     if (mounted) setState(() {});
   }
 
+  String _priestWarmBlessing(CopticDate copticToday) {
+    final now = DateTime.now();
+    if (now.weekday == DateTime.sunday || copticToday.seasonName.contains('عيد')) {
+      return 'كل سنة وقدسك طيب يا أبونا! ربنا يديم كهنوتك ويبارك خدمتك ويديك صحة وقوة دايماً.';
+    }
+    if (now.hour < 12) {
+      return 'صباح الخير والبركة يا قدس أبونا — ربنا يقويك على خدمة المذبح والشعب النهارده.';
+    }
+    return 'مساء الفل والسلام يا قدس أبونا — ربنا يبارك تعب محبتك ويفرح قلبك بأولادك.';
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
@@ -196,6 +207,26 @@ class _PriestHomeDashboardViewState extends State<PriestHomeDashboardView> {
                             icon: const Icon(Icons.tune_rounded, color: Color(0xFFF3D591)),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE5C175).withValues(alpha: 0.13),
+                          borderRadius: BorderRadius.circular(13),
+                          border: Border.all(
+                            color: const Color(0xFFE5C175).withValues(alpha: 0.28),
+                          ),
+                        ),
+                        child: Text(
+                          _priestWarmBlessing(copticToday),
+                          style: GoogleFonts.cairo(
+                            fontSize: 12,
+                            color: const Color(0xFFF6E6C4),
+                            fontWeight: FontWeight.w600,
+                            height: 1.5,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Wrap(

@@ -300,6 +300,78 @@ class AiTheologyService {
         'ثيؤطوكية يوم الأحد — الإبصلمودية المقدسة'
       ]
     },
+    'الاعتراف': {
+      'response':
+          'سر التوبة والاعتراف هو سر الشفاء والرجوع لحضن ربنا، بتقعد فيه مع أب اعترافك بصراحة وهدوء وتاخد الحل بسلطان الكهنوت (يو ٢٠: ٢٣).\n\nخطوات عملية قبل الاعتراف:\n١. اقعد مع نفسك ٥ دقايق وافتح «مذكرة الاعتراف» في التطبيق واكتب النقط اللي تاعباك (الخطايا مش تفاصيل حكايات الناس).\n٢. ابدأ بصلاة قصيرة: «يا رب افتح عيني أشوف ضعفي واديني قلب تائب».\n٣. بعد الاعتراف نفّذ إرشاد أبونا وتناول من الجسد والدم الأقدسين.',
+      'citations': [
+        'إنجيل يوحنا ٢٠: ٢٣ • ١ يوحنا ١: ٩',
+        'قداسة البابا شنودة الثالث — حياة التوبة والنقاوة'
+      ]
+    },
+    'التناول': {
+      'response':
+          'سر الإفخارستيا (التناول) هو أعظم أسرار الكنيسة، فيه بنتحد بالمسيح فعلياً ونتناول جسده الحقيقي ودمه الحقيقي (يو ٦: ٥٤).\n\nإزاي تستعد للتناول صح؟\n١. الاستعداد الروحي: التوبة والاعتراف المنتظم والمصالحة مع أي حد زعلان منه.\n٢. الصوم الانقطاعي: ٩ ساعات على الأقل قبل التناول (عن الأكل والشرب) حسب إرشاد أب الاعتراف.\n٣. حضور القداس من بدري (قبل قراءة الإنجيل، والأفضل من تقديم الحمل) بخشوع وتركيز.',
+      'citations': [
+        'إنجيل يوحنا ٦: ٥٤-٥٦ • ١ كورنثوس ١١: ٢٨',
+        'الخولاجي المقدس — صلاة الاستعداد للتناول'
+      ]
+    },
+    'الصلاة': {
+      'response':
+          'الصلاة مش واجب تقيل ولا كلام محفوظ وخلاص — الصلاة هي «حديث حب مع ربنا» زي كلام الابن مع أبوه.\n\nإزاي تبدأ صلاة منتظمة في البيت ببساطة؟\n١. ابدأ ولو بـ ٥ دقايق الصبح (صلاة باكر من الأجبية) و٥ دقايق بالليل (صلاة النوم).\n٢. اتكلم مع ربنا بطبيعتك وبالعامية عن يومك وتعبه وأفراحه.\n٣. كرّر طول اليوم صلاة يسوع القصيرة: «يا ربي يسوع المسيح ابن الله الحي ارحمني أنا الخاطئ».',
+      'citations': [
+        'الأب متى المسكين — حياة الصلاة الأرثوذكسية',
+        'القديس البابا كيرلس السادس — مقالات في الصلاة'
+      ]
+    },
+    'القلق': {
+      'response':
+          'القلق والخوف من أكتر الحاجات اللي بتسرق سلامنا، وربنا نفسه طمّننا وقال: «لا تهتموا للغد، لأن الغد يهتم بما لنفسه» (مت ٦: ٣٤) وقال كمان «ألقِ على الرب همّك فهو يعولك» (مز ٥٥: ٢٢).\n\n٣ خطوات عملية لما القلق يضغط عليك:\n١. صلِّ مزمور ٩١ («الساكن في ستر العلي») ومزمور ٢٣ («الرب راعيّ فلا يعوزني شيء»).\n٢. افتكر قد إيه ربنا عدّاك من مواقف أصعب قبل كده ومسابكش.\n٣. احكي لأب اعترافك، ولو القلق مأثر على نومك أو حياتك لفترة طويلة مفيش أي عيب إنك تستشير دكتور متخصص بجانب الصلاة.',
+      'citations': [
+        'مزمور ٥٥: ٢٢ • فيلبي ٤: ٦-٧',
+        'القديس البابا كيرلس السادس — كن مطمئناً جداً'
+      ]
+    },
+    'الحزن': {
+      'response':
+          'لما القلب يحزن أو يضيق، افتكر إن ربنا قريب جداً منك: «قريب هو الرب من المنكسري القلوب» (مز ٣٤: ١٨). حتى السيد المسيح نفسه بكى عند قبر لعازر (يو ١١: ٣٥) فدموعك غالية عنده.\n\nجرب دلوقتي:\n١. اقعد قدام ربنا واحكيله كل اللي جواك بصراحة من غير ما تخبي.\n٢. افتح «خلوة ٥ دقائق» في التطبيق أو اسمع لحن هادئ.\n٣. متقعدش لوحدك كتير — اتكلم مع أب اعترافك أو حد قريب بتثق فيه.',
+      'citations': [
+        'مزمور ٣٤: ١٨ • متى ١١: ٢٨',
+        'قداسة البابا شنودة الثالث — التأملات الروحية'
+      ]
+    },
+    'الغضب': {
+      'response':
+          'الكتاب المقدس بيقول: «اغضبوا ولا تخطئوا، لا تغرب الشمس على غيظكم» (أف ٤: ٢٦). الغضب طاقة لو ما مسكناهاش بتجرح اللي بنحبهم وتضيع سلامنا.\n\nعلاج الغضب عند الآباء:\n١. لحظة النرفزة اسكت ١٠ ثواني وقول في سرك: «يا رب اهديني واسندني».\n٢. القديس يوحنا ذهبي الفم بيقول: «الذي يغلب غضبه أعظم من الذي يفتح مدينة».\n٣. لو غلطت في حد، متستناش وبادر بالاعتذار بمحبة.',
+      'citations': [
+        'أفسس ٤: ٢٦ • يعقوب ١: ١٩-٢٠',
+        'القديس يوحنا ذهبي الفم — عظات على أفسس'
+      ]
+    },
+    'الأجبية': {
+      'response':
+          'الأجبية هي كتاب صلوات السواعي السبع في الكنيسة القبطية، وكل ساعة مرتبطة بحدث من حياة وفداء السيد المسيح:\n١. باكر: قيامة المسيح وبداية اليوم.\n٢. الثالثة: حلول الروح القدس ومحاكمة الرب.\n٣. السادسة: صلب رب المجد.\n٤. التاسعة: موت المسيح المحيي على الصليب.\n٥. الغروب: إنزال الجسد من على الصليب.\n٦. النوم: دفن المسيح.\n٧. نصف الليل (٣ خدمات): السهر والاستعداد لمجيء الرب.',
+      'citations': [
+        'كتاب الأجبية المقدسة — الكنيسة القبطية الأرثوذكسية',
+        'مزمور ١١٩: ١٦٤ («سبع مرات في النهار سبحتك»)'
+      ]
+    },
+    'الصليب': {
+      'response':
+          'علامة الصليب في الكنيسة القبطية الأرثوذكسية هي علامة الغلبة والحماية وإعلان إيماننا بالثالوث والتجسد والفداء.\n\nلما نرشم الصليب بنقول: «باسم الآب (على الجبهة) والابن (على الصدر — إشارة للتجسد) والروح القدس (من الكتف الشمال لليمين — نقلنا من الظلمة للنور) إله واحد آمين».',
+      'citations': [
+        '١ كورنثوس ١: ١٨ • غلاطية ٦: ١٤',
+        'القديس كيرلس الأورشليمي — العظات للموعوظين'
+      ]
+    },
+    'الكتاب المقدس': {
+      'response':
+          'الكتاب المقدس هو رسالة حب حية من الله للإنسان، ويتكون في الكنيسة القبطية الأرثوذكسية من ٧٣ سفراً (٤٦ سفراً في العهد القديم تشمل الأسفار القانونية الثانية + ٢٧ سفراً في العهد الجديد).\n\nأفضل طريقة تبدأ بيها:\n١. ابدأ بإصحاح واحد يومياً من إنجيل مرقس أو يوحنا مع مزمور واحد.\n٢. لو آية وقفت معاك، افتح التفسير الموجود جوه التطبيق (لأبونا تادرس يعقوب وأبونا أنطونيوس فكري).',
+      'citations': [
+        '٢ تيموثاوس ٣: ١٦ • مزمور ١١٩: ١٠٥',
+        'القديس يوحنا ذهبي الفم — الحث على قراءة الكتب المقدسة'
+      ]
+    },
   };
 
   /// Searches local Orthodox library (Knowledge base + Books + Bible + Synaxarium)
@@ -354,8 +426,10 @@ class AiTheologyService {
       }
     }
 
-    // 2. Search Orthodox Books (books.json)
+    // 2. Search Orthodox Books (books.json) — require genuine multi-token relevance (never random 1-word hits!)
+    final minTokensNeeded = tokens.length >= 2 ? 2 : 1;
     if (_booksCache != null && tokens.isNotEmpty) {
+      final scoredBooks = <({int score, String snippet, String citation})>[];
       for (final bk in _booksCache!) {
         final bMap = bk as Map<String, dynamic>;
         final title = '${bMap['title'] ?? ''}';
@@ -365,26 +439,48 @@ class AiTheologyService {
           final cMap = ch as Map<String, dynamic>;
           final cTitle = '${cMap['title'] ?? ''}';
           final cContent = '${cMap['content'] ?? ''}';
-          final combined = '$title $cTitle $cContent';
           int score = 0;
           for (final t in tokens) {
-            if (combined.contains(t)) score++;
+            if (title.contains(t) || cTitle.contains(t)) {
+              score += 3;
+            } else if (cContent.contains(t)) {
+              score += 1;
+            }
           }
-          if (score > 0 && matchedSnippets.length < 3) {
-            final excerpt = cContent.length > 480
-                ? '${cContent.substring(0, 480)}...'
+          if (score >= minTokensNeeded * 2) {
+            final excerpt = cContent.length > 440
+                ? '${cContent.substring(0, 440)}...'
                 : cContent;
-            matchedSnippets
-                .add('• من كتاب «$title» ($author — $cTitle):\n$excerpt');
-            final cit = '$title — $author';
-            if (!matchedCitations.contains(cit)) matchedCitations.add(cit);
+            scoredBooks.add((
+              score: score,
+              snippet: '• من كتاب «$title» ($author — $cTitle):\n$excerpt',
+              citation: '$title — $author',
+            ));
           }
+        }
+      }
+      scoredBooks.sort((a, b) => b.score.compareTo(a.score));
+      for (final hit in scoredBooks.take(2)) {
+        matchedSnippets.add(hit.snippet);
+        if (!matchedCitations.contains(hit.citation)) {
+          matchedCitations.add(hit.citation);
         }
       }
     }
 
-    // 3. Search 366-Day Authentic Arabic Synaxarium
-    if (_lectionaryCache != null &&
+    // 3. Search Synaxarium ONLY if user appears to ask about a saint/martyr/feast or high title match
+    final asksAboutSaint = query.contains('قديس') ||
+        query.contains('شهيد') ||
+        query.contains('الأنبا') ||
+        query.contains('الانبا') ||
+        query.contains('مار') ||
+        query.contains('البابا') ||
+        query.contains('سنكسار') ||
+        query.contains('سيرة') ||
+        query.contains('قصة') ||
+        query.contains('مين هو');
+    if (asksAboutSaint &&
+        _lectionaryCache != null &&
         tokens.isNotEmpty &&
         matchedSnippets.length < 3) {
       for (final entry in _lectionaryCache!.entries) {
@@ -393,7 +489,8 @@ class AiTheologyService {
           final eMap = ev as Map<String, dynamic>;
           final title = '${eMap['title'] ?? ''}';
           final text = '${eMap['text'] ?? ''}';
-          if (tokens.any((t) => title.contains(t))) {
+          final titleHits = tokens.where((t) => title.contains(t) && t.length >= 4).length;
+          if (titleHits >= 1) {
             final excerpt =
                 text.length > 420 ? '${text.substring(0, 420)}...' : text;
             matchedSnippets.add('• من السنكسار القبطي ($title):\n$excerpt');

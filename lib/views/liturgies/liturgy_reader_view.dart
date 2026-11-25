@@ -15,6 +15,7 @@ import '../../providers/church_mode_provider.dart';
 import '../../providers/liturgy_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../hymns/hymn_detail_view.dart';
+import '../liturgical/raising_of_incense_view.dart';
 
 /// Cached TextStyle bundle computed once per build so ListView.builder items
 /// never re-allocate GoogleFonts styles during scrolling.
@@ -165,6 +166,54 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
   bool _synaxariumExpanded = true;
   int _activeMilestoneIdx = 0;
 
+  // Orsozoxi-style Liturgical Season Selector (auto-detected from Coptic calendar, 1-tap override)
+  String _activeSeasonKey = 'annual'; // 'annual' | 'lent' | 'joyful' | 'kiahk' | 'palm'
+
+  static const List<({String key, String label, String tune, String fracHint})> _liturgicalSeasons = [
+    (key: 'annual', label: 'سنوي', tune: 'الطقس السنوي (آدام / واطس)', fracHint: 'سنوية'),
+    (key: 'lent', label: 'صيامي', tune: 'طقس الصوم الكبير ويونان', fracHint: 'الصوم'),
+    (key: 'joyful', label: 'فرايحي', tune: 'الطقس الفرايحي (الأعياد والخماسين)', fracHint: 'القيامة'),
+    (key: 'kiahk', label: 'كيهكي', tune: 'طقس شهر كيهك والميلاد', fracHint: 'الميلاد'),
+    (key: 'palm', label: 'شعانيني', tune: 'الطقس الشعانيني (الشعانين والصليب)', fracHint: 'الشعانين'),
+  ];
+
+  static String _detectSeasonKey(String seasonName) {
+    if (seasonName.contains('كيهك') || seasonName.contains('الميلاد')) return 'kiahk';
+    if (seasonName.contains('القيامة') || seasonName.contains('الخماسين') || seasonName.contains('عيد')) {
+      return 'joyful';
+    }
+    if (seasonName.contains('الكبير') || seasonName.contains('نينوى') || seasonName.contains('صوم')) {
+      return 'lent';
+    }
+    if (seasonName.contains('الشعانين') || seasonName.contains('الصليب')) return 'palm';
+    return 'annual';
+  }
+
+  static int _phaseForSectionIndex(int idx, int total) {
+    if (idx <= 1) return 0; // ١. تقديم الحمل ورفع البخور
+    if (idx <= 4) return 1; // ٢. قداس الكلمة (الموعوظين)
+    if (idx <= total - 3) return 2; // ٣. قداس المؤمنين (الأنافورا والقسمة)
+    return 3; // ٤. التوزيع والختام
+  }
+
+  void _selectLiturgicalSeason(String key) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _activeSeasonKey = key;
+      if (_seasonalFractions.isNotEmpty) {
+        final meta = _liturgicalSeasons.firstWhere((s) => s.key == key);
+        if (key == 'annual') {
+          _selectedSeasonalFraction = null;
+        } else {
+          final found = _seasonalFractions.where(
+            (f) => '${f['title']}'.contains(meta.fracHint),
+          );
+          if (found.isNotEmpty) _selectedSeasonalFraction = found.first;
+        }
+      }
+    });
+  }
+
   // Auto-scroll
   bool _isAutoScrolling = false;
   final double _autoScrollSpeed = 1.0;
@@ -185,6 +234,7 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
     super.initState();
     _activeMilestoneIdx = widget.initialSectionIndex.clamp(0, 99);
     _copticToday = CopticCalendarService.todayLiturgical();
+    _activeSeasonKey = _detectSeasonKey(_copticToday.seasonName);
     _isAfterVespers = CopticCalendarService.isAfterVespers();
     if (_sharedFractionsCache != null) {
       _seasonalFractions = _sharedFractionsCache!;
@@ -431,68 +481,129 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
                 ),
                 Divider(color: p.border, height: 1),
                 Expanded(
-                  child: ListView.separated(
+                  child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                    itemCount: liturgy.sections.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 8),
-                    itemBuilder: (_, idx) {
-                      final sec = liturgy.sections[idx];
-                      final isSynax = sec.title.contains('السنكسار');
-                      final isActive = idx == _activeMilestoneIdx;
-                      return Material(
+                    children: [
+                      // Orsozoxi-style Matins Incense Opening Shortcut right before Offering of the Lamb!
+                      Material(
                         type: MaterialType.transparency,
                         child: ListTile(
                           dense: true,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
-                            side: BorderSide(
-                              color: isActive || isSynax ? p.goldBorder : p.border,
-                              width: isActive ? 1.4 : 1,
-                            ),
+                            side: BorderSide(color: p.goldBorder),
                           ),
-                          tileColor: isActive || isSynax ? p.goldSoft : p.surfaceSubtle,
-                          leading: Container(
-                            width: 30,
-                            height: 30,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: isActive ? p.accent : p.surface,
-                              border: Border.all(color: p.goldBorder),
-                            ),
-                            child: Text(
-                              '${idx + 1}',
-                              style: GoogleFonts.cairo(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.bold,
-                                color: isActive ? p.onAccent : p.ink,
-                              ),
-                            ),
-                          ),
+                          tileColor: p.goldSoft,
+                          leading: Icon(Icons.local_fire_department_rounded, color: p.gold, size: 22),
                           title: Text(
-                            sec.title,
+                            '٠. رفع بخور عشية وباكر (ما قبل القداس)',
                             style: GoogleFonts.cairo(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
                               color: p.ink,
                             ),
                           ),
-                          subtitle: sec.tafseer.isNotEmpty
-                              ? Text(
-                                  sec.tafseer,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.cairo(fontSize: 11, color: p.inkMuted),
-                                )
-                              : null,
-                          trailing: Icon(Icons.chevron_left_rounded, color: p.accent, size: 18),
+                          subtitle: Text(
+                            'صلاة الشكر • الأواشي • أرباع الناقوس • إنجيل باكر',
+                            style: GoogleFonts.cairo(fontSize: 11, color: p.inkSecondary),
+                          ),
+                          trailing: Icon(Icons.chevron_left_rounded, color: p.gold, size: 19),
                           onTap: () {
                             Navigator.pop(ctx);
-                            _jumpToSection(idx, liturgy.sections.length);
+                            Navigator.push(context, luxeRoute(const RaisingOfIncenseView()));
                           },
                         ),
-                      );
-                    },
+                      ),
+                      const SizedBox(height: 12),
+                      ...List.generate(liturgy.sections.length, (idx) {
+                        final sec = liturgy.sections[idx];
+                        final isSynax = sec.title.contains('السنكسار');
+                        final isActive = idx == _activeMilestoneIdx;
+                        final phase = _phaseForSectionIndex(idx, liturgy.sections.length);
+                        final prevPhase = idx > 0
+                            ? _phaseForSectionIndex(idx - 1, liturgy.sections.length)
+                            : -1;
+                        const phaseTitles = [
+                          'المرحلة الأولى • تقديم الحمل والاستعداد',
+                          'المرحلة الثانية • قداس الكلمة (الموعوظين)',
+                          'المرحلة الثالثة • قداس المؤمنين (الأنافورا والقسمة)',
+                          'المرحلة الرابعة • الاعتراف والتوزيع والختام',
+                        ];
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (phase != prevPhase)
+                              Padding(
+                                padding: EdgeInsets.only(top: idx == 0 ? 2 : 12, bottom: 6, right: 4),
+                                child: Text(
+                                  phaseTitles[phase],
+                                  style: GoogleFonts.cairo(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: p.gold,
+                                  ),
+                                ),
+                              ),
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 7),
+                              child: Material(
+                                type: MaterialType.transparency,
+                                child: ListTile(
+                                  dense: true,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    side: BorderSide(
+                                      color: isActive || isSynax ? p.goldBorder : p.border,
+                                      width: isActive ? 1.4 : 1,
+                                    ),
+                                  ),
+                                  tileColor: isActive || isSynax ? p.goldSoft : p.surfaceSubtle,
+                                  leading: Container(
+                                    width: 30,
+                                    height: 30,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: isActive ? p.accent : p.surface,
+                                      border: Border.all(color: p.goldBorder),
+                                    ),
+                                    child: Text(
+                                      '${idx + 1}',
+                                      style: GoogleFonts.cairo(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.bold,
+                                        color: isActive ? p.onAccent : p.ink,
+                                      ),
+                                    ),
+                                  ),
+                                  title: Text(
+                                    sec.title,
+                                    style: GoogleFonts.cairo(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: p.ink,
+                                    ),
+                                  ),
+                                  subtitle: sec.tafseer.isNotEmpty
+                                      ? Text(
+                                          sec.tafseer,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.cairo(fontSize: 11, color: p.inkMuted),
+                                        )
+                                      : null,
+                                  trailing: Icon(Icons.chevron_left_rounded, color: p.accent, size: 18),
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    _jumpToSection(idx, liturgy.sections.length);
+                                  },
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      }),
+                    ],
                   ),
                 ),
               ],
@@ -962,13 +1073,105 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
       ),
       body: Column(
         children: [
-          // Interactive Liturgical Milestone Stepper Ribbon
+          // 1. Orsozoxi-style 4 Canonical Liturgy Phases + Season Switcher Ribbon
           Container(
-            height: 44,
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+            decoration: BoxDecoration(
+              color: p.surface,
+              border: Border(top: BorderSide(color: p.border, width: 0.8)),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  // Season pill (tap to switch: سنوي / صيامي / فرايحي / كيهكي / شعانيني)
+                  PopupMenuButton<String>(
+                    initialValue: _activeSeasonKey,
+                    onSelected: _selectLiturgicalSeason,
+                    itemBuilder: (_) => _liturgicalSeasons
+                        .map((s) => PopupMenuItem(
+                              value: s.key,
+                              child: Text(
+                                '${s.label} • ${s.tune}',
+                                style: GoogleFonts.cairo(fontSize: 12),
+                              ),
+                            ))
+                        .toList(),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: p.goldSoft,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: p.goldBorder),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.auto_awesome_rounded, size: 13, color: p.gold),
+                          const SizedBox(width: 4),
+                          Text(
+                            'طقس ${_liturgicalSeasons.firstWhere((s) => s.key == _activeSeasonKey).label}',
+                            style: GoogleFonts.cairo(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: p.ink,
+                            ),
+                          ),
+                          Icon(Icons.arrow_drop_down_rounded, size: 16, color: p.gold),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _phaseJumpPill(
+                    p,
+                    'رفع البخور',
+                    false,
+                    () => Navigator.push(context, luxeRoute(const RaisingOfIncenseView())),
+                  ),
+                  const SizedBox(width: 6),
+                  _phaseJumpPill(
+                    p,
+                    'تقديم الحمل',
+                    _phaseForSectionIndex(_activeMilestoneIdx, liturgy.sections.length) == 0,
+                    () => _jumpToSection(0, liturgy.sections.length),
+                  ),
+                  const SizedBox(width: 6),
+                  _phaseJumpPill(
+                    p,
+                    'قداس الكلمة',
+                    _phaseForSectionIndex(_activeMilestoneIdx, liturgy.sections.length) == 1,
+                    () => _jumpToSection(2, liturgy.sections.length),
+                  ),
+                  const SizedBox(width: 6),
+                  _phaseJumpPill(
+                    p,
+                    'قداس المؤمنين',
+                    _phaseForSectionIndex(_activeMilestoneIdx, liturgy.sections.length) == 2,
+                    () => _jumpToSection(5, liturgy.sections.length),
+                  ),
+                  const SizedBox(width: 6),
+                  _phaseJumpPill(
+                    p,
+                    'التوزيع والختام',
+                    _phaseForSectionIndex(_activeMilestoneIdx, liturgy.sections.length) == 3,
+                    () => _jumpToSection(
+                      (liturgy.sections.length - 2).clamp(0, liturgy.sections.length - 1),
+                      liturgy.sections.length,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // 2. Interactive Liturgical Milestone Stepper Ribbon
+          Container(
+            height: 40,
             decoration: BoxDecoration(
               color: p.surface,
               border: Border(
-                top: BorderSide(color: p.border, width: 0.8),
+                top: BorderSide(color: p.border, width: 0.6),
                 bottom: BorderSide(color: p.border, width: 0.8),
               ),
             ),
@@ -1116,6 +1319,31 @@ class _LiturgyReaderViewState extends State<LiturgyReaderView> {
           style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 12.5),
         ),
         onPressed: () => _showLiturgicalIndexSheet(liturgy),
+      ),
+    );
+  }
+
+  Widget _phaseJumpPill(AppPalette p, String label, bool active, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: active ? p.accent : p.surfaceSubtle,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: active ? p.accent : p.border),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.cairo(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: active ? p.onAccent : p.inkSecondary,
+          ),
+        ),
       ),
     );
   }

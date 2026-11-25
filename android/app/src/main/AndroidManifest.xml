@@ -37,6 +37,12 @@
             </intent-filter>
         </activity>
 
+        <!-- Native MediaSession + Foreground MediaStyle Service (Notification / Lock Screen / Dynamic Island Controls) -->
+        <service
+            android:name=".HymnMediaService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
         <!-- Scheduled Local Notifications Receivers (Daily Verse & Optional Family Prayer Reminder) -->
         <receiver
             android:exported="false"

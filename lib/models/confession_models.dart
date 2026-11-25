@@ -731,6 +731,7 @@ class VisitationEntry {
   final String tag; // 'مريض' | 'أسرة' | 'مسن' | 'شاب' | 'ضيقة'
   final String note;
   final bool visited;
+  final bool plannedByMe; // «أنا هروح أفتقده» (في خطتي للافتقاد)
   final String updatedAtIso;
 
   const VisitationEntry({
@@ -741,6 +742,7 @@ class VisitationEntry {
     this.tag = 'أسرة',
     this.note = '',
     this.visited = false,
+    this.plannedByMe = false,
     required this.updatedAtIso,
   });
 
@@ -751,6 +753,7 @@ class VisitationEntry {
     String? tag,
     String? note,
     bool? visited,
+    bool? plannedByMe,
     String? updatedAtIso,
   }) =>
       VisitationEntry(
@@ -761,6 +764,7 @@ class VisitationEntry {
         tag: tag ?? this.tag,
         note: note ?? this.note,
         visited: visited ?? this.visited,
+        plannedByMe: plannedByMe ?? this.plannedByMe,
         updatedAtIso: updatedAtIso ?? this.updatedAtIso,
       );
 
@@ -772,6 +776,7 @@ class VisitationEntry {
         'tag': tag,
         'note': note,
         'visited': visited,
+        'plannedByMe': plannedByMe,
         'updatedAtIso': updatedAtIso,
       };
 
@@ -783,6 +788,7 @@ class VisitationEntry {
         tag: '${j['tag'] ?? 'أسرة'}',
         note: '${j['note'] ?? ''}',
         visited: j['visited'] == true,
+        plannedByMe: j['plannedByMe'] == true,
         updatedAtIso: '${j['updatedAtIso'] ?? ''}',
       );
 }

@@ -71,6 +71,7 @@ class FirebaseService {
   Future<void> syncPublicProfile({
     required String displayName,
     String? patronSaintId,
+    String? role,
     List<String>? completedChapters,
   }) async {
     if (!_isInitialized) return;
@@ -94,6 +95,9 @@ class FirebaseService {
       'patronSaintId': safeSaint.isEmpty ? 'virgin_mary' : safeSaint,
       'updatedAt': FieldValue.serverTimestamp(),
     };
+    if (role == 'member' || role == 'priest') {
+      payload['role'] = role;
+    }
     if (completedChapters != null && completedChapters.length <= 1500) {
       payload['completedChapters'] = completedChapters;
     }
@@ -107,6 +111,28 @@ class FirebaseService {
     } catch (e) {
       if (kDebugMode) debugPrint('Firestore profile sync skipped: $e');
     }
+  }
+
+  /// Checks if the signed-in user already has a saved account role ('member' | 'priest')
+  /// in Firestore (or an existing priest document) so we prevent accidental role mix-ups on login.
+  Future<String?> fetchSavedAccountRole() async {
+    if (!_isInitialized) return null;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return null;
+    try {
+      final priestDoc = await FirebaseFirestore.instance
+          .collection('priests')
+          .doc(user.uid)
+          .get();
+      if (priestDoc.exists) return 'priest';
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final r = (userDoc.data()?['role'] as String? ?? '').trim();
+      if (r == 'priest' || r == 'member') return r;
+    } catch (_) {}
+    return null;
   }
 
   /// Restores user's public display name, patron saint, and Bible completed chapters
@@ -127,11 +153,15 @@ class FirebaseService {
       final storage = StorageService();
       final cloudName = (data['displayName'] as String? ?? '').trim();
       final cloudSaint = (data['patronSaintId'] as String? ?? '').trim();
+      final cloudRole = (data['role'] as String? ?? '').trim();
       if (cloudName.isNotEmpty) {
         await storage.setUserName(cloudName);
       }
       if (cloudSaint.isNotEmpty) {
         await storage.setPatronSaintId(cloudSaint);
+      }
+      if (cloudRole == 'priest' || cloudRole == 'member') {
+        await storage.setUserRole(cloudRole);
       }
       if (user.email != null && user.email!.isNotEmpty) {
         await storage.setUserEmail(user.email!);

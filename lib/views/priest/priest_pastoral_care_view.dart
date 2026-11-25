@@ -32,7 +32,7 @@ class _PriestPastoralCareViewState extends State<PriestPastoralCareView>
 
   String _altarCategoryFilter = 'all';
   bool _altarLargeReadingMode = false;
-  String _visitFilter = 'pending'; // 'pending' | 'visited' | 'all'
+  String _visitFilter = 'pending'; // 'pending' | 'mine' | 'visited' | 'all'
 
   static const _altarCategories = <({String key, String label, IconData icon})>[
     (key: 'all', label: 'الكل', icon: Icons.list_alt_rounded),
@@ -728,9 +728,150 @@ class _PriestPastoralCareViewState extends State<PriestPastoralCareView>
     );
   }
 
+  void _openPastoralMessageSheet(VisitationEntry v) {
+    final p = context.palette;
+    final priestName = _storage.getUserName().trim();
+    final priestTitle = _storage.getPriestTitlePrefix().trim();
+    final sig = priestName.isNotEmpty
+        ? '\n— $priestTitle $priestName'
+        : '\n— قدس أبونا';
+
+    final templates = <({String title, String icon, String body})>[
+      (
+        title: 'اطمئنان على مريض',
+        icon: '🙏',
+        body:
+            'سلام ونعمة يا ${v.personName}، ألف سلامة عليك! بنصليلك على المذبح وربنا يمد إيده بالشفاء والعافية ويقومك بالسلامة قريب إن شاء الله.$sig',
+      ),
+      (
+        title: 'تهنئة بعيد أو مناسبة حلوة',
+        icon: '✨',
+        body:
+            'كل سنة وأنتم طيبين وبخير دايماً يا ${v.personName}! ربنا يملا بيتكم فرح وسلام وبركة، ويجعل أيامكم كلها أعياد.$sig',
+      ),
+      (
+        title: 'افتقاد وسؤال على الأسرة',
+        icon: '🏡',
+        body:
+            'سلام ونعمة يا ${v.personName}، وحشتونا جداً في الكنيسة وحبيت أطمن عليكم وأسأل عن أخباركم، وإن شاء الله قريب أعدّي أفتقدكم وآخد بركتكم.$sig',
+      ),
+      (
+        title: 'تعزية ومواساة',
+        icon: '✝️',
+        body:
+            'المسيح يعزيكم ويقويكم يا ${v.personName}. الرب ينيح نفس المنتقل في فردوس النعيم ويملا قلوبكم بالسلام والعزاء السماوي.$sig',
+      ),
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+        decoration: BoxDecoration(
+          color: p.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border(top: BorderSide(color: p.border)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(color: p.border, borderRadius: BorderRadius.circular(4)),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'ابعت رسالة اطمئنان أو تهنئة لـ ${v.personName}',
+              style: GoogleFonts.amiri(fontSize: 21, fontWeight: FontWeight.bold, color: p.ink),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'اختار رسالة جاهزة وهتتبعت علطول على واتساب أو أي تطبيق تواصل:',
+              style: GoogleFonts.cairo(fontSize: 12, color: p.inkMuted),
+            ),
+            const SizedBox(height: 12),
+            ...templates.map(
+              (tpl) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () async {
+                    HapticFeedback.lightImpact();
+                    Navigator.pop(ctx);
+                    final cleanPhone = v.phone.replaceAll(RegExp(r'[^0-9+]'), '');
+                    if (cleanPhone.length >= 10) {
+                      final intl = cleanPhone.startsWith('0')
+                          ? '2$cleanPhone'
+                          : cleanPhone.replaceFirst('+', '');
+                      final waUri = Uri.parse(
+                        'https://wa.me/$intl?text=${Uri.encodeComponent(tpl.body)}',
+                      );
+                      if (await canLaunchUrl(waUri)) {
+                        await launchUrl(waUri, mode: LaunchMode.externalApplication);
+                        return;
+                      }
+                    }
+                    await SharePlus.instance.share(ShareParams(text: tpl.body));
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: p.surfaceSubtle,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: p.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(tpl.icon, style: const TextStyle(fontSize: 15)),
+                            const SizedBox(width: 6),
+                            Text(
+                              tpl.title,
+                              style: GoogleFonts.cairo(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: p.ink,
+                              ),
+                            ),
+                            const Spacer(),
+                            Icon(Icons.send_rounded, size: 16, color: p.gold),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          tpl.body,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.cairo(
+                            fontSize: 11.5,
+                            color: p.inkSecondary,
+                            height: 1.45,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildVisitationTab(AppPalette p) {
     final filtered = _visitations.where((v) {
       if (_visitFilter == 'pending') return !v.visited;
+      if (_visitFilter == 'mine') return v.plannedByMe && !v.visited;
       if (_visitFilter == 'visited') return v.visited;
       return true;
     }).toList();
@@ -744,10 +885,17 @@ class _PriestPastoralCareViewState extends State<PriestPastoralCareView>
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
               child: Row(
                 children: [
-                  _filterPill(p, 'محتاج افتقاد', 'pending', _visitations.where((v) => !v.visited).length),
-                  const SizedBox(width: 8),
-                  _filterPill(p, 'تم الافتقاد', 'visited', _visitations.where((v) => v.visited).length),
-                  const SizedBox(width: 8),
+                  _filterPill(p, 'محتاجين', 'pending', _visitations.where((v) => !v.visited).length),
+                  const SizedBox(width: 6),
+                  _filterPill(
+                    p,
+                    'أنا أفتقد',
+                    'mine',
+                    _visitations.where((v) => v.plannedByMe && !v.visited).length,
+                  ),
+                  const SizedBox(width: 6),
+                  _filterPill(p, 'تم ✓', 'visited', _visitations.where((v) => v.visited).length),
+                  const SizedBox(width: 6),
                   _filterPill(p, 'الكل', 'all', _visitations.length),
                 ],
               ),
@@ -757,8 +905,12 @@ class _PriestPastoralCareViewState extends State<PriestPastoralCareView>
                   ? _emptyBox(
                       p,
                       Icons.home_work_outlined,
-                      'دفتر الافتقاد فارغ في هذا التبويب',
-                      'سجّل أسماء الأسر والمرضى للافتقاد مع إمكانية الاتصال المباشر ومتابعة الزيارات بخصوصية تامة على جهاز قدسك.',
+                      _visitFilter == 'mine'
+                          ? 'مفيش حد في خطة افتقاد قدسك دلوقتي'
+                          : 'دفتر الافتقاد فاضي هنا دلوقتي',
+                      _visitFilter == 'mine'
+                          ? 'اضغط على زر «أنا أفتقد» جنب أي أسرة أو مريض عشان ينزل في جدول نزول قدسك علطول.'
+                          : 'سجّل أسماء الأسر والمرضى للافتقاد، وقدسك تقدر تتصل بيهم أو تبعتلهم رسالة اطمئنان بضغطة واحدة وبخصوصية تامة على موبايلك.',
                     )
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 90),
@@ -771,7 +923,12 @@ class _PriestPastoralCareViewState extends State<PriestPastoralCareView>
                           decoration: BoxDecoration(
                             color: p.surface,
                             borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: v.visited ? p.border : p.goldBorder),
+                            border: Border.all(
+                              color: v.visited
+                                  ? p.border
+                                  : (v.plannedByMe ? p.sage : p.goldBorder),
+                              width: v.plannedByMe && !v.visited ? 1.4 : 1,
+                            ),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -784,7 +941,10 @@ class _PriestPastoralCareViewState extends State<PriestPastoralCareView>
                                       final i = _visitations.indexWhere((x) => x.id == v.id);
                                       if (i != -1) {
                                         setState(() {
-                                          _visitations[i] = v.copyWith(visited: !v.visited);
+                                          _visitations[i] = v.copyWith(
+                                            visited: !v.visited,
+                                            plannedByMe: !v.visited ? false : v.plannedByMe,
+                                          );
                                         });
                                         await _saveVisitations();
                                       }
@@ -819,6 +979,24 @@ class _PriestPastoralCareViewState extends State<PriestPastoralCareView>
                                       ],
                                     ),
                                   ),
+                                  if (v.plannedByMe && !v.visited) ...[
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: p.sage.withValues(alpha: 0.14),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        'أنا هروح أفتقده ✓',
+                                        style: GoogleFonts.cairo(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: p.sage,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                  ],
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                     decoration: BoxDecoration(
@@ -843,9 +1021,79 @@ class _PriestPastoralCareViewState extends State<PriestPastoralCareView>
                                   style: GoogleFonts.cairo(fontSize: 12, color: p.inkSecondary, height: 1.45),
                                 ),
                               ],
-                              const SizedBox(height: 8),
-                              Row(
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 6,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
+                                  if (!v.visited)
+                                    FilledButton.tonalIcon(
+                                      onPressed: () async {
+                                        HapticFeedback.lightImpact();
+                                        final i = _visitations.indexWhere((x) => x.id == v.id);
+                                        if (i != -1) {
+                                          final next = !v.plannedByMe;
+                                          setState(() {
+                                            _visitations[i] = v.copyWith(plannedByMe: next);
+                                          });
+                                          await _saveVisitations();
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  next
+                                                      ? 'اتسجّل في خطة افتقاد قدسك: «أنا أفتقد ${v.personName}»'
+                                                      : 'اتشال من خطة الافتقاد الحالية',
+                                                  style: GoogleFonts.cairo(),
+                                                ),
+                                                duration: const Duration(seconds: 2),
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      },
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: v.plannedByMe
+                                            ? p.sage.withValues(alpha: 0.16)
+                                            : p.goldSoft,
+                                        foregroundColor: v.plannedByMe ? p.sage : p.gold,
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        minimumSize: Size.zero,
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      icon: Icon(
+                                        v.plannedByMe
+                                            ? Icons.directions_walk_rounded
+                                            : Icons.volunteer_activism_rounded,
+                                        size: 15,
+                                      ),
+                                      label: Text(
+                                        v.plannedByMe ? 'أنا أفتقد ✓' : 'أنا أفتقد',
+                                        style: GoogleFonts.cairo(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  OutlinedButton.icon(
+                                    onPressed: () => _openPastoralMessageSheet(v),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: p.accent,
+                                      side: BorderSide(color: p.goldBorder),
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    icon: const Icon(Icons.chat_bubble_outline_rounded, size: 14),
+                                    label: Text(
+                                      'تهنئة / اطمئنان',
+                                      style: GoogleFonts.cairo(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
                                   if (v.phone.isNotEmpty)
                                     TextButton.icon(
                                       onPressed: () async {
@@ -854,23 +1102,33 @@ class _PriestPastoralCareViewState extends State<PriestPastoralCareView>
                                           await launchUrl(uri);
                                         }
                                       },
-                                      icon: Icon(Icons.call_rounded, size: 16, color: p.sage),
+                                      style: TextButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                        minimumSize: Size.zero,
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      icon: Icon(Icons.call_rounded, size: 15, color: p.sage),
                                       label: Text(
-                                        'اتصال (${v.phone})',
+                                        'اتصال',
                                         style: GoogleFonts.cairo(
-                                          fontSize: 12,
+                                          fontSize: 11.5,
                                           fontWeight: FontWeight.bold,
                                           color: p.sage,
                                         ),
                                       ),
                                     ),
-                                  const Spacer(),
                                   IconButton(
-                                    icon: Icon(Icons.edit_outlined, size: 19, color: p.inkMuted),
+                                    tooltip: 'تعديل',
+                                    constraints: const BoxConstraints(),
+                                    padding: const EdgeInsets.all(6),
+                                    icon: Icon(Icons.edit_outlined, size: 18, color: p.inkMuted),
                                     onPressed: () => _openAddVisitationSheet(existing: v),
                                   ),
                                   IconButton(
-                                    icon: Icon(Icons.delete_outline_rounded, size: 19, color: p.inkMuted),
+                                    tooltip: 'مسح',
+                                    constraints: const BoxConstraints(),
+                                    padding: const EdgeInsets.all(6),
+                                    icon: Icon(Icons.delete_outline_rounded, size: 18, color: p.inkMuted),
                                     onPressed: () async {
                                       setState(() => _visitations.removeWhere((x) => x.id == v.id));
                                       await _saveVisitations();

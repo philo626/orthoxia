@@ -96,21 +96,23 @@ async function discoverActiveModels(apiKey) {
       .map((m) => String(m.name).replace(/^models\//, ''));
 
     // Score models: stable gemini flash > gemma-3-27b/12b > other stable gemini > preview
+    // Prefer FULL Gemini 3.x Flash models first for pristine Arabic & Coptic theological accuracy;
+    // keep flash-lite and gemma-4 as fast fallbacks if full Flash models experience spikes.
     function rank(name) {
       const n = name.toLowerCase();
       if (n.includes('preview') || n.includes('exp')) return 90;
-      if (n.includes('2.5') || n.includes('2.0')) return 85; // deprecated for new keys
-      if (n.startsWith('gemini-3.5-flash-lite')) return 10;
-      if (n.startsWith('gemini-3.1-flash-lite')) return 12;
-      if (n.startsWith('gemini-3.7-flash')) return 14;
-      if (n.startsWith('gemini-3.6-flash')) return 16;
-      if (n.startsWith('gemini-3.5-flash')) return 18;
-      if (n.startsWith('gemini-3.8-flash')) return 20;
-      if (n.startsWith('gemma-4')) return 24;
-      if (n.includes('flash')) return 30;
-      if (n.startsWith('gemini-')) return 40;
-      if (n.startsWith('gemma-')) return 50;
-      return 70;
+      if (n.includes('2.5') || n.includes('2.0')) return 85;
+      if (n === 'gemini-3.8-flash') return 10;
+      if (n === 'gemini-3.7-flash') return 12;
+      if (n === 'gemini-3.6-flash') return 14;
+      if (n === 'gemini-3.5-flash') return 16;
+      if (n.startsWith('gemini-3') && !n.includes('lite')) return 18;
+      if (n.startsWith('gemma-4-31b')) return 24;
+      if (n.startsWith('gemma-4-26b')) return 26;
+      if (n.startsWith('gemini-3.5-flash-lite')) return 32;
+      if (n.startsWith('gemini-3.1-flash-lite')) return 35;
+      if (n.includes('flash')) return 40;
+      return 60;
     }
 
     filtered.sort((a, b) => rank(a) - rank(b) || b.localeCompare(a));
@@ -137,15 +139,14 @@ async function callGemini(apiKey, userMessages) {
     (m) => !m.includes('2.5') && !m.includes('2.0') && !m.includes('preview') && !m.includes('exp'),
   );
   const candidateModels = [
-    ...(lastWorkingModel ? [lastWorkingModel] : []),
+    ...(lastWorkingModel && !lastWorkingModel.includes('lite') ? [lastWorkingModel] : []),
     ...activeOnly,
-    'gemini-3.5-flash-lite',
+    'gemini-3.8-flash',
     'gemini-3.7-flash',
     'gemini-3.6-flash',
     'gemini-3.5-flash',
-    'gemini-3.8-flash',
     'gemma-4-31b-it',
-    'gemma-4-26b-a4b-it',
+    'gemini-3.5-flash-lite',
   ];
 
   const tried = new Set();
@@ -170,7 +171,7 @@ async function callGemini(apiKey, userMessages) {
       bodyObj = {
         contents,
         generationConfig: {
-          temperature: 0.25,
+          temperature: 0.15,
           maxOutputTokens: 900,
         },
       };
@@ -183,7 +184,7 @@ async function callGemini(apiKey, userMessages) {
         system_instruction: { parts: [{ text: SYSTEM_GUARDRAIL }] },
         contents,
         generationConfig: {
-          temperature: 0.25,
+          temperature: 0.15,
           maxOutputTokens: 900,
         },
       };

@@ -2,22 +2,29 @@
  * Orthoxia Patristic AI — Vercel Serverless Proxy (100% Free & Unblocked in Egypt)
  * --------------------------------------------------------------------------------
  * Keeps GEMINI_API_KEY & GROQ_API_KEY 100% hidden in Vercel Environment Variables.
- *
- * Endpoints (via vercel.json rewrites):
- *   - GET  / or /health or /api/chat  -> Safe health check & provider status
- *   - POST / or /v1/chat/completions or /api/chat -> OpenAI-compatible Orthodox AI chat
+ * Resilient multi-model routing:
+ *   1) Auto-discovers active stable Gemini & Gemma models from Google's live catalog
+ *      (filtering out quota-0 preview/omni/tts/image models)
+ *   2) Automatically retries transient 503 spikes and gracefully falls back across
+ *      Gemini Flash + Gemma 3 27B/12B (which have generous free quotas & high uptime)
+ *   3) Optional Groq fallback if GROQ_API_KEY is also configured
  */
 
 const SYSTEM_GUARDRAIL =
-  'أنت «المرشد الآبائي» داخل تطبيق «أرثوذكسيا» للكنيسة القبطية الأرثوذكسية. ' +
-  'أجب باللغة العربية الفصحى الواضحة وبأسلوب روحي رصين وأمين تماماً لعقيدة وطقس الكنيسة القبطية الأرثوذكسية ' +
-  '(الكتاب المقدس بترجمة فانديك، أقوال الآباء الأولين كالقديس أثناسيوس وكيرلس ويوحنا ذهبي الفم، والبابا شنودة الثالث، والأب متى المسكين). ' +
-  'التزم بالدقة الكنسية الكاملة: لا تؤلّف آيات أو أقوالاً غير موجودة، وتجنّب تماماً أي تنسيق Markdown مثل النجوم (**) أو (***) أو (#). ' +
-  'إذا سُئلت عن مسائل طلاق أو أحوال شخصية خاصة وجّه السائل بمحبة للرجوع لأب الاعتراف أو المجلس الإكليريكي. ' +
-  'اجعل إجابتك مركّزة ومفيدة ومرتّبة في نقاط واضحة عند الحاجة.';
+  'أنت «المرشد الآبائي القبطي الأرثوذكسي» داخل تطبيق «أرثوذكسيا» للكنيسة القبطية الأرثوذكسية. ' +
+  'أجب بدقة لاهوتية وكتابية وطقسية وأمينة ١٠٠٪ لعقيدة وطقس الكنيسة القبطية الأرثوذكسية فقط ' +
+  '(الكتاب المقدس بترجمة فاندايك، أقوال الآباء الأولين كالقديس أثناسيوس الرسولي والقديس كيرلس الكبير والقديس يوحنا ذهبي الفم، ' +
+  'والآباء المعاصرين مثل قداسة البابا شنودة الثالث، القمص تادرس يعقوب ملطي، القمص أنطونيوس فكري، والأب متى المسكين). ' +
+  'قواعد صارمة لا تحيد عنها: ' +
+  '١) أجب مباشرة على سؤال المستخدم بالضبط — لا تغيّر الموضوع ولا تذكر قصصاً غير مرتبطة بالسؤال. ' +
+  '٢) إذا سألك المستخدم بالعامية المصرية، رد عليه بأسلوب دافئ وقريب ومفهوم يجمع بين بساطة العامية المصرية المحترمة ووقار الكنيسة، مع وضع الآيات الكتابية وأقوال الآباء بنصها الصحيح بين «...». ' +
+  '٣) التزم بالحقائق القبطية الأرثوذكسية بدقة (الأسرار السبعة، الصوم الكبير ٥٥ يوماً، صوم يونان ٣ أيام، الشفاعة التوسلية للقديسين، التناول هو جسد الرب ودمه الحقيقيان). ' +
+  '٤) لا تؤلف آيات أو أرقام إصحاحات أو أقوالاً غير متأكد منها أبداً. ' +
+  '٥) ممنوع استخدام رموز الماركداون مثل (**) أو (***) أو (#). رتب إجابتك في نقاط واضحة (١. ٢. ٣.) أو (•). ' +
+  '٦) في مسائل الطلاق أو الأحوال الشخصية الخاصة، وجّه السائل بمحبة للرجوع لأب الاعتراف أو المجلس الإكليريكي.';
 
 const RATE_WINDOW_MS = 10 * 60 * 1000;
-const MAX_REQ_PER_WINDOW = 30;
+const MAX_REQ_PER_WINDOW = 40;
 const ipHits = new Map();
 
 function checkRateLimit(ip) {
@@ -40,127 +47,191 @@ function setCorsHeaders(res) {
   res.setHeader('Cache-Control', 'no-store');
 }
 
-let cachedDiscoveredModel = null;
-let cachedDiscoveredAt = 0;
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-async function discoverLatestFlashModel(apiKey) {
+let cachedModelList = null;
+let cachedModelsAt = 0;
+
+/**
+ * Discovers ALL active text-generation models available to this API key,
+ * strictly prioritizing stable flash/gemma models and demoting preview/omni models.
+ */
+async function discoverActiveModels(apiKey) {
   const now = Date.now();
-  if (cachedDiscoveredModel && now - cachedDiscoveredAt < 3600_000) {
-    return cachedDiscoveredModel;
+  if (cachedModelList && now - cachedModelsAt < 1800_000) {
+    return cachedModelList;
   }
   try {
     const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
       headers: { 'x-goog-api-key': apiKey },
     });
-    if (!resp.ok) return null;
+    if (!resp.ok) return [];
     const data = await resp.json();
     const list = Array.isArray(data?.models) ? data.models : [];
-    const usable = list
-      .filter(
-        (m) =>
-          Array.isArray(m.supportedGenerationMethods) &&
-          m.supportedGenerationMethods.includes('generateContent') &&
-          typeof m.name === 'string' &&
-          m.name.includes('gemini') &&
-          m.name.includes('flash') &&
-          !m.name.includes('image') &&
-          !m.name.includes('tts') &&
-          !m.name.includes('audio') &&
-          !m.name.includes('thinking'),
-      )
-      .map((m) => m.name.replace(/^models\//, ''));
-    if (usable.length > 0) {
-      // Prefer highest version number (descending lexicographical works cleanly for gemini-3.8 > gemini-3.5 > gemini-2.5)
-      usable.sort().reverse();
-      cachedDiscoveredModel = usable[0];
-      cachedDiscoveredAt = now;
-      return cachedDiscoveredModel;
+
+    const filtered = list
+      .filter((m) => {
+        if (!Array.isArray(m.supportedGenerationMethods)) return false;
+        if (!m.supportedGenerationMethods.includes('generateContent')) return false;
+        const name = String(m.name || '').toLowerCase();
+        if (!name.includes('gemini') && !name.includes('gemma')) return false;
+        if (
+          name.includes('image') ||
+          name.includes('tts') ||
+          name.includes('audio') ||
+          name.includes('vision') ||
+          name.includes('embedding') ||
+          name.includes('robotics') ||
+          name.includes('computer-use') ||
+          name.includes('deep-research') ||
+          name.includes('omni')
+        ) {
+          return false;
+        }
+        return true;
+      })
+      .map((m) => String(m.name).replace(/^models\//, ''));
+
+    // Score models: stable gemini flash > gemma-3-27b/12b > other stable gemini > preview
+    function rank(name) {
+      const n = name.toLowerCase();
+      if (n.includes('preview') || n.includes('exp')) return 90;
+      if (n.startsWith('gemini-2.5-flash-lite')) return 10;
+      if (n.startsWith('gemini-2.5-flash')) return 12;
+      if (n.startsWith('gemini-3') && n.includes('flash-lite')) return 15;
+      if (n.startsWith('gemini-3') && n.includes('flash')) return 18;
+      if (n.includes('flash-latest')) return 20;
+      if (n.startsWith('gemini-2.0-flash')) return 22;
+      if (n.startsWith('gemma-3-27b')) return 25;
+      if (n.startsWith('gemma-3-12b')) return 28;
+      if (n.startsWith('gemma-3-4b')) return 32;
+      if (n.includes('flash')) return 35;
+      if (n.startsWith('gemini-')) return 45;
+      if (n.startsWith('gemma-')) return 55;
+      return 70;
     }
-  } catch (_) {}
-  return null;
+
+    filtered.sort((a, b) => rank(a) - rank(b) || b.localeCompare(a));
+    cachedModelList = filtered;
+    cachedModelsAt = now;
+    return filtered;
+  } catch (_) {
+    return [];
+  }
 }
 
 async function callGemini(apiKey, userMessages) {
-  const contents = [];
-
+  const cleanMsgs = [];
   for (const m of userMessages) {
     const role = m.role === 'assistant' ? 'model' : 'user';
     const text = String(m.content || '').trim();
     if (!text) continue;
-    contents.push({
-      role,
-      parts: [{ text: text.slice(0, 4000) }],
-    });
+    cleanMsgs.push({ role, text: text.slice(0, 4000) });
   }
+  if (cleanMsgs.length === 0) return null;
 
-  if (contents.length === 0) return null;
-
-  const payload = JSON.stringify({
-    system_instruction: { parts: [{ text: SYSTEM_GUARDRAIL }] },
-    contents,
-    generationConfig: {
-      temperature: 0.25,
-      maxOutputTokens: 1024,
-    },
-  });
-
+  const discovered = await discoverActiveModels(apiKey);
   const candidateModels = [
-    ...(cachedDiscoveredModel ? [cachedDiscoveredModel] : []),
+    ...discovered,
+    'gemini-2.5-flash-lite',
+    'gemini-2.0-flash',
+    'gemma-3-27b-it',
+    'gemma-3-12b-it',
     'gemini-3.5-flash-lite',
     'gemini-3.8-flash',
     'gemini-flash-latest',
-    'gemini-2.5-flash',
   ];
 
   const tried = new Set();
   const errors = [];
 
-  async function tryModel(model) {
-    if (!model || tried.has(model)) return null;
-    tried.add(model);
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: payload,
-      });
+  async function invokeOnce(model) {
+    const isGemma = model.toLowerCase().startsWith('gemma');
+    let bodyObj;
 
-      if (resp.ok) {
-        const data = await resp.json();
-        const parts = data?.candidates?.[0]?.content?.parts || [];
-        const text = parts
-          .map((p) => (typeof p?.text === 'string' ? p.text : ''))
-          .join('\n')
-          .trim();
-        if (text) return { text, model };
-      } else {
-        let msg = '';
-        try {
-          const errJson = await resp.json();
-          msg = String(errJson?.error?.message || '').slice(0, 140);
-        } catch (_) {}
-        errors.push(`${model}:${resp.status}(${msg})`);
-      }
-    } catch (_) {
-      errors.push(`${model}:net`);
+    if (isGemma) {
+      // Gemma models on Gemini API do not accept `system_instruction`; prepend it cleanly to the first user message
+      const contents = cleanMsgs.map((m, i) => ({
+        role: m.role,
+        parts: [
+          {
+            text:
+              i === 0 && m.role === 'user'
+                ? `تعليمات النظام:\n${SYSTEM_GUARDRAIL}\n\nسؤال المستخدم:\n${m.text}`
+                : m.text,
+          },
+        ],
+      }));
+      bodyObj = {
+        contents,
+        generationConfig: {
+          temperature: 0.25,
+          maxOutputTokens: 1024,
+        },
+      };
+    } else {
+      const contents = cleanMsgs.map((m) => ({
+        role: m.role,
+        parts: [{ text: m.text }],
+      }));
+      bodyObj = {
+        system_instruction: { parts: [{ text: SYSTEM_GUARDRAIL }] },
+        contents,
+        generationConfig: {
+          temperature: 0.25,
+          maxOutputTokens: 1024,
+        },
+      };
     }
-    return null;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
+      body: JSON.stringify(bodyObj),
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      const parts = data?.candidates?.[0]?.content?.parts || [];
+      const text = parts
+        .map((p) => (typeof p?.text === 'string' ? p.text : ''))
+        .join('\n')
+        .trim();
+      if (text) return { ok: true, text, model };
+      return { ok: false, status: 200, msg: 'empty_response' };
+    }
+
+    let msg = '';
+    try {
+      const errJson = await resp.json();
+      msg = String(errJson?.error?.message || '').slice(0, 120);
+    } catch (_) {}
+    return { ok: false, status: resp.status, msg };
   }
 
   for (const model of candidateModels) {
-    const hit = await tryModel(model);
-    if (hit) return hit;
-  }
-
-  // Future-proof auto-discovery: query Google's active models list if static names change again
-  const discovered = await discoverLatestFlashModel(apiKey);
-  if (discovered) {
-    const hit = await tryModel(discovered);
-    if (hit) return hit;
+    if (!model || tried.has(model) || tried.size >= 8) continue;
+    tried.add(model);
+    try {
+      let r = await invokeOnce(model);
+      // Automatic 1-time retry on transient 503 high-demand spikes
+      if (!r.ok && r.status === 503) {
+        await sleep(650);
+        r = await invokeOnce(model);
+      }
+      if (r.ok) {
+        return { text: r.text, model: r.model };
+      }
+      errors.push(`${model}:${r.status}(${r.msg})`);
+    } catch (_) {
+      errors.push(`${model}:net`);
+    }
   }
 
   return { error: errors.join(' | ') };
@@ -212,6 +283,7 @@ export default async function handler(req, res) {
   const hasGroq = groqKey.length > 10;
 
   if (req.method === 'GET') {
+    const discovered = hasGemini ? await discoverActiveModels(geminiKey) : [];
     return res.status(200).json({
       status: 'ok',
       service: 'orthoxia-patristic-ai',
@@ -220,6 +292,7 @@ export default async function handler(req, res) {
         gemini: hasGemini,
         groq: hasGroq,
       },
+      discoveredModels: discovered.slice(0, 8),
     });
   }
 
@@ -227,7 +300,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Optional App Client Lock
   const expectedAppKey = (process.env.APP_CLIENT_KEY || '').trim();
   if (expectedAppKey) {
     const sentHeader = String(req.headers['x-orthoxia-client'] || '').trim();
@@ -239,7 +311,6 @@ export default async function handler(req, res) {
     }
   }
 
-  // Per-IP Rate Limit
   const forwardedFor = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
   const clientIp = forwardedFor || req.socket?.remoteAddress || 'unknown';
   if (!checkRateLimit(clientIp)) {

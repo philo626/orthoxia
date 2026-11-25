@@ -2,13 +2,15 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../core/services/infinite_trivia_engine.dart';
 import '../core/services/storage_service.dart';
 import '../models/trivia_model.dart';
 
 enum TriviaGameMode {
-  endless('التحدي الشامل'),
-  bibleDetective('من القائل / أي سفر؟'),
-  liturgyRites('طقس القداس والسنكسار');
+  endless('تحدي لا نهائي ∞'),
+  bibleDetective('الكتاب المقدس وأكمل الآية'),
+  deaconsHymns('تلمذة الشمامسة والألحان'),
+  liturgyRites('الطقس والسنكسار والآباء');
 
   final String label;
   const TriviaGameMode(this.label);
@@ -16,10 +18,10 @@ enum TriviaGameMode {
 
 class TriviaProvider with ChangeNotifier {
   final Random _rng = Random();
+  final InfiniteTriviaEngine _engine = InfiniteTriviaEngine();
+  final Set<String> _seenQuestions = {};
   List<TriviaTier> _tiers = [];
   List<TriviaQuestion> _curatedQuestions = [];
-  List<dynamic> _bibleBooksRaw = [];
-  Map<String, dynamic>? _lectionaryRaw;
 
   TriviaGameMode _activeMode = TriviaGameMode.endless;
   TriviaQuestion? _currentQuestion;
@@ -100,12 +102,8 @@ class TriviaProvider with ChangeNotifier {
       }
       notifyListeners();
 
-      // Load Bible & Lectionary in background for infinite dynamic question generation
-      final bibleStr = await rootBundle.loadString('assets/data/bible.json');
-      _bibleBooksRaw = jsonDecode(bibleStr) as List<dynamic>;
-
-      final lectStr = await rootBundle.loadString('assets/data/synaxarium_ar.json');
-      _lectionaryRaw = jsonDecode(lectStr) as Map<String, dynamic>;
+      // Load infinite multi-source Orthodox engine (35,000+ verses/hymns/saints/sayings!)
+      await _engine.ensureLoaded();
       notifyListeners();
     } catch (e) {
       // Fallback
@@ -191,142 +189,33 @@ class TriviaProvider with ChangeNotifier {
     _hiddenOptions = {};
     _hintRevealed = false;
 
-    if (_activeMode == TriviaGameMode.bibleDetective && _bibleBooksRaw.isNotEmpty) {
-      _currentQuestion = _generateDynamicBibleQuestion();
-      notifyListeners();
-      return;
-    }
+    final categoryKey = switch (_activeMode) {
+      TriviaGameMode.bibleDetective => 'الكتاب المقدس',
+      TriviaGameMode.deaconsHymns => 'تلمذة الشمامسة والألحان',
+      TriviaGameMode.liturgyRites => 'سير القديسين والآباء',
+      TriviaGameMode.endless => 'الكل',
+    };
 
-    if (_activeMode == TriviaGameMode.liturgyRites) {
-      if (_rng.nextBool() && _lectionaryRaw != null) {
-        _currentQuestion = _generateDynamicSynaxariumOrLectionaryQuestion();
-      } else {
-        final liturgicalPool = _curatedQuestions
-            .where((q) => q.category != 'الكتاب المقدس')
-            .toList();
-        if (liturgicalPool.isNotEmpty) {
-          _currentQuestion = liturgicalPool[_rng.nextInt(liturgicalPool.length)];
+    if (_engine.isLoaded) {
+      final q = _engine.nextQuestion(
+        rng: _rng,
+        category: categoryKey,
+        seenQuestions: _seenQuestions,
+      );
+      if (q != null) {
+        _seenQuestions.add(q.question);
+        if (_seenQuestions.length > 500) {
+          _seenQuestions.remove(_seenQuestions.first);
         }
+        _currentQuestion = q;
+        notifyListeners();
+        return;
       }
-      notifyListeners();
-      return;
     }
 
-    // Endless Mode: Mix curated questions + dynamic Bible verses + dynamic Synaxarium/Katameros!
-    final roll = _rng.nextInt(100);
-    if (roll < 45 && _bibleBooksRaw.isNotEmpty) {
-      _currentQuestion = _generateDynamicBibleQuestion();
-    } else if (roll < 70 && _lectionaryRaw != null) {
-      _currentQuestion = _generateDynamicSynaxariumOrLectionaryQuestion();
-    } else if (_curatedQuestions.isNotEmpty) {
+    if (_curatedQuestions.isNotEmpty) {
       _currentQuestion = _curatedQuestions[_rng.nextInt(_curatedQuestions.length)];
     }
-
     notifyListeners();
-  }
-
-  TriviaQuestion _generateDynamicBibleQuestion() {
-    final typeRoll = _rng.nextInt(3);
-
-    // Type A: Which book contains this authentic verse?
-    if (typeRoll <= 1) {
-      final bookIdx = _rng.nextInt(_bibleBooksRaw.length);
-      final book = _bibleBooksRaw[bookIdx] as Map<String, dynamic>;
-      final bookName = book['name'] as String;
-      final chapters = book['chapters'] as List<dynamic>;
-      final chIdx = _rng.nextInt(chapters.length);
-      final verses = chapters[chIdx] as List<dynamic>;
-      final vIdx = _rng.nextInt(verses.length);
-      String verseText = '${verses[vIdx]}';
-      if (verseText.length > 140) {
-        verseText = '${verseText.substring(0, 140)}...';
-      }
-
-      final optionsSet = <String>{bookName};
-      while (optionsSet.length < 4) {
-        final rBook = _bibleBooksRaw[_rng.nextInt(_bibleBooksRaw.length)]['name'] as String;
-        optionsSet.add(rBook);
-      }
-      final options = optionsSet.toList()..shuffle(_rng);
-      final correctIdx = options.indexOf(bookName);
-
-      return TriviaQuestion(
-        id: 'dyn_bible_${DateTime.now().microsecondsSinceEpoch}',
-        category: 'آيات الكتاب المقدس',
-        difficulty: 'متجدد',
-        question: 'في أي سفر من أسفار الكتاب المقدس وردت هذه الآية المباركة:\n«$verseText»؟',
-        options: options,
-        correctIndex: correctIdx,
-        explanation: 'وردت هذه الآية في سفر $bookName (إصحاح ${chIdx + 1}: آية ${vIdx + 1}).',
-      );
-    }
-
-    // Type B: How many chapters are in this Bible book?
-    final bookIdx = _rng.nextInt(_bibleBooksRaw.length);
-    final book = _bibleBooksRaw[bookIdx] as Map<String, dynamic>;
-    final bookName = book['name'] as String;
-    final chaptersCount = (book['chapters'] as List).length;
-    final correctAnswer = '$chaptersCount إصحاح';
-
-    final countsSet = <int>{chaptersCount};
-    while (countsSet.length < 4) {
-      final delta = _rng.nextInt(15) + 1;
-      final candidate = (_rng.nextBool() ? chaptersCount + delta : (chaptersCount - delta).clamp(1, 150));
-      if (candidate != chaptersCount) countsSet.add(candidate);
-    }
-    final options = countsSet.map((c) => '$c إصحاح').toList()..shuffle(_rng);
-    final correctIdx = options.indexOf(correctAnswer);
-
-    return TriviaQuestion(
-      id: 'dyn_ch_${DateTime.now().microsecondsSinceEpoch}',
-      category: 'علوم الكتاب المقدس',
-      difficulty: 'متوسط',
-      question: 'كم عدد إصحاحات سفر «$bookName» في الكتاب المقدس؟',
-      options: options,
-      correctIndex: correctIdx,
-      explanation: 'يتكون سفر $bookName من $chaptersCount إصحاحاً في الكتاب المقدس.',
-    );
-  }
-
-  TriviaQuestion _generateDynamicSynaxariumOrLectionaryQuestion() {
-    final copticMonths = [
-      'توت', 'بابه', 'هاتور', 'كيهك', 'طوبة', 'أمشير',
-      'برمهات', 'برمودة', 'بشنس', 'بؤونة', 'أبيب', 'مسرى', 'النسيء'
-    ];
-    final synMap = _lectionaryRaw;
-    if (synMap != null && synMap.isNotEmpty) {
-      final keys = synMap.keys.toList();
-      final randomKey = keys[_rng.nextInt(keys.length)];
-      final parts = randomKey.split('-');
-      final mNum = int.tryParse(parts[0]) ?? 1;
-      final dNum = int.tryParse(parts[1]) ?? 1;
-      final mName = copticMonths[(mNum - 1).clamp(0, 12)];
-      final events = synMap[randomKey] as List<dynamic>;
-      if (events.isNotEmpty) {
-        final ev = events.first as Map<String, dynamic>;
-        final rawTitle = '${ev['title'] ?? ''}'.trim();
-        final correctDate = '$dNum $mName';
-        final optionsSet = <String>{correctDate};
-        while (optionsSet.length < 4) {
-          final rm = copticMonths[_rng.nextInt(12)];
-          final rd = _rng.nextInt(30) + 1;
-          optionsSet.add('$rd $rm');
-        }
-        final options = optionsSet.toList()..shuffle(_rng);
-        final correctIdx = options.indexOf(correctDate);
-
-        return TriviaQuestion(
-          id: 'dyn_syn_${DateTime.now().microsecondsSinceEpoch}',
-          category: 'السنكسار القبطي',
-          difficulty: 'متجدد',
-          question: 'في أي يوم من أيام السنة القبطية تعيّد الكنيسة بتذكار:\n«$rawTitle»؟',
-          options: options,
-          correctIndex: correctIdx,
-          explanation: 'تحتفل الكنيسة القبطية الأرثوذكسية بهذا التذكار المبارك في يوم $correctDate حسب السنكسار القبطي.',
-        );
-      }
-    }
-
-    return _curatedQuestions[_rng.nextInt(_curatedQuestions.length)];
   }
 }

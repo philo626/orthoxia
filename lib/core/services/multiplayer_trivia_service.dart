@@ -11,6 +11,8 @@ class TriviaRoomState {
   final String hostName;
   final String categoryLabel;
   final String status; // 'waiting' | 'playing' | 'finished'
+  final int roomSeed; // Deterministic seed for InfiniteTriviaEngine -> 35,000+ synchronized questions!
+  final int questionCount;
   final List<int> questionIndices;
   final DateTime? createdAt;
 
@@ -20,6 +22,8 @@ class TriviaRoomState {
     required this.hostName,
     required this.categoryLabel,
     required this.status,
+    required this.roomSeed,
+    required this.questionCount,
     required this.questionIndices,
     this.createdAt,
   });
@@ -27,13 +31,18 @@ class TriviaRoomState {
   factory TriviaRoomState.fromMap(String code, Map<String, dynamic> d) {
     final ts = d['createdAt'];
     final rawQ = (d['questionIndices'] as List?) ?? const [];
+    final indices = rawQ.map((e) => (e as num).toInt()).toList();
+    final parsedSeed = (d['roomSeed'] as num?)?.toInt() ?? code.hashCode.abs();
+    final parsedCount = (d['questionCount'] as num?)?.toInt() ?? (indices.isNotEmpty ? indices.length : 8);
     return TriviaRoomState(
       roomCode: code,
       hostUid: '${d['hostUid'] ?? ''}',
       hostName: '${d['hostName'] ?? ''}',
       categoryLabel: '${d['categoryLabel'] ?? 'تحدي شامل'}',
       status: '${d['status'] ?? 'waiting'}',
-      questionIndices: rawQ.map((e) => (e as num).toInt()).toList(),
+      roomSeed: parsedSeed,
+      questionCount: parsedCount.clamp(3, 20),
+      questionIndices: indices,
       createdAt: ts is Timestamp ? ts.toDate() : null,
     );
   }
@@ -113,13 +122,17 @@ class MultiplayerTriviaService {
     return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
   }
 
+  /// Deterministic integer seed for today's Daily Online Challenge (unique every single day forever!)
+  static int dailySeed([DateTime? date]) {
+    final d = date ?? DateTime.now();
+    return d.year * 10000 + d.month * 100 + d.day;
+  }
+
   /// Generates deterministic 10 daily question indices from today's date so every player gets the exact same Daily Challenge!
   static List<int> dailyQuestionIndices(int poolSize, {int count = 10, DateTime? date}) {
     if (poolSize <= 0) return const [];
-    final d = date ?? DateTime.now();
-    final seed = d.year * 10000 + d.month * 100 + d.day;
     final indices = List<int>.generate(poolSize, (i) => i);
-    indices.shuffle(Random(seed));
+    indices.shuffle(Random(dailySeed(date)));
     return indices.take(count.clamp(1, poolSize)).toList();
   }
 
@@ -197,6 +210,7 @@ class MultiplayerTriviaService {
       }
 
       final myName = _myPlayerName();
+      final roomSeed = _rng.nextInt(1 << 30) + 1;
       final roomRef = db.collection('trivia_rooms').doc(code);
       await roomRef.set({
         'roomCode': code,
@@ -204,6 +218,8 @@ class MultiplayerTriviaService {
         'hostName': myName,
         'categoryLabel': SecurityGuardService.sanitizeText(categoryLabel, maxLength: 40, allowNewlines: false),
         'status': 'waiting',
+        'roomSeed': roomSeed,
+        'questionCount': picked.length,
         'questionIndices': picked,
         'createdAt': FieldValue.serverTimestamp(),
       });

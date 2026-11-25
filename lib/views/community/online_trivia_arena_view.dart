@@ -1,8 +1,8 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../core/services/infinite_trivia_engine.dart';
 import '../../core/services/multiplayer_trivia_service.dart';
 import '../../core/theme/app_palette.dart';
 import '../../core/widgets/luxe_widgets.dart';
@@ -11,6 +11,7 @@ import '../onboarding/auth_view.dart';
 
 /// 100% FREE Live Online Multiplayer Trivia with Friends (Private Room Code `OR-XXXX`)
 /// + Free Daily Online Challenge & Top 20 Leaderboard across Egypt!
+/// Powered by InfiniteTriviaEngine (35,000+ deterministic non-repeating Orthodox questions!).
 class OnlineTriviaArenaView extends StatefulWidget {
   final int initialTab; // 0 = مع أصحابك | 1 = التحدي اليومي
   const OnlineTriviaArenaView({super.key, this.initialTab = 0});
@@ -22,9 +23,9 @@ class OnlineTriviaArenaView extends StatefulWidget {
 class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
     with SingleTickerProviderStateMixin {
   final MultiplayerTriviaService _service = MultiplayerTriviaService();
+  final InfiniteTriviaEngine _engine = InfiniteTriviaEngine();
   late final TabController _tabCtrl;
 
-  List<TriviaQuestion> _pool = [];
   bool _loadingPool = true;
 
   // Friend Room State
@@ -33,6 +34,8 @@ class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
   int _selectedQCount = 8;
   bool _busyRoom = false;
   String? _activeRoomCode;
+  String _cachedMatchRoomKey = '';
+  List<TriviaQuestion> _cachedRoomQuestions = [];
   int _roomQIndex = 0;
   int _roomScore = 0;
   int _roomCorrect = 0;
@@ -42,7 +45,7 @@ class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
 
   // Daily Online Challenge State
   bool _playingDaily = false;
-  List<int> _dailyIndices = [];
+  List<TriviaQuestion> _dailyQuestions = [];
   int _dailyIdx = 0;
   int _dailyScore = 0;
   int _dailyCorrect = 0;
@@ -73,15 +76,15 @@ class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
 
   Future<void> _loadPool() async {
     try {
-      final raw = await rootBundle.loadString('assets/data/trivia.json');
-      final decoded = jsonDecode(raw) as Map<String, dynamic>;
-      final list = (decoded['questions'] as List)
-          .map((q) => TriviaQuestion.fromJson(q as Map<String, dynamic>))
-          .toList();
+      await _engine.ensureLoaded();
+      final dailyBatch = _engine.generateSeededMatch(
+        seed: MultiplayerTriviaService.dailySeed(),
+        count: 10,
+        category: 'الكل',
+      );
       if (mounted) {
         setState(() {
-          _pool = list;
-          _dailyIndices = MultiplayerTriviaService.dailyQuestionIndices(list.length, count: 10);
+          _dailyQuestions = dailyBatch;
           _loadingPool = false;
         });
       }
@@ -90,19 +93,19 @@ class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
     }
   }
 
-  List<int> _candidateIndicesForCategory() {
-    if (_selectedCat == 'الكل') {
-      return List<int>.generate(_pool.length, (i) => i);
+  List<TriviaQuestion> _questionsForRoom(TriviaRoomState room) {
+    final key = '${room.roomCode}_${room.roomSeed}_${room.questionCount}_${room.categoryLabel}';
+    if (_cachedMatchRoomKey == key && _cachedRoomQuestions.isNotEmpty) {
+      return _cachedRoomQuestions;
     }
-    final matched = <int>[];
-    for (int i = 0; i < _pool.length; i++) {
-      if (_pool[i].category.contains(_selectedCat) ||
-          (_selectedCat == 'تلمذة الشمامسة والألحان' &&
-              (_pool[i].category.contains('ألحان') || _pool[i].category.contains('شمامسة')))) {
-        matched.add(i);
-      }
-    }
-    return matched.length >= 5 ? matched : List<int>.generate(_pool.length, (i) => i);
+    final cat = room.categoryLabel == 'تحدي شامل' ? 'الكل' : room.categoryLabel;
+    _cachedRoomQuestions = _engine.generateSeededMatch(
+      seed: room.roomSeed,
+      count: room.questionCount,
+      category: cat,
+    );
+    _cachedMatchRoomKey = key;
+    return _cachedRoomQuestions;
   }
 
   Future<void> _createRoom() async {
@@ -113,7 +116,7 @@ class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
     HapticFeedback.mediumImpact();
     setState(() => _busyRoom = true);
     final (code, msg) = await _service.createFriendRoom(
-      candidateIndices: _candidateIndicesForCategory(),
+      candidateIndices: List<int>.generate(60, (i) => i),
       questionCount: _selectedQCount,
       categoryLabel: _selectedCat == 'الكل' ? 'تحدي شامل' : _selectedCat,
     );
@@ -122,6 +125,7 @@ class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
       _busyRoom = false;
       if (code != null) {
         _activeRoomCode = code;
+        _cachedMatchRoomKey = '';
         _resetLocalRoomProgress();
       }
     });
@@ -143,6 +147,7 @@ class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
       _busyRoom = false;
       if (code != null) {
         _activeRoomCode = code;
+        _cachedMatchRoomKey = '';
         _joinCodeCtrl.clear();
         _resetLocalRoomProgress();
       }
@@ -172,7 +177,7 @@ class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
           style: GoogleFonts.amiri(fontSize: 22, fontWeight: FontWeight.bold, color: p.ink),
         ),
         content: Text(
-          'اللعب أونلاين مع أصحابك والتحدي اليومي مجاني ١٠٠٪ — محتاجين بس تسجيل دخول عشان اسمك ونقاطك تظهر في الغرفة ولوحة المتصدرين.',
+          'اللعب أونلاين مع أصحابك والتحدي اليومي مجاني ١٠٠٪ وببنك أسئلة لا نهائي (٣٥,٠٠٠+ سؤال متجدد) — محتاجين بس تسجيل دخول عشان اسمك ونقاطك تظهر في الغرفة ولوحة المتصدرين.',
           style: GoogleFonts.cairo(fontSize: 13, color: p.inkSecondary, height: 1.55),
         ),
         actions: [
@@ -192,10 +197,9 @@ class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
     );
   }
 
-  Future<void> _answerRoomQuestion(TriviaRoomState room, int optIdx) async {
-    if (_roomSelectedOpt != null) return;
-    final qPoolIdx = room.questionIndices[_roomQIndex].clamp(0, _pool.length - 1);
-    final q = _pool[qPoolIdx];
+  Future<void> _answerRoomQuestion(TriviaRoomState room, List<TriviaQuestion> qs, int optIdx) async {
+    if (_roomSelectedOpt != null || qs.isEmpty) return;
+    final q = qs[_roomQIndex.clamp(0, qs.length - 1)];
     final isCorrect = optIdx == q.correctIndex;
     final elapsedSec = DateTime.now().difference(_questionStartedAt).inSeconds;
     final speedBonus = isCorrect ? (20 - elapsedSec).clamp(0, 20) * 3 : 0;
@@ -204,7 +208,7 @@ class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
     HapticFeedback.lightImpact();
     final nextScore = _roomScore + gained;
     final nextCorrect = _roomCorrect + (isCorrect ? 1 : 0);
-    final isLast = _roomQIndex + 1 >= room.questionIndices.length;
+    final isLast = _roomQIndex + 1 >= qs.length;
 
     setState(() {
       _roomSelectedOpt = optIdx;
@@ -221,8 +225,8 @@ class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
     );
   }
 
-  void _nextRoomQuestion(TriviaRoomState room) {
-    if (_roomQIndex + 1 >= room.questionIndices.length) {
+  void _nextRoomQuestion(List<TriviaQuestion> qs) {
+    if (_roomQIndex + 1 >= qs.length) {
       setState(() => _roomFinished = true);
     } else {
       setState(() {
@@ -234,8 +238,8 @@ class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
   }
 
   Future<void> _answerDailyQuestion(int optIdx) async {
-    if (_dailySelectedOpt != null) return;
-    final q = _pool[_dailyIndices[_dailyIdx].clamp(0, _pool.length - 1)];
+    if (_dailySelectedOpt != null || _dailyQuestions.isEmpty) return;
+    final q = _dailyQuestions[_dailyIdx.clamp(0, _dailyQuestions.length - 1)];
     final isCorrect = optIdx == q.correctIndex;
     final elapsedSec = DateTime.now().difference(_questionStartedAt).inSeconds;
     final speedBonus = isCorrect ? (20 - elapsedSec).clamp(0, 20) * 3 : 0;
@@ -250,13 +254,13 @@ class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
   }
 
   Future<void> _nextDailyQuestion() async {
-    if (_dailyIdx + 1 >= _dailyIndices.length) {
+    if (_dailyIdx + 1 >= _dailyQuestions.length) {
       setState(() => _dailyFinished = true);
       if (_service.currentUid != null) {
         await _service.submitDailyScore(
           score: _dailyScore,
           correctCount: _dailyCorrect,
-          totalCount: _dailyIndices.length,
+          totalCount: _dailyQuestions.length,
         );
       }
     } else {
@@ -286,7 +290,7 @@ class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
               style: GoogleFonts.amiri(fontWeight: FontWeight.bold, fontSize: 22, color: p.ink, height: 1.15),
             ),
             Text(
-              'مجانية ١٠٠٪ • تنافس مباشر مع أصحابك أو في التحدي اليومي',
+              'بنك أسئلة لا نهائي (٣٥,٠٠٠+ سؤال متجدد ∞) • مجاني ١٠٠٪',
               style: GoogleFonts.cairo(fontSize: 10.5, color: p.inkMuted),
             ),
           ],
@@ -684,13 +688,13 @@ class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
             }
 
             // B) FINISHED PODIUM + LIVE SCORES
-            if (_roomFinished || room.status == 'finished') {
+            final roomQuestions = _questionsForRoom(room);
+            if (_roomFinished || room.status == 'finished' || roomQuestions.isEmpty) {
               return _buildRoomResultsPodium(p, room, players);
             }
 
-            // C) LIVE SYNCHRONIZED MATCH
-            final qIdx = room.questionIndices[_roomQIndex].clamp(0, _pool.length - 1);
-            final q = _pool[qIdx];
+            // C) LIVE SYNCHRONIZED INFINITE MATCH
+            final q = roomQuestions[_roomQIndex.clamp(0, roomQuestions.length - 1)];
             return Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 680),
@@ -740,12 +744,12 @@ class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
                     _buildQuestionCard(
                       p: p,
                       question: q,
-                      stepLabel: 'سؤال ${_roomQIndex + 1} من ${room.questionIndices.length}',
+                      stepLabel: 'سؤال ${_roomQIndex + 1} من ${roomQuestions.length}',
                       scoreLabel: 'نقاطك: $_roomScore',
                       selectedOpt: _roomSelectedOpt,
-                      onSelect: (idx) => _answerRoomQuestion(room, idx),
-                      onNext: () => _nextRoomQuestion(room),
-                      isLast: _roomQIndex + 1 >= room.questionIndices.length,
+                      onSelect: (idx) => _answerRoomQuestion(room, roomQuestions, idx),
+                      onNext: () => _nextRoomQuestion(roomQuestions),
+                      isLast: _roomQIndex + 1 >= roomQuestions.length,
                     ),
                   ],
                 ),
@@ -859,8 +863,8 @@ class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
   // ===========================================================================
 
   Widget _buildDailyTab(AppPalette p) {
-    if (_playingDaily && !_dailyFinished && _dailyIndices.isNotEmpty) {
-      final q = _pool[_dailyIndices[_dailyIdx].clamp(0, _pool.length - 1)];
+    if (_playingDaily && !_dailyFinished && _dailyQuestions.isNotEmpty) {
+      final q = _dailyQuestions[_dailyIdx.clamp(0, _dailyQuestions.length - 1)];
       return Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 680),
@@ -870,12 +874,12 @@ class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
               _buildQuestionCard(
                 p: p,
                 question: q,
-                stepLabel: 'التحدي اليومي • ${_dailyIdx + 1} / ${_dailyIndices.length}',
+                stepLabel: 'التحدي اليومي • ${_dailyIdx + 1} / ${_dailyQuestions.length}',
                 scoreLabel: 'نقاطك: $_dailyScore',
                 selectedOpt: _dailySelectedOpt,
                 onSelect: _answerDailyQuestion,
                 onNext: _nextDailyQuestion,
-                isLast: _dailyIdx + 1 >= _dailyIndices.length,
+                isLast: _dailyIdx + 1 >= _dailyQuestions.length,
               ),
             ],
           ),
@@ -908,8 +912,8 @@ class _OnlineTriviaArenaViewState extends State<OnlineTriviaArenaView>
                   const SizedBox(height: 4),
                   Text(
                     _dailyFinished
-                        ? 'جبت $_dailyScore نقطة ($_dailyCorrect من ${_dailyIndices.length} صح) واتسجّلت في لوحة المتصدرين!'
-                        : 'نفس الـ ١٠ أسئلة لكل الناس النهاردة — جاوب أسرع عشان تاخد بونص سرعة وتطلع الأول على لوحة المتصدرين!',
+                        ? 'جبت $_dailyScore نقطة ($_dailyCorrect من ${_dailyQuestions.length} صح) واتسجّلت في لوحة المتصدرين!'
+                        : '١٠ أسئلة جديدة كل يوم مبتتكررش أبداً — جاوب أسرع عشان تاخد بونص سرعة وتطلع الأول على لوحة المتصدرين!',
                     style: GoogleFonts.cairo(fontSize: 12.5, color: p.inkSecondary, height: 1.5),
                   ),
                   const SizedBox(height: 12),

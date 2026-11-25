@@ -13,6 +13,7 @@ import 'package:orthodox_app/core/services/coptic_calendar_service.dart';
 import 'package:orthodox_app/core/services/coptic_fast_service.dart';
 import 'package:orthodox_app/core/services/coptic_youtube_registry.dart';
 import 'package:orthodox_app/core/services/encryption_service.dart';
+import 'package:orthodox_app/core/services/infinite_trivia_engine.dart';
 import 'package:orthodox_app/core/services/multiplayer_trivia_service.dart';
 import 'package:orthodox_app/core/services/notification_service.dart';
 import 'package:orthodox_app/core/services/online_coptic_library_service.dart';
@@ -948,6 +949,20 @@ void main() {
       final dailyB = MultiplayerTriviaService.dailyQuestionIndices(60, count: 10, date: DateTime(2026, 11, 25));
       expect(dailyA, equals(dailyB));
       expect(dailyA.length, 10);
+
+      // Verify deterministic InfiniteTriviaEngine (35,000+ non-repeating questions across 5 sources!)
+      await tester.runAsync(() async {
+        await InfiniteTriviaEngine().ensureLoaded();
+      });
+      expect(InfiniteTriviaEngine().estimatedTotalQuestions, greaterThan(31000));
+      final matchA1 = InfiniteTriviaEngine().generateSeededMatch(seed: 777123, count: 40);
+      final matchA2 = InfiniteTriviaEngine().generateSeededMatch(seed: 777123, count: 40);
+      final matchB = InfiniteTriviaEngine().generateSeededMatch(seed: 999456, count: 40);
+      expect(matchA1.length, 40);
+      expect(matchA1.map((q) => q.question).toSet().length, 40, reason: 'Zero duplicates in 40-question infinite match');
+      expect(matchA1.map((q) => q.question).toList(), equals(matchA2.map((q) => q.question).toList()),
+          reason: 'All friends in the same online room must get identical synchronized questions');
+      expect(matchA1.first.question, isNot(equals(matchB.first.question)));
 
       for (final screen in const <Widget>[
         CommunionReadinessView(),

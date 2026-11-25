@@ -184,15 +184,16 @@ async function callGemini(apiKey, userMessages) {
         system_instruction: { parts: [{ text: SYSTEM_GUARDRAIL }] },
         contents,
         generationConfig: {
-          temperature: 0.15,
-          maxOutputTokens: 900,
+          temperature: 0.2,
+          maxOutputTokens: 2048,
+          thinkingConfig: { thinkingBudget: 0 },
         },
       };
     }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 7500);
+    const timer = setTimeout(() => controller.abort(), 9000);
     try {
       const resp = await fetch(url, {
         method: 'POST',
@@ -208,11 +209,12 @@ async function callGemini(apiKey, userMessages) {
         const data = await resp.json();
         const parts = data?.candidates?.[0]?.content?.parts || [];
         const text = parts
-          .map((p) => (typeof p?.text === 'string' ? p.text : ''))
+          .filter((p) => !p?.thought && typeof p?.text === 'string')
+          .map((p) => p.text)
           .join('\n')
           .trim();
-        if (text) return { ok: true, text, model };
-        return { ok: false, status: 200, msg: 'empty_response' };
+        if (text.length >= 20) return { ok: true, text, model };
+        return { ok: false, status: 200, msg: 'short_or_empty_response' };
       }
 
       let msg = '';

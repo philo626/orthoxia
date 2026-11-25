@@ -41,15 +41,32 @@ class ConfessionService {
         'رابط التطبيق: https://github.com/philo626/orthoxia';
   }
 
-  /// Share text for a SINGLE-USE peer-priest vouch invite code (`KN-XXXX`)
+  /// Share text for a peer-priest vouch invite code (`KN-XXXX`) — works for 1 priest OR a church group (up to 15)
   static String buildPeerPriestVouchShareText({
     required String issuerName,
     required String inviteCode,
+    int maxUses = 1,
   }) {
-    return 'سلام ونعمة يا قدس أبونا،\n'
-        'أدعو قدسك للانضمام لبوابة الآباء الكهنة الموثّقة في تطبيق أرثوذكسيا (بتزكية من $issuerName).\n\n'
-        'بعد تسجيل الدخول كأب كاهن، أدخل كود التزكية الخاص (صالح لاستخدام واحد لمدة ٧ أيام) لتوثيق حساب قدسك فوراً والظهور في الدليل:\n'
+    final scopeLine = maxUses > 1
+        ? 'الكود ده صالح لتوثيق لغاية $maxUses آباء كهنة (لمدة ٧ أيام) — كل أب كاهن في الكنيسة أو الإيبارشية يقدر يدخله ويتوثق علطول:'
+        : 'بعد تسجيل الدخول كأب كاهن، قدسك تدخّل كود التزكية الخاص ده (صالح لاستخدام واحد لمدة ٧ أيام) عشان حساب قدسك يتوثّق علطول ويظهر في الدليل:';
+    return 'سلام ونعمة يا آبائنا الأحباء،\n'
+        'بدعو قدسكم للانضمام لبوابة الآباء الكهنة في تطبيق أرثوذكسيا (بتزكية من $issuerName).\n'
+        'التطبيق فيه الخولاجي الكامل بصلوات الكاهن السرية، الـ ٣٩ قسمة، القطمارس والسنكسار، دفتر الافتقاد وأسماء المذبح، وتنظيم مواعيد الاعتراف بخصوصية تامة.\n\n'
+        '$scopeLine\n'
         '✝️ كود التزكية: $inviteCode\n\n'
+        'رابط تحميل التطبيق: https://github.com/philo626/orthoxia';
+  }
+
+  /// Share text so ANY priest (even before verification) can invite multiple brother priests to try the app!
+  static String buildPriestAppRecommendationText({
+    required String senderPriestName,
+    String church = '',
+  }) {
+    final churchSuffix = church.trim().isNotEmpty ? ' ($church)' : '';
+    return 'سلام ونعمة يا آبائي الأحباء،\n'
+        'حبيت أشارك معاكم تطبيق «أرثوذكسيا» — معمول فيه بوابة كاملة مخصوص لخدمتنا كآباء كهنة (الخولاجي الكامل بالصلوات السرية، رفع البخور، الـ ٣٩ قسمة، القطمارس، دفتر أسماء المذبح والافتقاد، وتنظيم مواعيد الاعتراف لأولادنا بكود خاص).\n'
+        'أخوكم: $senderPriestName$churchSuffix\n\n'
         'رابط التطبيق: https://github.com/philo626/orthoxia';
   }
 
@@ -261,19 +278,22 @@ class ConfessionService {
   // 1b. PEER-PRIEST SINGLE-USE VOUCH CODES (`KN-XXXX`)
   // ===========================================================================
 
-  /// Verified Priest (or Admin) generates a BRAND-NEW single-use 7-day code for a fellow priest
+  /// Verified Priest (or Admin) generates a fresh 7-day code for 1 priest OR a church/diocese group (up to 15 priests!)
   Future<(PriestVouchInvite?, String)> generatePeerPriestInviteCode(
-    PriestProfile issuer,
-  ) async {
+    PriestProfile issuer, {
+    int maxUses = 1,
+  }) async {
     final db = _db;
     final uid = currentUid;
     if (db == null || uid == null) {
-      return (null, 'يُرجى تسجيل الدخول والاتصال بالإنترنت أولاً.');
+      return (null, 'من فضلك سجّل دخول واتأكد إن النت شغال الأول.');
     }
     final isAdmin = await isCurrentUserAdmin();
     if (!issuer.isVerifiedPublic && !isAdmin) {
-      return (null, 'إصدار أكواد التزكية متاح للآباء الكهنة الموثّقين فقط.');
+      return (null, 'إصدار أكواد التزكية متاح للآباء الكهنة الموثّقين بس.');
     }
+
+    final clampedMax = maxUses.clamp(1, 15);
 
     try {
       String code = _generateCode('KN');
@@ -291,6 +311,10 @@ class ConfessionService {
         'issuerName': issuer.fullDisplayName,
         'issuerChurch': issuer.church,
         'used': false,
+        'maxUses': clampedMax,
+        'usedCount': 0,
+        'usedByUids': <String>[],
+        'usedByNames': <String>[],
         'usedByUid': '',
         'usedByName': '',
         'createdAt': FieldValue.serverTimestamp(),
@@ -303,13 +327,20 @@ class ConfessionService {
         issuerName: issuer.fullDisplayName,
         issuerChurch: issuer.church,
         used: false,
+        maxUses: clampedMax,
+        usedCount: 0,
         createdAt: now,
         expiresAt: expiresAt,
       );
-      return (invite, 'تم إصدار كود تزكية جديد صالح لاستخدام واحد ($code).');
+      return (
+        invite,
+        clampedMax > 1
+            ? 'اتجهّز كود تزكية جماعي ($code) شغال لـ $clampedMax آباء كهنة لمدة ٧ أيام!'
+            : 'اتجهّز كود تزكية جديد ($code) شغال لأب كاهن واحد لمدة ٧ أيام.',
+      );
     } catch (e) {
       if (kDebugMode) debugPrint('generatePeerPriestInviteCode err: $e');
-      return (null, 'تعذر إصدار كود التزكية حالياً. تأكد من الاتصال بالإنترنت.');
+      return (null, 'مش قادرين نطلّع كود التزكية دلوقتي. اتأكد من النت وحاول تاني.');
     }
   }
 
@@ -352,7 +383,7 @@ class ConfessionService {
           throw Exception('NOT_FOUND');
         }
         final inv = PriestVouchInvite.fromMap(inviteSnap.id, inviteSnap.data()!);
-        if (inv.used) {
+        if (inv.isFullyUsed) {
           throw Exception('ALREADY_USED');
         }
         if (inv.isExpired) {
@@ -360,6 +391,9 @@ class ConfessionService {
         }
         if (inv.issuerUid == uid) {
           throw Exception('SELF_VOUCH');
+        }
+        if (inv.usedByUids.contains(uid)) {
+          throw Exception('ALREADY_REDEEMED_BY_ME');
         }
 
         final priestSnap = await tx.get(priestRef);
@@ -369,13 +403,31 @@ class ConfessionService {
         final pData = priestSnap.data()!;
         final pProfile = PriestProfile.fromMap(uid, pData);
 
-        // Atomically burn the single-use invite AND approve the priest!
-        tx.update(inviteRef, {
-          'used': true,
-          'usedByUid': uid,
-          'usedByName': pProfile.fullDisplayName,
-          'usedAt': FieldValue.serverTimestamp(),
-        });
+        final nextCount = inv.usedCount + 1;
+        final isNowExhausted = nextCount >= inv.maxUses;
+        final nextUids = [...inv.usedByUids, uid];
+        final nextNames = [...inv.usedByNames, pProfile.fullDisplayName];
+
+        // Atomically record redemption (single-use OR multi-use church group) AND approve the priest!
+        final inviteRaw = inviteSnap.data()!;
+        if (inviteRaw.containsKey('maxUses')) {
+          tx.update(inviteRef, {
+            'usedCount': nextCount,
+            'used': isNowExhausted,
+            'usedByUids': nextUids,
+            'usedByNames': nextNames,
+            'usedByUid': uid,
+            'usedByName': pProfile.fullDisplayName,
+            'usedAt': FieldValue.serverTimestamp(),
+          });
+        } else {
+          tx.update(inviteRef, {
+            'used': true,
+            'usedByUid': uid,
+            'usedByName': pProfile.fullDisplayName,
+            'usedAt': FieldValue.serverTimestamp(),
+          });
+        }
         tx.update(priestRef, {
           'verificationStatus': 'approved',
           'vouchInviteCode': normalized,
@@ -383,16 +435,19 @@ class ConfessionService {
           'vouchedByName': inv.issuerName,
           'updatedAt': FieldValue.serverTimestamp(),
         });
-        return 'تم توثيق حساب قدسك فوراً بتزكية ${inv.issuerName} ✓ وأصبح ظاهراً الآن في الدليل العام.';
+        return 'ألف مبروك يا قدس أبونا! اتوثّق حساب قدسك علطول بتزكية ${inv.issuerName} ✓ وبقى ظاهر في الدليل العام.';
       });
       return (true, msg);
     } catch (e) {
       final s = e.toString();
       if (s.contains('NOT_FOUND')) {
-        return (false, 'كود التزكية ($normalized) غير موجود. تأكد من الكود المرسل لقدسك.');
+        return (false, 'كود التزكية ($normalized) مش موجود. اتأكد من الكود اللي اتبعت لقدسك.');
+      }
+      if (s.contains('ALREADY_REDEEMED_BY_ME')) {
+        return (false, 'قدسك استخدمت الكود ده قبل كده وحسابك متوثّق بالفعل.');
       }
       if (s.contains('ALREADY_USED')) {
-        return (false, 'هذا الكود تم استخدامه مسبقاً. كل كود تزكية يعمل لمرة واحدة فقط — اطلب كوداً جديداً من الأب الكاهن.');
+        return (false, 'الكود ده خلصت عدد مرات استخدامه — اطلب كود جديد من الأب الكاهن.');
       }
       if (s.contains('EXPIRED')) {
         return (false, 'انتهت صلاحية كود التزكية (٧ أيام). يُرجى طلب كود جديد.');
@@ -530,13 +585,14 @@ class ConfessionService {
     required DateTime date,
     required String dayLabelAr,
     required String startTimeAr,
+    String endTimeAr = '',
     int? maxAttendees,
     String locationNote = '',
   }) async {
     final db = _db;
     final uid = currentUid;
     if (db == null || uid == null) {
-      return (false, 'يُرجى تسجيل الدخول والاتصال بالإنترنت أولاً.');
+      return (false, 'من فضلك سجّل دخول واتأكد من النت الأول.');
     }
 
     final iso =
@@ -551,6 +607,7 @@ class ConfessionService {
         'dateIso': iso,
         'dayLabelAr': SecurityGuardService.sanitizeText(dayLabelAr, maxLength: 60, allowNewlines: false),
         'startTimeAr': SecurityGuardService.sanitizeText(startTimeAr, maxLength: 40, allowNewlines: false),
+        'endTimeAr': SecurityGuardService.sanitizeText(endTimeAr, maxLength: 40, allowNewlines: false),
         'locationNote': SecurityGuardService.sanitizeText(locationNote, maxLength: 120, allowNewlines: false),
         'maxAttendees': (maxAttendees != null && maxAttendees > 0) ? maxAttendees : null,
         'isOpen': true,
@@ -562,12 +619,12 @@ class ConfessionService {
       return (
         true,
         priest.isVerifiedPublic
-            ? 'تم نشر الموعد بنجاح لأبنائك.'
-            : 'تم نشر الموعد بنجاح لأبنائك المرتبطين بكود قدسك (${priest.privateCode}).'
+            ? 'اتنشر الميعاد بنجاح لأولاد قدسك.'
+            : 'اتنشر الميعاد بنجاح لأولاد قدسك المرتبطين بكود (${priest.privateCode}).'
       );
     } catch (e) {
       if (kDebugMode) debugPrint('publishConfessionSession err: $e');
-      return (false, 'تعذر نشر الموعد حالياً. تأكد من الاتصال بالإنترنت.');
+      return (false, 'مش قادرين ننشر الميعاد دلوقتي. اتأكد من النت وحاول تاني.');
     }
   }
 
@@ -619,18 +676,22 @@ class ConfessionService {
   Future<AttendanceActionResult> registerAttendance(
     ConfessionSession session, {
     bool allowWaitlist = false,
+    String? attendeeNameOverride,
   }) async {
     final db = _db;
     final uid = currentUid;
     if (db == null || uid == null) {
       return const AttendanceActionResult(
         status: AttendanceActionStatus.notSignedIn,
-        message: 'يُرجى تسجيل الدخول أولاً لتأكيد الحضور وإبلاغ قدس أبونا.',
+        message: 'من فضلك سجّل دخول الأول عشان نأكد حضورك ونبلّغ قدس أبونا.',
       );
     }
 
+    final rawName = (attendeeNameOverride != null && attendeeNameOverride.trim().isNotEmpty)
+        ? attendeeNameOverride.trim()
+        : _storage.getUserName();
     final attendeeName = SecurityGuardService.sanitizeText(
-      _storage.getUserName(),
+      rawName,
       maxLength: 60,
       allowNewlines: false,
     );

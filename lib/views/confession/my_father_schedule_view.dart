@@ -12,6 +12,28 @@ import '../conscience/conscience_exam_view.dart';
 import '../onboarding/auth_view.dart';
 import 'fathers_directory_view.dart';
 
+/// Playful Egyptian Arabic validator for two-part confession names («الاسم الثنائي»).
+/// If the user enters only one name, responds with warm friendly banter & laugh emojis 😂!
+class ConfessionNameValidator {
+  static String? validateTwoPartName(String raw, {int attempt = 0}) {
+    final cleaned = raw.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (cleaned.isEmpty) {
+      return 'اكتب اسمك الثنائي يا جميل عشان قدس أبونا يعرف مين اللي جاي يعترف 😊';
+    }
+    final words = cleaned.split(' ').where((w) => w.length >= 2).toList();
+    if (words.length < 2) {
+      final first = words.isNotEmpty ? words.first : cleaned;
+      final jokes = [
+        'يا جدع اسمك «$first» مميز وحلو أوي والله 😂 بس في ١٠ «$first» غيرك في الكنيسة! اكتب اسمك الثنائي عشان قدس أبونا ميتلخبطش بينكم 😄',
+        'هاهاها لا يا بطل اسم واحد مش هيمشي 😂 اكتب اسمك الثنائي عشان أبونا لو نادى «يا $first» هتلاقي نص الكنيسة قامت! 😅',
+        'يا راجل يا طيب «$first» لوحده جامد بس كمّل الاسم التاني كمان 😂 عشان قدس أبونا يعرفك بالظبط ويدعيلك بالاسم!',
+      ];
+      return jokes[attempt % jokes.length];
+    }
+    return null;
+  }
+}
+
 /// Member View: «مواعيد أبونا» (Page 04/04 — From «هحضر» to Abona's Notification):
 /// - Shows Abona's published open-start-time confession days
 /// - Atomic deduplicated «هحضر» confirmation (double-tap NEVER duplicates!)
@@ -29,6 +51,127 @@ class _MyFatherScheduleViewState extends State<MyFatherScheduleView> {
   final StorageService _storage = StorageService();
   final Set<String> _busySessionIds = {};
 
+  Future<String?> _askTwoPartConfessionName() async {
+    final p = context.palette;
+    final initial = _storage.hasCustomUserName() ? _storage.getUserName().trim() : '';
+    final ctrl = TextEditingController(text: initial);
+    String? banterError;
+    int jokeAttempt = 0;
+
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 26),
+            decoration: BoxDecoration(
+              color: p.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border(top: BorderSide(color: p.border)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: p.border, borderRadius: BorderRadius.circular(4)),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'اسمك الثنائي إيه يا جميل؟ 😊',
+                  style: GoogleFonts.amiri(fontSize: 23, fontWeight: FontWeight.bold, color: p.ink),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'اكتب اسمك الثنائي عشان يظهر لقدس أبونا في قائمة الحضور ويعرفك بسهولة.',
+                  style: GoogleFonts.cairo(fontSize: 12.5, color: p.inkSecondary, height: 1.5),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: ctrl,
+                  autofocus: true,
+                  textInputAction: TextInputAction.done,
+                  style: GoogleFonts.cairo(color: p.ink, fontSize: 15, fontWeight: FontWeight.w600),
+                  decoration: const InputDecoration(
+                    hintText: 'مثال: كيرلس فادي / مريم مينا',
+                    prefixIcon: Icon(Icons.badge_outlined, size: 20),
+                  ),
+                  onSubmitted: (_) {
+                    final err = ConfessionNameValidator.validateTwoPartName(
+                      ctrl.text,
+                      attempt: jokeAttempt,
+                    );
+                    if (err != null) {
+                      HapticFeedback.lightImpact();
+                      setSheet(() {
+                        banterError = err;
+                        jokeAttempt++;
+                      });
+                    } else {
+                      Navigator.pop(ctx, ctrl.text.trim().replaceAll(RegExp(r'\s+'), ' '));
+                    }
+                  },
+                ),
+                if (banterError != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: p.goldSoft,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: p.goldBorder, width: 1.3),
+                    ),
+                    child: Text(
+                      banterError!,
+                      style: GoogleFonts.cairo(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: p.ink,
+                        height: 1.55,
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    final err = ConfessionNameValidator.validateTwoPartName(
+                      ctrl.text,
+                      attempt: jokeAttempt,
+                    );
+                    if (err != null) {
+                      HapticFeedback.lightImpact();
+                      setSheet(() {
+                        banterError = err;
+                        jokeAttempt++;
+                      });
+                      return;
+                    }
+                    Navigator.pop(ctx, ctrl.text.trim().replaceAll(RegExp(r'\s+'), ' '));
+                  },
+                  icon: const Icon(Icons.check_circle_outline_rounded, size: 19),
+                  label: Text(
+                    'تمام، سجّل حضوري عند أبونا',
+                    style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 13.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    ctrl.dispose();
+    return result;
+  }
+
   Future<void> _handleAttendTap(ConfessionSession session, {bool waitlist = false}) async {
     if (_busySessionIds.contains(session.id)) return;
     HapticFeedback.mediumImpact();
@@ -38,8 +181,17 @@ class _MyFatherScheduleViewState extends State<MyFatherScheduleView> {
       return;
     }
 
+    // Ask & confirm user's two-part name with playful Egyptian banter if only 1 word is typed!
+    final twoPartName = await _askTwoPartConfessionName();
+    if (twoPartName == null || twoPartName.isEmpty || !mounted) return;
+    await _storage.setUserName(twoPartName);
+
     setState(() => _busySessionIds.add(session.id));
-    final res = await _service.registerAttendance(session, allowWaitlist: waitlist);
+    final res = await _service.registerAttendance(
+      session,
+      allowWaitlist: waitlist,
+      attendeeNameOverride: twoPartName,
+    );
     if (!mounted) return;
     setState(() => _busySessionIds.remove(session.id));
 
@@ -587,7 +739,7 @@ class _MyFatherScheduleViewState extends State<MyFatherScheduleView> {
               ),
               const SizedBox(height: 6),
               Text(
-                'الاعترافات تبدأ ابتداءً من ${session.startTimeAr}',
+                'ميعاد الاعتراف: ${session.timeRangeLabelAr}',
                 style: GoogleFonts.cairo(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w600,

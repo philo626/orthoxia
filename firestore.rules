@@ -139,30 +139,54 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.priestUid == request.auth.uid;
     }
 
-    // 3c. Single-Use Peer-Priest Vouch Invites (`KN-XXXX`)
+    // 3c. Peer-Priest Vouch Invites (`KN-XXXX`) — supports 1 priest OR multi-priest church group (up to 15)
     match /priest_invites/{code} {
       // Exact code lookup allowed for signed-in priests; issuer can list their own issued invites
       allow get: if isSignedIn();
       allow list: if isSignedIn() && resource.data.issuerUid == request.auth.uid;
 
-      // ONLY already-approved priests or admins can issue new single-use vouch codes
+      // ONLY already-approved priests or admins can issue new vouch codes
       allow create: if isSignedIn()
         && (isApprovedPriest(request.auth.uid) || isAdmin())
         && request.resource.data.issuerUid == request.auth.uid
         && request.resource.data.used == false
-        && request.resource.data.code == code;
+        && request.resource.data.code == code
+        && (!('maxUses' in request.resource.data)
+            || (request.resource.data.maxUses is int
+                && request.resource.data.maxUses >= 1
+                && request.resource.data.maxUses <= 15))
+        && (!('usedCount' in request.resource.data)
+            || request.resource.data.usedCount == 0);
 
-      // Single-use burn: redeemable ONCE by another signed-in priest
+      // Single-use OR Multi-use atomic increment: redeemable ONCE per distinct signed-in priest
       allow update: if isSignedIn()
         && resource.data.used == false
         && resource.data.issuerUid != request.auth.uid
-        && request.resource.data.used == true
-        && request.resource.data.usedByUid == request.auth.uid;
+        && (
+          // Legacy single-use document (no maxUses field)
+          (
+            !('maxUses' in resource.data)
+            && request.resource.data.used == true
+            && request.resource.data.usedByUid == request.auth.uid
+          )
+          ||
+          // Multi-use / group invite document (1..15 brother priests)
+          (
+            ('maxUses' in resource.data)
+            && resource.data.maxUses is int
+            && resource.data.usedCount is int
+            && resource.data.usedCount < resource.data.maxUses
+            && (!('usedByUids' in resource.data) || !(request.auth.uid in resource.data.usedByUids))
+            && request.resource.data.usedCount == resource.data.usedCount + 1
+            && request.resource.data.maxUses == resource.data.maxUses
+            && request.resource.data.used == (request.resource.data.usedCount >= resource.data.maxUses)
+          )
+        );
 
       allow delete: if isSignedIn() && (resource.data.issuerUid == request.auth.uid || isAdmin());
     }
 
-    // 4. Published Confession Sessions (Open start time + optional cap + instant close toggle)
+    // 4. Published Confession Sessions (Start time + optional End time + optional cap + instant close toggle)
     match /confession_sessions/{sessionId} {
       allow read: if true;
 
@@ -172,6 +196,9 @@ service cloud.firestore {
         && isRegisteredPriest(request.auth.uid)
         && validString(request.resource.data.dayLabelAr, 2, 60)
         && validString(request.resource.data.startTimeAr, 2, 40)
+        && (!('endTimeAr' in request.resource.data)
+            || request.resource.data.endTimeAr == ''
+            || validString(request.resource.data.endTimeAr, 2, 40))
         && request.resource.data.isOpen is bool
         && request.resource.data.confirmedCount == 0
         && request.resource.data.waitlistCount == 0;

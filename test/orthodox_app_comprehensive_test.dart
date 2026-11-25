@@ -22,6 +22,7 @@ import 'package:orthodox_app/core/services/speech_pronunciation_service.dart';
 import 'package:orthodox_app/core/services/storage_service.dart';
 import 'package:orthodox_app/core/theme/app_palette.dart';
 import 'package:orthodox_app/core/theme/app_theme.dart';
+import 'package:orthodox_app/models/confession_models.dart';
 import 'package:orthodox_app/models/spiritual_tracker_model.dart';
 import 'package:orthodox_app/providers/ai_companion_provider.dart';
 import 'package:orthodox_app/providers/bible_provider.dart';
@@ -829,6 +830,41 @@ void main() {
       final manifestXml = File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
       expect(manifestXml.contains('HymnMediaService'), isTrue);
       expect(manifestXml.contains('FOREGROUND_SERVICE_MEDIA_PLAYBACK'), isTrue);
+
+      // Verify end-time range formatting, multi-priest group invite, and playful 2-part name banter
+      final sWithEnd = ConfessionSession.fromMap('s1', {
+        'priestUid': 'p1',
+        'priestName': 'القس بولس',
+        'church': 'كنيسة العذراء',
+        'diocese': 'القاهرة',
+        'dateIso': '2026-11-27',
+        'dayLabelAr': 'الجمعة ٢٧ نوفمبر',
+        'startTimeAr': '4:00 مساءً',
+        'endTimeAr': '6:00 مساءً',
+        'isOpen': true,
+        'confirmedCount': 0,
+        'waitlistCount': 0,
+      });
+      expect(sWithEnd.timeRangeLabelAr, 'من 4:00 مساءً لغاية 6:00 مساءً');
+
+      final groupInvite = PriestVouchInvite.fromMap('KN-4829', {
+        'issuerUid': 'p1',
+        'issuerName': 'القمص يوحنا',
+        'issuerChurch': 'كنيسة مارجرجس',
+        'used': false,
+        'maxUses': 5,
+        'usedCount': 2,
+        'usedByUids': ['p2', 'p3'],
+        'usedByNames': ['القس مينا', 'القس بطرس'],
+      });
+      expect(groupInvite.remainingUses, 3);
+      expect(groupInvite.isFullyUsed, isFalse);
+
+      final singleNameJoke = ConfessionNameValidator.validateTwoPartName('مينا');
+      expect(singleNameJoke, isNotNull);
+      expect(singleNameJoke!.contains('😂'), isTrue);
+      expect(singleNameJoke.contains('مميز'), isTrue);
+      expect(ConfessionNameValidator.validateTwoPartName('مينا جرجس'), isNull);
 
       // 1. Animated Christ AuthView role cards switch cleanly to Priest Mode
       await tester.pumpWidget(

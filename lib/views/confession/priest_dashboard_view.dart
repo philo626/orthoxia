@@ -159,10 +159,13 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
     );
   }
 
-  Future<void> _issuePeerInvite(PriestProfile priest) async {
+  Future<void> _issuePeerInvite(PriestProfile priest, {int maxUses = 1}) async {
     HapticFeedback.mediumImpact();
     setState(() => _issuingInvite = true);
-    final (invite, msg) = await _service.generatePeerPriestInviteCode(priest);
+    final (invite, msg) = await _service.generatePeerPriestInviteCode(
+      priest,
+      maxUses: maxUses,
+    );
     if (!mounted) return;
     setState(() => _issuingInvite = false);
 
@@ -174,6 +177,7 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
     }
 
     final p = context.palette;
+    final isGroup = invite.maxUses > 1;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -185,7 +189,9 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'كود تزكية جديد لأب كاهن زميل',
+                isGroup
+                    ? 'كود تزكية جماعي (${invite.maxUses} آباء كهنة)'
+                    : 'كود تزكية جديد لأب كاهن زميل',
                 style: GoogleFonts.amiri(fontSize: 21, fontWeight: FontWeight.bold, color: p.ink),
               ),
             ),
@@ -196,7 +202,9 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'هذا الكود جديد ومخصّص لاستخدام واحد فقط (لمدة ٧ أيام). أول ما الكاهن الزميل يدخّله، بيتوثّق حسابه فوراً ويتلغي الكود تلقائياً:',
+              isGroup
+                  ? 'الكود ده قدسك تقدر تبعته في جروب آباء الكنيسة أو الإيبارشية — شغال لغاية ${invite.maxUses} آباء كهنة (لمدة ٧ أيام)، وكل أب كاهن يدخّله بيتوثّق حسابه علطول:'
+                  : 'الكود ده جديد ومخصّص لأب كاهن واحد (لمدة ٧ أيام). أول ما قدسه يدخّله بيتوثّق حسابه علطول ويتلغي الكود تلقائياً:',
               style: GoogleFonts.cairo(fontSize: 12.5, color: p.inkSecondary, height: 1.55),
             ),
             const SizedBox(height: 14),
@@ -225,7 +233,7 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
             onPressed: () {
               Clipboard.setData(ClipboardData(text: invite.code));
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('تم نسخ كود التزكية (${invite.code})', style: GoogleFonts.cairo())),
+                SnackBar(content: Text('اتنسخ كود التزكية (${invite.code})', style: GoogleFonts.cairo())),
               );
             },
             icon: Icon(Icons.copy_rounded, size: 17, color: p.accent),
@@ -239,14 +247,98 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
                   text: ConfessionService.buildPeerPriestVouchShareText(
                     issuerName: priest.fullDisplayName,
                     inviteCode: invite.code,
+                    maxUses: invite.maxUses,
                   ),
                 ),
               );
             },
             icon: const Icon(Icons.share_rounded, size: 17),
-            label: Text('إرسال لقدسه على واتساب', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+            label: Text(
+              isGroup ? 'ابعته لجروب الآباء' : 'ابعته لقدسه على واتساب',
+              style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _openGroupPeerInvitePicker(PriestProfile priest) {
+    final p = context.palette;
+    int selectedCount = 5;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Container(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 26),
+          decoration: BoxDecoration(
+            color: p.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border(top: BorderSide(color: p.border)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(color: p.border, borderRadius: BorderRadius.circular(4)),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'دعوة أكتر من أب كاهن بكود واحد',
+                style: GoogleFonts.amiri(fontSize: 22, fontWeight: FontWeight.bold, color: p.ink),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'قدسك تختار عدد الآباء الكهنة اللي هيستخدموا الكود (مثلاً آباء كنيستك أو الإيبارشية)، وتبعت رسالة واحدة على واتساب للكل:',
+                style: GoogleFonts.cairo(fontSize: 12.5, color: p.inkSecondary, height: 1.5),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [3, 5, 10, 15].map((cnt) {
+                  final sel = selectedCount == cnt;
+                  return ChoiceChip(
+                    selected: sel,
+                    selectedColor: p.gold,
+                    backgroundColor: p.surfaceSubtle,
+                    label: Text(
+                      '$cnt آباء كهنة',
+                      style: GoogleFonts.cairo(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: sel ? const Color(0xFF19130A) : p.ink,
+                      ),
+                    ),
+                    onSelected: (_) => setSheet(() => selectedCount = cnt),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _issuePeerInvite(priest, maxUses: selectedCount);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: p.sage,
+                  foregroundColor: Colors.white,
+                ),
+                icon: const Icon(Icons.groups_rounded, size: 20),
+                label: Text(
+                  'طلّع كود جماعي لـ $selectedCount آباء كهنة',
+                  style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 13.5),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -350,11 +442,20 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
   void _openPublishSessionSheet(PriestProfile priest) {
     final p = context.palette;
     DateTime pickedDate = DateTime.now().add(const Duration(days: 1));
-    TimeOfDay pickedTime = const TimeOfDay(hour: 17, minute: 0);
+    TimeOfDay pickedTime = const TimeOfDay(hour: 16, minute: 0);
+    bool hasEndTime = true;
+    TimeOfDay pickedEndTime = const TimeOfDay(hour: 18, minute: 0); // لغاية الساعة ٦:٠٠ مساءً
     bool unlimited = true;
     final capCtrl = TextEditingController(text: '15');
     final locationCtrl = TextEditingController();
     bool publishing = false;
+
+    const endPresets = <(String, TimeOfDay)>[
+      ('٦:٠٠ م', TimeOfDay(hour: 18, minute: 0)),
+      ('٧:٠٠ م', TimeOfDay(hour: 19, minute: 0)),
+      ('٨:٠٠ م', TimeOfDay(hour: 20, minute: 0)),
+      ('٩:٠٠ م', TimeOfDay(hour: 21, minute: 0)),
+    ];
 
     showModalBottomSheet(
       context: context,
@@ -384,15 +485,15 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
                   ),
                   const SizedBox(height: 14),
                   Text(
-                    'فتح تسجيل للاعترافات',
+                    'فتح ميعاد اعترافات جديد',
                     style: GoogleFonts.amiri(fontSize: 23, fontWeight: FontWeight.bold, color: p.ink),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'اختر اليوم وساعة البداية فقط — وقت الانتهاء يحدده قدسك في الكنيسة ولكل ابن وقته.',
+                    'قدسك تختار اليوم وساعة البداية، وتقدر تحدد «لغاية الساعة كام» (زي لغاية ٦ مساءً) أو تخليه مفتوح.',
                     style: GoogleFonts.cairo(fontSize: 12.5, color: p.inkSecondary, height: 1.5),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   Row(
                     children: [
                       Expanded(
@@ -409,27 +510,116 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
                           icon: Icon(Icons.calendar_today_rounded, size: 17, color: p.accent),
                           label: Text(
                             _formatArDate(pickedDate),
-                            style: GoogleFonts.cairo(fontSize: 12.5, fontWeight: FontWeight.bold, color: p.ink),
+                            style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold, color: p.ink),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: () async {
                             final t = await showTimePicker(context: ctx, initialTime: pickedTime);
                             if (t != null) setSheet(() => pickedTime = t);
                           },
-                          icon: Icon(Icons.schedule_rounded, size: 18, color: p.accent),
+                          icon: Icon(Icons.schedule_rounded, size: 17, color: p.accent),
                           label: Text(
                             'من ${_formatArTime(pickedTime)}',
-                            style: GoogleFonts.cairo(fontSize: 12.5, fontWeight: FontWeight.bold, color: p.ink),
+                            style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold, color: p.ink),
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
+                  // End-Time Toggle & Quick Presets (e.g. لغاية 6:00 مساءً)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: p.surfaceSubtle,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: hasEndTime ? p.goldBorder : p.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    hasEndTime
+                                        ? 'لغاية الساعة: ${_formatArTime(pickedEndTime)}'
+                                        : 'وقت الانتهاء: مفتوح (بدون ساعة محددة)',
+                                    style: GoogleFonts.cairo(fontSize: 12.5, fontWeight: FontWeight.bold, color: p.ink),
+                                  ),
+                                  Text(
+                                    hasEndTime
+                                        ? 'هيظهر لأولادك «من ${_formatArTime(pickedTime)} لغاية ${_formatArTime(pickedEndTime)}»'
+                                        : 'هيظهر لأولادك «ابتداءً من ${_formatArTime(pickedTime)}»',
+                                    style: GoogleFonts.cairo(fontSize: 11, color: p.inkMuted),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch(
+                              value: hasEndTime,
+                              activeThumbColor: p.gold,
+                              onChanged: (v) => setSheet(() => hasEndTime = v),
+                            ),
+                          ],
+                        ),
+                        if (hasEndTime) ...[
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              ...endPresets.map((preset) {
+                                final isSel = pickedEndTime.hour == preset.$2.hour &&
+                                    pickedEndTime.minute == preset.$2.minute;
+                                return ChoiceChip(
+                                  visualDensity: VisualDensity.compact,
+                                  selected: isSel,
+                                  selectedColor: p.gold,
+                                  backgroundColor: p.surface,
+                                  label: Text(
+                                    'لغاية ${preset.$1}',
+                                    style: GoogleFonts.cairo(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: isSel ? const Color(0xFF19130A) : p.ink,
+                                    ),
+                                  ),
+                                  onSelected: (_) => setSheet(() => pickedEndTime = preset.$2),
+                                );
+                              }),
+                              ActionChip(
+                                visualDensity: VisualDensity.compact,
+                                backgroundColor: p.surface,
+                                side: BorderSide(color: p.goldBorder),
+                                avatar: Icon(Icons.access_time_rounded, size: 15, color: p.accent),
+                                label: Text(
+                                  'ساعة تانية',
+                                  style: GoogleFonts.cairo(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: p.accent,
+                                  ),
+                                ),
+                                onPressed: () async {
+                                  final t = await showTimePicker(context: ctx, initialTime: pickedEndTime);
+                                  if (t != null) setSheet(() => pickedEndTime = t);
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -452,8 +642,8 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
                                   ),
                                   Text(
                                     unlimited
-                                        ? 'مفتوح للجميع وتقدر تقفل التسجيل في أي لحظة.'
-                                        : 'عند اكتمال العدد يفتح باب قائمة الانتظار تلقائياً.',
+                                        ? 'مفتوح للجميع وقدسك تقدر تقفل التسجيل في أي لحظة.'
+                                        : 'لما العدد يكمل بيتفتح باب قائمة الانتظار لوحده.',
                                     style: GoogleFonts.cairo(fontSize: 11, color: p.inkMuted),
                                   ),
                                 ],
@@ -502,6 +692,7 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
                               date: pickedDate,
                               dayLabelAr: _formatArDate(pickedDate),
                               startTimeAr: _formatArTime(pickedTime),
+                              endTimeAr: hasEndTime ? _formatArTime(pickedEndTime) : '',
                               maxAttendees: maxCap,
                               locationNote: locationCtrl.text.trim(),
                             );
@@ -520,7 +711,7 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
                           )
                         : const Icon(Icons.campaign_outlined, size: 19),
                     label: Text(
-                      'نشر الموعد الآن',
+                      'نشر الميعاد دلوقتي',
                       style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 14.5),
                     ),
                   ),
@@ -999,7 +1190,7 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${s.dayLabelAr} • ابتداءً من ${s.startTimeAr}',
+                      '${s.dayLabelAr} • ${s.timeRangeLabelAr}',
                       style: GoogleFonts.cairo(fontSize: 13.5, fontWeight: FontWeight.bold, color: p.ink),
                     ),
                     Text(
@@ -1155,28 +1346,52 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
                 ),
               ),
             Text(
-              'يمكن لقدسك تزكية الآباء الكهنة الزملاء لينضموا للدليل العام فوراً. كل ضغطة تُصدر كوداً جديداً مختلفاً يعمل لمرة واحدة فقط (٧ أيام).',
+              'قدسك تقدر تدعو وتوثّق أب كاهن واحد أو مجموعة آباء كهنة مع بعض (جروب آباء الكنيسة أو الإيبارشية) بكود واحد شغال لغاية ١٥ أب كاهن لمدة ٧ أيام.',
               style: GoogleFonts.cairo(fontSize: 12, color: p.inkSecondary, height: 1.5),
             ),
             const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: _issuingInvite ? null : () => _issuePeerInvite(profile),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: p.sage,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-              ),
-              icon: _issuingInvite
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.person_add_alt_1_rounded, size: 19),
-              label: Text(
-                'إصدار كود تزكية جديد لأب كاهن زميل',
-                style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 13),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _issuingInvite ? null : () => _issuePeerInvite(profile, maxUses: 1),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: p.sage,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+                    ),
+                    icon: _issuingInvite
+                        ? const SizedBox(
+                            width: 15,
+                            height: 15,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                    label: Text(
+                      'دعوة أب كاهن',
+                      style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 12.2),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _issuingInvite ? null : () => _openGroupPeerInvitePicker(profile),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: p.gold,
+                      foregroundColor: const Color(0xFF19130A),
+                      padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+                    ),
+                    icon: const Icon(Icons.groups_rounded, size: 19),
+                    label: Text(
+                      'أكتر من أب كاهن',
+                      style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 12.2),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             StreamBuilder<List<PriestVouchInvite>>(
@@ -1188,66 +1403,79 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'أكواد التزكية التي أصدرها قدسك (${invites.length}):',
+                      'أكواد التزكية اللي قدسك طلّعتها (${invites.length}):',
                       style: GoogleFonts.cairo(fontSize: 11.5, fontWeight: FontWeight.bold, color: p.inkMuted),
                     ),
                     const SizedBox(height: 6),
-                    ...invites.take(5).map((inv) => Container(
-                          margin: const EdgeInsets.only(bottom: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: p.surfaceSubtle,
-                            borderRadius: BorderRadius.circular(11),
-                            border: Border.all(color: p.border),
-                          ),
-                          child: Row(
-                            children: [
-                              Text(
-                                inv.code,
+                    ...invites.take(8).map((inv) {
+                      final statusText = inv.isFullyUsed
+                          ? (inv.usedByNames.isNotEmpty
+                              ? 'استخدمه: ${inv.usedByNames.join('، ')}'
+                              : 'اكتمل استخدامه ✓')
+                          : (inv.isExpired
+                              ? 'منتهي الصلاحية'
+                              : (inv.maxUses > 1
+                                  ? 'جماعي: استخدمه ${inv.usedCount} من ${inv.maxUses} آباء'
+                                  : 'متاح لأب كاهن واحد'));
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: p.surfaceSubtle,
+                          borderRadius: BorderRadius.circular(11),
+                          border: Border.all(color: p.border),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(
+                              inv.code,
+                              style: GoogleFonts.cairo(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: p.ink,
+                                letterSpacing: 1.1,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                statusText,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.cairo(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: p.ink,
-                                  letterSpacing: 1.1,
+                                  fontSize: 11,
+                                  color: inv.isFullyUsed
+                                      ? p.sage
+                                      : (inv.isExpired ? p.danger : p.inkSecondary),
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  inv.used
-                                      ? 'استخدمه: ${inv.usedByName.isNotEmpty ? inv.usedByName : 'أب كاهن'}'
-                                      : (inv.isExpired ? 'منتهي الصلاحية' : 'متاح للاستخدام مرة واحدة'),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.cairo(
-                                    fontSize: 11,
-                                    color: inv.used ? p.sage : (inv.isExpired ? p.danger : p.inkSecondary),
-                                  ),
-                                ),
-                              ),
-                              if (!inv.used && !inv.isExpired)
-                                IconButton(
-                                  visualDensity: VisualDensity.compact,
-                                  icon: Icon(Icons.share_rounded, size: 17, color: p.accent),
-                                  onPressed: () => SharePlus.instance.share(
-                                    ShareParams(
-                                      text: ConfessionService.buildPeerPriestVouchShareText(
-                                        issuerName: profile.fullDisplayName,
-                                        inviteCode: inv.code,
-                                      ),
+                            ),
+                            if (!inv.isFullyUsed && !inv.isExpired)
+                              IconButton(
+                                tooltip: 'مشاركة الكود مع الآباء',
+                                visualDensity: VisualDensity.compact,
+                                icon: Icon(Icons.share_rounded, size: 17, color: p.accent),
+                                onPressed: () => SharePlus.instance.share(
+                                  ShareParams(
+                                    text: ConfessionService.buildPeerPriestVouchShareText(
+                                      issuerName: profile.fullDisplayName,
+                                      inviteCode: inv.code,
+                                      maxUses: inv.maxUses,
                                     ),
                                   ),
                                 ),
-                            ],
-                          ),
-                        )),
+                              ),
+                          ],
+                        ),
+                      );
+                    }),
                   ],
                 );
               },
             ),
           ] else ...[
             Text(
-              'كود قدسك الخاص (${profile.privateCode}) شغال حالياً لأولادك فوراً. أما للظهور في الدليل العام لكل المستخدمين، أدخل كود تزكية لمرة واحدة من أي أب كاهن موثّق:',
+              'كود قدسك الخاص (${profile.privateCode}) شغال حالياً لأولادك علطول. أما للظهور في الدليل العام، قدسك تدخّل كود تزكية من أي أب كاهن موثّق:',
               style: GoogleFonts.cairo(fontSize: 12, color: p.inkSecondary, height: 1.55),
             ),
             const SizedBox(height: 12),
@@ -1284,6 +1512,33 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
               ],
             ),
           ],
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              SharePlus.instance.share(
+                ShareParams(
+                  text: ConfessionService.buildPriestAppRecommendationText(
+                    senderPriestName: profile.fullDisplayName,
+                    church: profile.church,
+                  ),
+                ),
+              );
+            },
+            style: OutlinedButton.styleFrom(
+              foregroundColor: p.accent,
+              side: BorderSide(color: p.goldBorder),
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: const Icon(Icons.send_rounded, size: 17),
+            label: Text(
+              'ابعت التطبيق لأكتر من أب كاهن (جروب آباء الكنيسة)',
+              style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+          ),
         ],
       ),
     );

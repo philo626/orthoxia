@@ -483,13 +483,18 @@ class PriestProfile {
   }
 }
 
-/// Single-use peer-priest vouch invite code (e.g. KN-7391) issued by an approved priest
+/// Peer-priest vouch invite code (e.g. KN-7391) issued by an approved priest.
+/// Supports BOTH single-priest (maxUses = 1) AND church/diocese group invites (maxUses = 3..15)!
 class PriestVouchInvite {
   final String code;
   final String issuerUid;
   final String issuerName;
   final String issuerChurch;
   final bool used;
+  final int maxUses;
+  final int usedCount;
+  final List<String> usedByUids;
+  final List<String> usedByNames;
   final String usedByUid;
   final String usedByName;
   final DateTime? createdAt;
@@ -501,6 +506,10 @@ class PriestVouchInvite {
     required this.issuerName,
     required this.issuerChurch,
     required this.used,
+    this.maxUses = 1,
+    this.usedCount = 0,
+    this.usedByUids = const [],
+    this.usedByNames = const [],
     this.usedByUid = '',
     this.usedByName = '',
     this.createdAt,
@@ -508,18 +517,34 @@ class PriestVouchInvite {
   });
 
   bool get isExpired => expiresAt != null && DateTime.now().isAfter(expiresAt!);
+  int get remainingUses => (maxUses - usedCount).clamp(0, maxUses);
+  bool get isFullyUsed => used || usedCount >= maxUses;
 
   factory PriestVouchInvite.fromMap(String code, Map<String, dynamic> data) {
     final cTs = data['createdAt'];
     final eTs = data['expiresAt'];
+    final legacyUsed = data['used'] == true;
+    final parsedMax = (data['maxUses'] as num?)?.toInt() ?? 1;
+    final parsedCount = (data['usedCount'] as num?)?.toInt() ?? (legacyUsed ? 1 : 0);
+    final rawUids = (data['usedByUids'] as List?)?.map((e) => '$e').where((e) => e.isNotEmpty).toList() ?? [];
+    final rawNames = (data['usedByNames'] as List?)?.map((e) => '$e').where((e) => e.isNotEmpty).toList() ?? [];
+    final singleUid = '${data['usedByUid'] ?? ''}';
+    final singleName = '${data['usedByName'] ?? ''}';
+    if (rawUids.isEmpty && singleUid.isNotEmpty) rawUids.add(singleUid);
+    if (rawNames.isEmpty && singleName.isNotEmpty) rawNames.add(singleName);
+
     return PriestVouchInvite(
       code: code,
       issuerUid: '${data['issuerUid'] ?? ''}',
       issuerName: '${data['issuerName'] ?? ''}',
       issuerChurch: '${data['issuerChurch'] ?? ''}',
-      used: data['used'] == true,
-      usedByUid: '${data['usedByUid'] ?? ''}',
-      usedByName: '${data['usedByName'] ?? ''}',
+      used: legacyUsed || parsedCount >= parsedMax,
+      maxUses: parsedMax < 1 ? 1 : parsedMax,
+      usedCount: parsedCount,
+      usedByUids: rawUids,
+      usedByNames: rawNames,
+      usedByUid: singleUid,
+      usedByName: singleName,
       createdAt: cTs is Timestamp ? cTs.toDate() : null,
       expiresAt: eTs is Timestamp ? eTs.toDate() : null,
     );
@@ -534,7 +559,8 @@ class ConfessionSession {
   final String diocese;
   final String dateIso; // yyyy-MM-dd
   final String dayLabelAr; // e.g. 'الجمعة ٢٧ نوفمبر'
-  final String startTimeAr; // e.g. '٥:٠٠ مساءً'
+  final String startTimeAr; // e.g. '٤:٠٠ مساءً'
+  final String endTimeAr; // optional e.g. '٦:٠٠ مساءً' ('' = مفتوح بدون ساعة انتهاء)
   final String locationNote; // optional e.g. 'مكتب الاعتراف بالكنيسة'
   final int? maxAttendees; // null = عدد مفتوح
   final bool isOpen; // false = أبونا قفل التسجيل
@@ -551,6 +577,7 @@ class ConfessionSession {
     required this.dateIso,
     required this.dayLabelAr,
     required this.startTimeAr,
+    this.endTimeAr = '',
     this.locationNote = '',
     this.maxAttendees,
     required this.isOpen,
@@ -561,6 +588,12 @@ class ConfessionSession {
 
   bool get isUnlimited => maxAttendees == null || maxAttendees! <= 0;
   bool get isFull => !isUnlimited && confirmedCount >= maxAttendees!;
+  bool get hasEndTime => endTimeAr.trim().isNotEmpty;
+
+  /// Human-friendly Egyptian Arabic time window (e.g. «من ٤:٠٠ مساءً لغاية ٦:٠٠ مساءً»)
+  String get timeRangeLabelAr => hasEndTime
+      ? 'من $startTimeAr لغاية ${endTimeAr.trim()}'
+      : 'ابتداءً من $startTimeAr';
 
   factory ConfessionSession.fromMap(String id, Map<String, dynamic> data) {
     final ts = data['createdAt'];
@@ -574,6 +607,7 @@ class ConfessionSession {
       dateIso: '${data['dateIso'] ?? ''}',
       dayLabelAr: '${data['dayLabelAr'] ?? ''}',
       startTimeAr: '${data['startTimeAr'] ?? ''}',
+      endTimeAr: '${data['endTimeAr'] ?? ''}',
       locationNote: '${data['locationNote'] ?? ''}',
       maxAttendees: rawMax is num && rawMax.toInt() > 0 ? rawMax.toInt() : null,
       isOpen: data['isOpen'] != false,

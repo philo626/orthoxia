@@ -480,6 +480,33 @@ class _PriestHomeDashboardViewState extends State<PriestHomeDashboardView> {
                               ),
                             ],
                           ),
+                          const SizedBox(height: 8),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              HapticFeedback.lightImpact();
+                              SharePlus.instance.share(
+                                ShareParams(
+                                  text: ConfessionService.buildPriestAppRecommendationText(
+                                    senderPriestName: prof?.fullDisplayName ?? priestName,
+                                    church: prof?.church ?? churchName,
+                                  ),
+                                ),
+                              );
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: p.ink,
+                              side: BorderSide(color: p.border),
+                              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: Icon(Icons.groups_rounded, size: 18, color: p.gold),
+                            label: Text(
+                              'ابعت التطبيق لآباء كهنة زملاءك (جروب الكنيسة)',
+                              style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                          ),
                         ],
                       ),
                     );

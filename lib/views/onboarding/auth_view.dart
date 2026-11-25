@@ -12,6 +12,7 @@ import '../../core/theme/app_palette.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_marks.dart';
 import '../../core/widgets/coptic_cross.dart';
+import '../../core/widgets/diocese_church_picker.dart';
 import '../../core/widgets/saint_icon_avatar.dart';
 import '../../models/confession_models.dart';
 import '../../providers/theme_provider.dart';
@@ -35,12 +36,12 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
-  final _churchCtrl = TextEditingController();
 
   late String _selectedSaintId;
   String _selectedRole = 'member'; // 'member' = فرد من الشعب | 'priest' = أب كاهن
   String _priestTitlePrefix = 'القس';
   String _selectedDiocese = CopticDiocesesCatalog.dioceses.first;
+  String _selectedChurch = CopticDiocesesCatalog.churchesFor(CopticDiocesesCatalog.dioceses.first).first;
 
   int _step = 0; // 0 = Cinematic Christ Welcome & Sign-In, 1 = Role-Aware Setup
   bool _isLogin = true;
@@ -59,11 +60,14 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
     _selectedSaintId = _storage.getPatronSaintId();
     _selectedRole = _storage.getUserRole();
     _priestTitlePrefix = _storage.getPriestTitlePrefix();
-    _churchCtrl.text = _storage.getPriestChurch();
     final savedDiocese = _storage.getPriestDiocese();
     if (CopticDiocesesCatalog.dioceses.contains(savedDiocese)) {
       _selectedDiocese = savedDiocese;
     }
+    final savedChurch = _storage.getPriestChurch();
+    _selectedChurch = savedChurch.isNotEmpty
+        ? savedChurch
+        : CopticDiocesesCatalog.churchesFor(_selectedDiocese).first;
     if (_storage.hasCustomUserName()) {
       _nameCtrl.text = _storage.getUserName();
     }
@@ -86,7 +90,6 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _passCtrl.dispose();
-    _churchCtrl.dispose();
     super.dispose();
   }
 
@@ -142,13 +145,13 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
     if (isPriest) {
       await _storage.setPriestTitlePrefix(_priestTitlePrefix);
       await _storage.setPriestDiocese(_selectedDiocese);
-      final churchClean = _churchCtrl.text.trim();
+      final churchClean = _selectedChurch.trim();
       if (churchClean.isNotEmpty) {
         await _storage.setPriestChurch(churchClean);
       }
       await _confession.ensureLocalPrivateCode();
 
-      // If signed in and church entered, sync initial Priest Profile + Private Code immediately
+      // If signed in and church selected, sync initial Priest Profile + Private Code immediately
       if (!_pendingGuest && churchClean.length >= 2 && finalName.length >= 2) {
         await _confession.submitOrUpdatePriestVerification(
           titlePrefix: _priestTitlePrefix,
@@ -1196,43 +1199,11 @@ class _AuthViewState extends State<AuthView> with TickerProviderStateMixin {
                 ),
               ),
               const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: p.surfaceSubtle,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: p.border),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    isExpanded: true,
-                    dropdownColor: p.surface,
-                    value: _selectedDiocese,
-                    items: CopticDiocesesCatalog.dioceses
-                        .map((d) => DropdownMenuItem(
-                              value: d,
-                              child: Text(
-                                d,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.cairo(fontSize: 13, color: p.ink),
-                              ),
-                            ))
-                        .toList(),
-                    onChanged: (v) {
-                      if (v != null) setState(() => _selectedDiocese = v);
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _churchCtrl,
-                style: GoogleFonts.cairo(color: p.ink, fontSize: 14),
-                decoration: const InputDecoration(
-                  hintText: 'اسم الكنيسة (مثال: كنيسة العذراء بمسرة)',
-                  prefixIcon: Icon(Icons.church_outlined, size: 20),
-                ),
+              DioceseChurchSelector(
+                selectedDiocese: _selectedDiocese,
+                selectedChurch: _selectedChurch,
+                onDioceseChanged: (d) => setState(() => _selectedDiocese = d),
+                onChurchChanged: (c) => setState(() => _selectedChurch = c),
               ),
               const SizedBox(height: 18),
             ] else ...[

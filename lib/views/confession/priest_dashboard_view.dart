@@ -6,6 +6,7 @@ import '../../core/services/confession_service.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/theme/app_palette.dart';
 import '../../core/widgets/coptic_cross.dart';
+import '../../core/widgets/diocese_church_picker.dart';
 import '../../core/widgets/luxe_widgets.dart';
 import '../../models/confession_models.dart';
 import '../onboarding/auth_view.dart';
@@ -28,13 +29,12 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
   final StorageService _storage = StorageService();
 
   final TextEditingController _nameCtrl = TextEditingController();
-  final TextEditingController _churchCtrl = TextEditingController();
-  final TextEditingController _phoneCtrl = TextEditingController();
-  final TextEditingController _noteCtrl = TextEditingController();
   final TextEditingController _redeemVouchCtrl = TextEditingController();
 
   String _titlePrefix = 'القس';
   String _selectedDiocese = CopticDiocesesCatalog.dioceses.first;
+  String _selectedChurch =
+      CopticDiocesesCatalog.churchesFor(CopticDiocesesCatalog.dioceses.first).first;
   bool _submittingForm = false;
   bool _redeemingVouch = false;
   bool _issuingInvite = false;
@@ -81,9 +81,6 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _churchCtrl.dispose();
-    _phoneCtrl.dispose();
-    _noteCtrl.dispose();
     _redeemVouchCtrl.dispose();
     super.dispose();
   }
@@ -107,18 +104,21 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
     if (profile != null) {
       _titlePrefix = profile.titlePrefix == 'القمص' ? 'القمص' : 'القس';
       _nameCtrl.text = profile.displayName;
-      _churchCtrl.text = profile.church;
-      _phoneCtrl.text = profile.phoneForVerification;
-      _noteCtrl.text = profile.verificationNote;
       if (CopticDiocesesCatalog.dioceses.contains(profile.diocese)) {
         _selectedDiocese = profile.diocese;
       }
+      _selectedChurch = profile.church.isNotEmpty
+          ? profile.church
+          : CopticDiocesesCatalog.churchesFor(_selectedDiocese).first;
     } else {
       _titlePrefix = _storage.getPriestTitlePrefix();
       if (_storage.hasCustomUserName()) _nameCtrl.text = _storage.getUserName();
-      _churchCtrl.text = _storage.getPriestChurch();
       final d = _storage.getPriestDiocese();
       if (CopticDiocesesCatalog.dioceses.contains(d)) _selectedDiocese = d;
+      final savedC = _storage.getPriestChurch();
+      _selectedChurch = savedC.isNotEmpty
+          ? savedC
+          : CopticDiocesesCatalog.churchesFor(_selectedDiocese).first;
     }
   }
 
@@ -129,9 +129,7 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
       titlePrefix: _titlePrefix,
       displayName: _nameCtrl.text,
       diocese: _selectedDiocese,
-      church: _churchCtrl.text,
-      phoneForVerification: _phoneCtrl.text,
-      verificationNote: _noteCtrl.text,
+      church: _selectedChurch,
     );
     final refreshedCode = await _service.ensureLocalPrivateCode();
     if (!mounted) return;
@@ -1377,53 +1375,11 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
             ),
           ),
           const SizedBox(height: 11),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: p.surfaceSubtle,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: p.border),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                isExpanded: true,
-                dropdownColor: p.surface,
-                value: _selectedDiocese,
-                items: CopticDiocesesCatalog.dioceses
-                    .map((d) => DropdownMenuItem(
-                          value: d,
-                          child: Text(
-                            d,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.cairo(fontSize: 13, color: p.ink),
-                          ),
-                        ))
-                    .toList(),
-                onChanged: (v) {
-                  if (v != null) setState(() => _selectedDiocese = v);
-                },
-              ),
-            ),
-          ),
-          const SizedBox(height: 11),
-          TextField(
-            controller: _churchCtrl,
-            style: GoogleFonts.cairo(color: p.ink, fontSize: 14),
-            decoration: const InputDecoration(
-              hintText: 'اسم الكنيسة والمنطقة (مثال: كنيسة السيدة العذراء بمسرة)',
-              prefixIcon: Icon(Icons.church_outlined, size: 20),
-            ),
-          ),
-          const SizedBox(height: 11),
-          TextField(
-            controller: _phoneCtrl,
-            keyboardType: TextInputType.phone,
-            style: GoogleFonts.cairo(color: p.ink, fontSize: 14),
-            decoration: const InputDecoration(
-              hintText: 'هاتف للتحقق مع الإيبارشية (اختياري — غير معلن للشعب)',
-              prefixIcon: Icon(Icons.phone_outlined, size: 20),
-            ),
+          DioceseChurchSelector(
+            selectedDiocese: _selectedDiocese,
+            selectedChurch: _selectedChurch,
+            onDioceseChanged: (d) => setState(() => _selectedDiocese = d),
+            onChurchChanged: (c) => setState(() => _selectedChurch = c),
           ),
           const SizedBox(height: 14),
           ElevatedButton.icon(

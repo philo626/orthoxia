@@ -42,6 +42,8 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
   bool _editingProfile = false;
   bool _prefilledFromProfile = false;
   String _localCode = '';
+  String _confessorsQuery = '';
+  String _confessorsFilter = 'all'; // 'all' | 'due' | 'done'
 
   static const List<String> _arWeekdays = [
     'الاثنين',
@@ -986,6 +988,10 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
                           _buildConfessionsManager(p, profile),
                           const SizedBox(height: 18),
 
+                          // 3b. CARD B2: ABOUNA'S CONFESSORS TABLE («جدول معترفين قدس أبونا»)
+                          _buildConfessorsTableCard(p),
+                          const SizedBox(height: 18),
+
                           // 4. CARD C: PUBLIC DIRECTORY VERIFICATION & PEER-PRIEST VOUCHING
                           _buildPeerVouchAndVerificationCard(p, profile, isApproved),
                         ],
@@ -1194,6 +1200,466 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
     );
   }
 
+  void _openMarkConfessedSheet({
+    ConfessionSession? session,
+    ConfessionAttendee? attendee,
+    PriestConfessorRecord? existingRecord,
+  }) {
+    final p = context.palette;
+    final isManualNew = session == null && existingRecord == null;
+    final nameCtrl = TextEditingController(
+      text: attendee?.attendeeName ?? existingRecord?.fullName ?? '',
+    );
+    final noteCtrl = TextEditingController(
+      text: attendee?.followUpNote ?? existingRecord?.followUpNote ?? '',
+    );
+    int selectedDays = (attendee?.nextIntervalDays ?? existingRecord?.nextIntervalDays ?? 30);
+    if (selectedDays < 0) selectedDays = 30;
+    bool saving = false;
+
+    const intervals = <(int, String)>[
+      (14, 'أسبوعين (١٤ يوم)'),
+      (21, '٣ أسابيع (٢١ يوم)'),
+      (30, 'شهر (٣٠ يوم)'),
+      (40, '٤٠ يوم'),
+      (60, 'شهرين (٦٠ يوم)'),
+      (0, 'بدون مدة محددة'),
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 26),
+            decoration: BoxDecoration(
+              color: p.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border(top: BorderSide(color: p.border)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(color: p.border, borderRadius: BorderRadius.circular(4)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    isManualNew
+                        ? 'إضافة معترف جديد لجدول قدسك ✓'
+                        : 'تم الاعتراف لـ «${nameCtrl.text}» ✓',
+                    style: GoogleFonts.amiri(fontSize: 22, fontWeight: FontWeight.bold, color: p.ink),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'اختار المدة اللي تحب قدسك يرجع فيها يعترف تاني — هتتضاف تلقائياً في جدول المعترفين وهيتبعتله تذكير على موبايله يومها:',
+                    style: GoogleFonts.cairo(fontSize: 12, color: p.inkSecondary, height: 1.5),
+                  ),
+                  if (isManualNew) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: nameCtrl,
+                      autofocus: true,
+                      style: GoogleFonts.cairo(color: p.ink, fontSize: 14.5),
+                      decoration: const InputDecoration(
+                        hintText: 'اسم المعترف الثنائي (مثال: مينا جرجس)',
+                        prefixIcon: Icon(Icons.person_outline_rounded, size: 20),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Text(
+                    'يجيلي تاني بعد قد إيه؟',
+                    style: GoogleFonts.cairo(fontSize: 12.5, fontWeight: FontWeight.bold, color: p.ink),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 7,
+                    runSpacing: 7,
+                    children: intervals.map((item) {
+                      final sel = selectedDays == item.$1;
+                      return ChoiceChip(
+                        selected: sel,
+                        selectedColor: p.gold,
+                        backgroundColor: p.surfaceSubtle,
+                        label: Text(
+                          item.$2,
+                          style: GoogleFonts.cairo(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: sel ? const Color(0xFF19130A) : p.ink,
+                          ),
+                        ),
+                        onSelected: (_) => setSheet(() => selectedDays = item.$1),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: noteCtrl,
+                    style: GoogleFonts.cairo(color: p.ink, fontSize: 13.5),
+                    decoration: const InputDecoration(
+                      hintText: 'كلمة تشجيع أو تدريب روحي للمعترف (اختياري)',
+                      prefixIcon: Icon(Icons.favorite_outline_rounded, size: 19),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: saving
+                        ? null
+                        : () async {
+                            setSheet(() => saving = true);
+                            final messenger = ScaffoldMessenger.of(context);
+                            bool ok = false;
+                            String msg = '';
+                            if (session != null && attendee != null) {
+                              final res = await _service.markAttendeeConfessed(
+                                session: session,
+                                attendee: attendee,
+                                nextIntervalDays: selectedDays,
+                                followUpNote: noteCtrl.text.trim(),
+                              );
+                              ok = res.$1;
+                              msg = res.$2;
+                            } else {
+                              final res = await _service.upsertConfessorRecord(
+                                fullName: nameCtrl.text,
+                                nextIntervalDays: selectedDays,
+                                followUpNote: noteCtrl.text.trim(),
+                                existingId: existingRecord?.id,
+                                attendeeUid: existingRecord?.attendeeUid ?? '',
+                                prevCount: existingRecord?.confessedCount ?? 0,
+                              );
+                              ok = res.$1;
+                              msg = res.$2;
+                            }
+                            if (!ctx.mounted) return;
+                            setSheet(() => saving = false);
+                            if (ok) Navigator.pop(ctx);
+                            messenger.showSnackBar(
+                              SnackBar(content: Text(msg, style: GoogleFonts.cairo())),
+                            );
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: p.sage,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    icon: saving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.check_circle_rounded, size: 20),
+                    label: Text(
+                      'تأكيد علامة الصح وحفظ المدة ✓',
+                      style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 13.5),
+                    ),
+                  ),
+                  if (session != null && attendee != null && attendee.confessed) ...[
+                    const SizedBox(height: 6),
+                    TextButton(
+                      onPressed: () async {
+                        await _service.unmarkAttendeeConfessed(session.id, attendee.attendeeUid);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      },
+                      child: Text(
+                        'إلغاء علامة الصح',
+                        style: GoogleFonts.cairo(color: p.danger, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConfessorsTableCard(AppPalette p) {
+    return StreamBuilder<List<PriestConfessorRecord>>(
+      stream: _service.watchMyConfessorsTable(),
+      builder: (context, snap) {
+        final all = snap.data ?? [];
+        final dueCount = all.where((r) => r.isDueNow).length;
+        final q = _confessorsQuery.trim();
+        final filtered = all.where((r) {
+          if (_confessorsFilter == 'due' && !r.isDueNow) return false;
+          if (_confessorsFilter == 'done' && !r.confessedInLastSession) return false;
+          if (q.isNotEmpty && !r.fullName.contains(q)) return false;
+          return true;
+        }).toList();
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: p.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: p.goldBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.fact_check_rounded, color: p.gold, size: 22),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'جدول معترفين قدس أبونا (${all.length})',
+                          style: GoogleFonts.amiri(fontSize: 21, fontWeight: FontWeight.bold, color: p.ink),
+                        ),
+                        Text(
+                          'اللي اعترف بيظهر جمبه علامة صح ✓ مع ميعاد رجوعه الجاي',
+                          style: GoogleFonts.cairo(fontSize: 11, color: p.inkMuted),
+                        ),
+                      ],
+                    ),
+                  ),
+                  FilledButton.tonalIcon(
+                    onPressed: () => _openMarkConfessedSheet(),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: p.goldSoft,
+                      foregroundColor: p.gold,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    icon: const Icon(Icons.person_add_alt_1_rounded, size: 16),
+                    label: Text('إضافة', style: GoogleFonts.cairo(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // Filter Chips + Search
+              Row(
+                children: [
+                  _tableFilterChip(p, 'الكل (${all.length})', 'all'),
+                  const SizedBox(width: 6),
+                  _tableFilterChip(p, 'حان ميعادهم ($dueCount)', 'due'),
+                  const SizedBox(width: 6),
+                  _tableFilterChip(p, 'اعترفوا ✓', 'done'),
+                ],
+              ),
+              if (all.length >= 4) ...[
+                const SizedBox(height: 8),
+                TextField(
+                  onChanged: (v) => setState(() => _confessorsQuery = v),
+                  style: GoogleFonts.cairo(color: p.ink, fontSize: 13),
+                  decoration: const InputDecoration(
+                    hintText: 'ابحث باسم المعترف...',
+                    isDense: true,
+                    prefixIcon: Icon(Icons.search_rounded, size: 18),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+              if (filtered.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: p.surfaceSubtle,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    all.isEmpty
+                        ? 'أول ما قدسك تضغط علامة الصح ✓ جنب أي معترف في قائمة الحضور (أو تضغط «إضافة» فوق)، هينزل هنا في الجدول مع تاريخ آخر اعتراف وميعاد رجوعه.'
+                        : 'مفيش معترفين مطابقين للفلتر ده دلوقتي.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.cairo(fontSize: 12, color: p.inkMuted, height: 1.5),
+                  ),
+                )
+              else
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: p.border),
+                  ),
+                  child: Column(
+                    children: [
+                      // Table Header Row
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: p.goldSoft,
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              flex: 4,
+                              child: Text(
+                                'الاسم',
+                                style: GoogleFonts.cairo(fontSize: 11.5, fontWeight: FontWeight.bold, color: p.ink),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                'آخر اعتراف / الجاي',
+                                style: GoogleFonts.cairo(fontSize: 11.5, fontWeight: FontWeight.bold, color: p.ink),
+                              ),
+                            ),
+                            Text(
+                              'الحالة',
+                              style: GoogleFonts.cairo(fontSize: 11.5, fontWeight: FontWeight.bold, color: p.ink),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ...List.generate(filtered.length, (i) {
+                        final rec = filtered[i];
+                        final due = rec.isDueNow;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                          decoration: BoxDecoration(
+                            color: i.isOdd ? p.surfaceSubtle.withValues(alpha: 0.55) : p.surface,
+                            border: Border(top: BorderSide(color: p.border.withValues(alpha: 0.7))),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 4,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      rec.fullName,
+                                      style: GoogleFonts.cairo(
+                                        fontSize: 12.8,
+                                        fontWeight: FontWeight.bold,
+                                        color: p.ink,
+                                      ),
+                                    ),
+                                    if (rec.followUpNote.isNotEmpty)
+                                      Text(
+                                        rec.followUpNote,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.cairo(fontSize: 10.5, color: p.inkMuted),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              Expanded(
+                                flex: 3,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (rec.lastConfessionDateIso.isNotEmpty)
+                                      Text(
+                                        'آخر: ${PriestConfessorRecord.formatArabicDateShort(rec.lastConfessionDateIso)}',
+                                        style: GoogleFonts.cairo(fontSize: 11, color: p.inkSecondary),
+                                      ),
+                                    if (rec.nextConfessionDateIso.isNotEmpty)
+                                      Text(
+                                        'الجاي: ${PriestConfessorRecord.formatArabicDateShort(rec.nextConfessionDateIso)}',
+                                        style: GoogleFonts.cairo(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: due ? p.danger : p.accent,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  InkWell(
+                                    borderRadius: BorderRadius.circular(10),
+                                    onTap: () => _openMarkConfessedSheet(existingRecord: rec),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: (due ? p.gold : p.sage).withValues(alpha: 0.16),
+                                        borderRadius: BorderRadius.circular(9),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            due ? Icons.schedule_rounded : Icons.check_circle_rounded,
+                                            size: 14,
+                                            color: due ? p.gold : p.sage,
+                                          ),
+                                          const SizedBox(width: 3),
+                                          Text(
+                                            due ? 'حان' : 'اعترف ✓',
+                                            style: GoogleFonts.cairo(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.bold,
+                                              color: due ? p.gold : p.sage,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'حذف من الجدول',
+                                    constraints: const BoxConstraints(),
+                                    padding: const EdgeInsets.only(right: 4),
+                                    icon: Icon(Icons.delete_outline_rounded, size: 17, color: p.inkMuted),
+                                    onPressed: () => _service.deleteConfessorRecord(rec.id),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _tableFilterChip(AppPalette p, String label, String key) {
+    final sel = _confessorsFilter == key;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _confessorsFilter = key),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(
+            color: sel ? p.gold : p.surfaceSubtle,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: sel ? p.gold : p.border),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.cairo(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: sel ? const Color(0xFF19130A) : p.inkSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildPriestSessionCard(AppPalette p, ConfessionSession s) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1276,33 +1742,79 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
                     ...List.generate(attendees.length, (i) {
                       final att = attendees[i];
                       final isWait = att.status == 'waitlist';
+                      final isDone = att.confessed;
                       return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Row(
                           children: [
+                            // 1-Tap Checkmark ✓ Button for Abouna!
+                            InkWell(
+                              borderRadius: BorderRadius.circular(20),
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                _openMarkConfessedSheet(session: s, attendee: att);
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.all(2),
+                                child: Icon(
+                                  isDone
+                                      ? Icons.check_circle_rounded
+                                      : Icons.radio_button_unchecked_rounded,
+                                  size: 23,
+                                  color: isDone ? p.sage : p.gold,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
                             Text(
                               '${i + 1}.',
                               style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold, color: p.inkMuted),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
                             Expanded(
-                              child: Text(
-                                att.attendeeName,
-                                style: GoogleFonts.cairo(fontSize: 13, fontWeight: FontWeight.w600, color: p.ink),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    att.attendeeName,
+                                    style: GoogleFonts.cairo(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: p.ink,
+                                    ),
+                                  ),
+                                  if (isDone && att.nextDateIso.isNotEmpty)
+                                    Text(
+                                      'اعترف ✓ • يرجع بعد ${PriestConfessorRecord.formatIntervalLabel(att.nextIntervalDays)} (${PriestConfessorRecord.formatArabicDateShort(att.nextDateIso)})',
+                                      style: GoogleFonts.cairo(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: p.sage,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: (isWait ? p.gold : p.sage).withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                isWait ? 'قائمة انتظار' : 'حاضر',
-                                style: GoogleFonts.cairo(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.bold,
-                                  color: isWait ? p.gold : p.sage,
+                            InkWell(
+                              borderRadius: BorderRadius.circular(8),
+                              onTap: () => _openMarkConfessedSheet(session: s, attendee: att),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: isDone
+                                      ? p.sage.withValues(alpha: 0.18)
+                                      : (isWait ? p.gold : p.accent).withValues(alpha: 0.13),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  isDone
+                                      ? 'اعترف ✓'
+                                      : (isWait ? 'قائمة انتظار' : 'تأكيد صح ✓'),
+                                  style: GoogleFonts.cairo(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDone ? p.sage : (isWait ? p.gold : p.accent),
+                                  ),
                                 ),
                               ),
                             ),

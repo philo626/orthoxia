@@ -127,6 +127,15 @@ service cloud.firestore {
       );
 
       allow delete: if isOwner(priestUid) || isAdmin();
+
+      // 3d. Priest's Private Confessors Table & Return-Interval Schedule («جدول معترفين قدس أبونا»)
+      // STRICT PRIVACY: Priest has full control; each child can read ONLY his/her own return date & blessing!
+      match /confession_children/{childId} {
+        allow read: if isOwner(priestUid)
+          || (isSignedIn() && resource.data.attendeeUid == request.auth.uid);
+        allow create, update, delete: if isOwner(priestUid)
+          && validString(request.resource.data.fullName, 2, 80);
+      }
     }
 
     // 3b. Private Fixed Priest Lookup Codes (`AB-XXXX`) — direct lookup by exact code only (not listable!)
@@ -226,11 +235,23 @@ service cloud.firestore {
         allow read: if isOwner(attendeeUid)
           || (isSignedIn() && get(/databases/$(database)/documents/confession_sessions/$(sessionId)).data.priestUid == request.auth.uid);
 
-        allow create, update: if isOwner(attendeeUid)
+        allow create: if isOwner(attendeeUid)
           && request.resource.data.attendeeUid == request.auth.uid
           && request.resource.data.sessionId == sessionId
           && request.resource.data.status in ['confirmed', 'waitlist', 'cancelled']
           && validString(request.resource.data.attendeeName, 1, 60);
+
+        allow update: if (
+          isOwner(attendeeUid)
+          && request.resource.data.attendeeUid == request.auth.uid
+          && request.resource.data.sessionId == sessionId
+          && request.resource.data.status in ['confirmed', 'waitlist', 'cancelled']
+          && validString(request.resource.data.attendeeName, 1, 60)
+        ) || (
+          // Priest marks attendee as confessed ✓ and sets next confession return interval!
+          isSignedIn()
+          && get(/databases/$(database)/documents/confession_sessions/$(sessionId)).data.priestUid == request.auth.uid
+        );
 
         allow delete: if isOwner(attendeeUid);
       }

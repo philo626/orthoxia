@@ -42,14 +42,25 @@ class DioceseChurchSelector extends StatelessWidget {
     }
   }
 
+  static String _normAr(String s) {
+    return s
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[أإآ]'), 'ا')
+        .replaceAll('ة', 'ه')
+        .replaceAll('ى', 'ي')
+        .replaceAll(RegExp(r'[\u064B-\u065F]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ');
+  }
+
   Future<void> _openChurchPicker(BuildContext context) async {
     HapticFeedback.selectionClick();
     final churches = CopticDiocesesCatalog.churchesFor(selectedDiocese);
     final picked = await _showSearchablePickerSheet(
       context: context,
-      title: 'اختر الكنيسة',
+      title: 'اختر الكنيسة (${churches.length} كنيسة)',
       subtitle: 'إيبارشية $selectedDiocese',
-      searchHint: 'ابحث باسم الكنيسة...',
+      searchHint: 'ابحث باسم الكنيسة أو المنطقة (مثال: العذراء، مارجرجس، شبرا)...',
       items: churches,
       selectedValue: selectedChurch,
       icon: Icons.church_outlined,
@@ -81,10 +92,10 @@ class DioceseChurchSelector extends StatelessWidget {
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) {
-          final q = queryCtrl.text.trim().toLowerCase();
+          final q = _normAr(queryCtrl.text);
           final filtered = q.isEmpty
               ? items
-              : items.where((x) => x.toLowerCase().contains(q)).toList();
+              : items.where((x) => _normAr(x).contains(q)).toList();
 
           return Padding(
             padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
@@ -147,14 +158,21 @@ class DioceseChurchSelector extends StatelessWidget {
                               contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               leading: Icon(Icons.add_circle_outline_rounded, color: p.accent, size: 20),
                               title: Text(
-                                'كنيسة أخرى غير موجودة بالقائمة',
+                                queryCtrl.text.trim().isNotEmpty
+                                    ? 'إضافة «${queryCtrl.text.trim()}» كاسم كنيستي'
+                                    : 'كنيستي مش في القائمة؟ اكتب اسمها هنا',
                                 style: GoogleFonts.cairo(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
                                   color: p.accent,
                                 ),
                               ),
-                              onTap: () => setSheet(() => enteringOther = true),
+                              onTap: () {
+                                if (queryCtrl.text.trim().length >= 3) {
+                                  otherCtrl.text = queryCtrl.text.trim();
+                                }
+                                setSheet(() => enteringOther = true);
+                              },
                             );
                           }
                           final item = filtered[idx];

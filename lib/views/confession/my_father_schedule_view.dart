@@ -52,6 +52,7 @@ class _MyFatherScheduleViewState extends State<MyFatherScheduleView> {
   final ConfessionService _service = ConfessionService();
   final StorageService _storage = StorageService();
   final Set<String> _busySessionIds = {};
+  String _lastScheduledFollowUpKey = '';
 
   Future<String?> _askTwoPartConfessionName() async {
     final p = context.palette;
@@ -724,6 +725,109 @@ class _MyFatherScheduleViewState extends State<MyFatherScheduleView> {
               ),
 
               const SizedBox(height: 10),
+
+              // 1b. Abouna's Personal Return-to-Confession Schedule Card (if Abouna ticked ✓ & set interval!)
+              StreamBuilder<PriestConfessorRecord?>(
+                stream: _service.watchMyFollowUpFromFather(fatherUid),
+                builder: (context, followSnap) {
+                  final rec = followSnap.data;
+                  if (rec == null || rec.lastConfessionDateIso.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+
+                  // Silently sync local last confession date & schedule OS reminder for Abouna's return date
+                  final syncKey = '${rec.lastConfessionDateIso}_${rec.nextConfessionDateIso}';
+                  if (_lastScheduledFollowUpKey != syncKey) {
+                    _lastScheduledFollowUpKey = syncKey;
+                    _storage.setLastConfessionDateIso(rec.lastConfessionDateIso);
+                    if (rec.nextConfessionDateIso.isNotEmpty) {
+                      NotificationService().scheduleNextConfessionFollowUp(
+                        fatherName: fatherName,
+                        nextDateIso: rec.nextConfessionDateIso,
+                        intervalDays: rec.nextIntervalDays,
+                        followUpNote: rec.followUpNote,
+                      );
+                    }
+                  }
+
+                  final daysLeft = rec.daysUntilNext;
+                  final isDue = rec.isDueNow;
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDue
+                          ? p.goldSoft
+                          : p.sage.withValues(alpha: p.isDark ? 0.16 : 0.09),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: isDue ? p.gold : p.sage,
+                        width: 1.3,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              isDue ? Icons.notifications_active_rounded : Icons.verified_rounded,
+                              color: isDue ? p.gold : p.sage,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                isDue
+                                    ? 'حان ميعاد اعترافك الجديد مع $fatherName 🙏'
+                                    : 'تم اعترافك مع $fatherName ✓',
+                                style: GoogleFonts.cairo(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: p.ink,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          rec.nextConfessionDateIso.isNotEmpty
+                              ? (isDue
+                                  ? 'عدّت المدة اللي قدس أبونا حددها (${PriestConfessorRecord.formatIntervalLabel(rec.nextIntervalDays)}) — احجز يومك الجديد من المواعيد تحت.'
+                                  : 'قدس أبونا حدّدلك تيجي تاني بعد ${PriestConfessorRecord.formatIntervalLabel(rec.nextIntervalDays)} (يوم ${PriestConfessorRecord.formatArabicDateShort(rec.nextConfessionDateIso)} — متبقي $daysLeft يوم) وهنفكّرك يومها تلقائياً.')
+                              : 'آخر اعتراف مسجّل عند قدس أبونا يوم ${PriestConfessorRecord.formatArabicDateShort(rec.lastConfessionDateIso)}.',
+                          style: GoogleFonts.cairo(
+                            fontSize: 12,
+                            color: p.inkSecondary,
+                            height: 1.5,
+                          ),
+                        ),
+                        if (rec.followUpNote.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: p.surface,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: p.border),
+                            ),
+                            child: Text(
+                              'كلمة من قدس أبونا: «${rec.followUpNote}»',
+                              style: GoogleFonts.cairo(
+                                fontSize: 11.8,
+                                fontWeight: FontWeight.w600,
+                                color: p.accent,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                },
+              ),
 
               // 2. Calm Start-Time Explanation Note (Page 02/04)
               Container(

@@ -1036,6 +1036,193 @@ class ConfessionService {
     } catch (_) {}
   }
 
+  // ===========================================================================
+  // 7. PRIEST CONFESSORS TABLE, CHECKMARK ✓ & NEXT-RETURN INTERVAL
+  // ===========================================================================
+
+  static String _isoFromDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// Priest checks off an attendee as Confessed ✓ and chooses when they should return (e.g. 14/21/30/40/60 days)
+  Future<(bool, String)> markAttendeeConfessed({
+    required ConfessionSession session,
+    required ConfessionAttendee attendee,
+    required int nextIntervalDays,
+    String followUpNote = '',
+  }) async {
+    final db = _db;
+    final uid = currentUid;
+    if (db == null || uid == null) {
+      return (false, 'من فضلك اتأكد من الاتصال بالإنترنت الأول.');
+    }
+
+    final today = DateTime.now();
+    final todayIso = _isoFromDate(today);
+    final nextDateIso = nextIntervalDays > 0
+        ? _isoFromDate(today.add(Duration(days: nextIntervalDays)))
+        : '';
+    final safeNote = SecurityGuardService.sanitizeText(followUpNote, maxLength: 180);
+    final safeName = SecurityGuardService.sanitizeText(attendee.attendeeName, maxLength: 80, allowNewlines: false);
+
+    try {
+      // 1. Update attendee row inside the session
+      await db
+          .collection('confession_sessions')
+          .doc(session.id)
+          .collection('attendees')
+          .doc(attendee.attendeeUid)
+          .update({
+        'confessed': true,
+        'nextIntervalDays': nextIntervalDays,
+        'nextDateIso': nextDateIso,
+        'followUpNote': safeNote,
+        'confessedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // 2. Upsert into Abouna's Confessors Table (`priests/{uid}/confession_children/{attendeeUid}`)
+      final childRef = db
+          .collection('priests')
+          .doc(uid)
+          .collection('confession_children')
+          .doc(attendee.attendeeUid);
+      final existing = await childRef.get();
+      final prevCount = (existing.data()?['confessedCount'] as num?)?.toInt() ?? 0;
+
+      await childRef.set({
+        'attendeeUid': attendee.attendeeUid,
+        'fullName': safeName.isEmpty ? 'ابن الكنيسة' : safeName,
+        'lastConfessionDateIso': todayIso,
+        'nextIntervalDays': nextIntervalDays,
+        'nextConfessionDateIso': nextDateIso,
+        'followUpNote': safeNote,
+        'confessedCount': prevCount + 1,
+        'confessedInLastSession': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      final intervalText = nextIntervalDays > 0
+          ? ' وهيظهرله إنه يرجع بعد ${PriestConfessorRecord.formatIntervalLabel(nextIntervalDays)}'
+          : '';
+      return (true, 'اتعلم صح ✓ لـ $safeName$intervalText');
+    } catch (e) {
+      if (kDebugMode) debugPrint('markAttendeeConfessed err: $e');
+      return (false, 'مش قادرين نحفظ علامة الصح دلوقتي. اتأكد من النت وحاول تاني.');
+    }
+  }
+
+  Future<void> unmarkAttendeeConfessed(String sessionId, String attendeeUid) async {
+    final db = _db;
+    if (db == null) return;
+    try {
+      await db
+          .collection('confession_sessions')
+          .doc(sessionId)
+          .collection('attendees')
+          .doc(attendeeUid)
+          .update({
+        'confessed': false,
+        'nextIntervalDays': 0,
+        'nextDateIso': '',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {}
+  }
+
+  /// Adds a walk-in confessor OR logs a brand-new confession directly inside Abouna's Confessors Table
+  Future<(bool, String)> upsertConfessorRecord({
+    required String fullName,
+    required int nextIntervalDays,
+    String followUpNote = '',
+    String? existingId,
+    String attendeeUid = '',
+    int prevCount = 0,
+  }) async {
+    final db = _db;
+    final uid = currentUid;
+    if (db == null || uid == null) {
+      return (false, 'من فضلك اتأكد من الاتصال بالإنترنت الأول.');
+    }
+    final safeName = SecurityGuardService.sanitizeText(fullName, maxLength: 80, allowNewlines: false);
+    if (safeName.length < 2) {
+      return (false, 'من فضلك اكتب اسم المعترف بشكل واضح.');
+    }
+    final safeNote = SecurityGuardService.sanitizeText(followUpNote, maxLength: 180);
+    final today = DateTime.now();
+    final todayIso = _isoFromDate(today);
+    final nextDateIso = nextIntervalDays > 0
+        ? _isoFromDate(today.add(Duration(days: nextIntervalDays)))
+        : '';
+
+    try {
+      final col = db.collection('priests').doc(uid).collection('confession_children');
+      final docRef = (existingId != null && existingId.isNotEmpty) ? col.doc(existingId) : col.doc();
+      await docRef.set({
+        'attendeeUid': attendeeUid,
+        'fullName': safeName,
+        'lastConfessionDateIso': todayIso,
+        'nextIntervalDays': nextIntervalDays,
+        'nextConfessionDateIso': nextDateIso,
+        'followUpNote': safeNote,
+        'confessedCount': prevCount + 1,
+        'confessedInLastSession': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      return (true, 'اتسجّل في جدول معترفين قدسك ✓ ($safeName)');
+    } catch (e) {
+      if (kDebugMode) debugPrint('upsertConfessorRecord err: $e');
+      return (false, 'تعذر الحفظ حالياً. اتأكد من الاتصال بالإنترنت.');
+    }
+  }
+
+  Future<void> deleteConfessorRecord(String recordId) async {
+    final db = _db;
+    final uid = currentUid;
+    if (db == null || uid == null) return;
+    try {
+      await db.collection('priests').doc(uid).collection('confession_children').doc(recordId).delete();
+    } catch (_) {}
+  }
+
+  /// Live stream of Abouna's full Confessors Table («جدول معترفين قدس أبونا»)
+  Stream<List<PriestConfessorRecord>> watchMyConfessorsTable() {
+    final db = _db;
+    final uid = currentUid;
+    if (db == null || uid == null) return Stream.value(const []);
+    return db
+        .collection('priests')
+        .doc(uid)
+        .collection('confession_children')
+        .snapshots()
+        .map((snap) {
+      final list = snap.docs
+          .map((d) => PriestConfessorRecord.fromMap(d.id, d.data()))
+          .toList();
+      list.sort((a, b) {
+        if (a.isDueNow != b.isDueNow) return a.isDueNow ? -1 : 1;
+        return (b.updatedAt ?? DateTime(2000)).compareTo(a.updatedAt ?? DateTime(2000));
+      });
+      return list;
+    });
+  }
+
+  /// Congregation member watches ONLY their OWN confession follow-up date & blessing set by Abouna!
+  Stream<PriestConfessorRecord?> watchMyFollowUpFromFather(String fatherUid) {
+    final db = _db;
+    final uid = currentUid;
+    if (db == null || uid == null || fatherUid.isEmpty) return Stream.value(null);
+    return db
+        .collection('priests')
+        .doc(fatherUid)
+        .collection('confession_children')
+        .doc(uid)
+        .snapshots()
+        .map((snap) {
+      if (!snap.exists || snap.data() == null) return null;
+      return PriestConfessorRecord.fromMap(snap.id, snap.data()!);
+    });
+  }
+
   Future<void> markAllNotificationsRead() async {
     final db = _db;
     final uid = currentUid;

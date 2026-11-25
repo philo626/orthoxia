@@ -450,6 +450,35 @@ class NotificationService {
     return true;
   }
 
+  /// Schedules a gentle return-to-confession reminder on the exact follow-up date
+  /// chosen by Abouna after the member confessed!
+  Future<bool> scheduleNextConfessionFollowUp({
+    required String fatherName,
+    required String nextDateIso,
+    required int intervalDays,
+    String followUpNote = '',
+  }) async {
+    await init();
+    if (!_initialized || nextDateIso.isEmpty) return false;
+    final dt = DateTime.tryParse(nextDateIso);
+    if (dt == null) return false;
+    final now = tz.TZDateTime.now(tz.local);
+    final remindAt = tz.TZDateTime(tz.local, dt.year, dt.month, dt.day, 10, 0);
+    if (!remindAt.isAfter(now)) return false;
+
+    final noteLine = followUpNote.trim().isNotEmpty ? '\nرسالة قدس أبونا: «$followUpNote»' : '';
+    await _scheduleOneShot(
+      id: 8950,
+      scheduled: remindAt,
+      channelId: 'orthodoxia_confession_followup',
+      channelName: 'ميعاد الرجوع للاعتراف',
+      channelDesc: 'تذكير بالميعاد الجاي للاعتراف اللي حدده قدس أبونا',
+      title: 'حان ميعاد اعترافك مع $fatherName 🙏',
+      body: 'عدّت المدة اللي قدس أبونا حددها ($intervalDays يوم) — افتح «مواعيد أبونا» واحجز ميعادك الجديد.$noteLine',
+    );
+    return true;
+  }
+
   Future<void> cancelConfessionReminder(String sessionId) async {
     await init();
     if (!_initialized) return;

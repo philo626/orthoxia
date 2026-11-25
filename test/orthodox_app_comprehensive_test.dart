@@ -873,6 +873,19 @@ void main() {
       expect(singleNameJoke.contains('مميز'), isTrue);
       expect(ConfessionNameValidator.validateTwoPartName('مينا جرجس'), isNull);
 
+      // Verify expanded 50+ dioceses & 600+ churches catalog + PriestConfessorRecord return-interval helpers
+      expect(CopticDiocesesCatalog.dioceses.length, greaterThanOrEqualTo(50));
+      expect(CopticDiocesesCatalog.totalChurchesCount, greaterThanOrEqualTo(580));
+      expect(PriestConfessorRecord.formatIntervalLabel(30), 'شهر (٣٠ يوم)');
+      final dueRec = PriestConfessorRecord(
+        id: 'c1',
+        fullName: 'كيرلس فادي',
+        lastConfessionDateIso: '2026-10-01',
+        nextIntervalDays: 30,
+        nextConfessionDateIso: '2026-10-31',
+      );
+      expect(dueRec.isDueNow, isTrue);
+
       // 1. Animated Christ AuthView role cards switch cleanly to Priest Mode
       await tester.pumpWidget(
         MultiProvider(

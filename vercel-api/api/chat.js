@@ -99,18 +99,17 @@ async function discoverActiveModels(apiKey) {
     function rank(name) {
       const n = name.toLowerCase();
       if (n.includes('preview') || n.includes('exp')) return 90;
-      if (n.startsWith('gemini-2.5-flash-lite')) return 10;
-      if (n.startsWith('gemini-2.5-flash')) return 12;
-      if (n.startsWith('gemini-3') && n.includes('flash-lite')) return 15;
-      if (n.startsWith('gemini-3') && n.includes('flash')) return 18;
-      if (n.includes('flash-latest')) return 20;
-      if (n.startsWith('gemini-2.0-flash')) return 22;
-      if (n.startsWith('gemma-3-27b')) return 25;
-      if (n.startsWith('gemma-3-12b')) return 28;
-      if (n.startsWith('gemma-3-4b')) return 32;
-      if (n.includes('flash')) return 35;
-      if (n.startsWith('gemini-')) return 45;
-      if (n.startsWith('gemma-')) return 55;
+      if (n.includes('2.5') || n.includes('2.0')) return 85; // deprecated for new keys
+      if (n.startsWith('gemini-3.5-flash-lite')) return 10;
+      if (n.startsWith('gemini-3.1-flash-lite')) return 12;
+      if (n.startsWith('gemini-3.7-flash')) return 14;
+      if (n.startsWith('gemini-3.6-flash')) return 16;
+      if (n.startsWith('gemini-3.5-flash')) return 18;
+      if (n.startsWith('gemini-3.8-flash')) return 20;
+      if (n.startsWith('gemma-4')) return 24;
+      if (n.includes('flash')) return 30;
+      if (n.startsWith('gemini-')) return 40;
+      if (n.startsWith('gemma-')) return 50;
       return 70;
     }
 
@@ -134,20 +133,19 @@ async function callGemini(apiKey, userMessages) {
   if (cleanMsgs.length === 0) return null;
 
   const discovered = await discoverActiveModels(apiKey);
-  const gemmaDiscovered = discovered.filter((m) => m.toLowerCase().startsWith('gemma'));
-  const geminiDiscovered = discovered.filter(
-    (m) => m.toLowerCase().startsWith('gemini') && !m.toLowerCase().includes('2.5-flash') || m === 'gemini-2.5-flash-lite',
+  const activeOnly = discovered.filter(
+    (m) => !m.includes('2.5') && !m.includes('2.0') && !m.includes('preview') && !m.includes('exp'),
   );
   const candidateModels = [
     ...(lastWorkingModel ? [lastWorkingModel] : []),
-    'gemini-2.5-flash-lite',
-    'gemini-3.1-flash-lite',
-    'gemma-3-27b-it',
-    'gemma-3-12b-it',
-    ...gemmaDiscovered.slice(0, 2),
-    ...geminiDiscovered.slice(0, 3),
+    ...activeOnly,
     'gemini-3.5-flash-lite',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
     'gemini-3.8-flash',
+    'gemma-4-31b-it',
+    'gemma-4-26b-a4b-it',
   ];
 
   const tried = new Set();
@@ -227,18 +225,27 @@ async function callGemini(apiKey, userMessages) {
     }
   }
 
-  for (const model of candidateModels) {
-    if (!model || tried.has(model) || tried.size >= 6) continue;
-    tried.add(model);
+  // Race models in parallel batches of 3 for sub-2s response even during single-model 503 spikes!
+  const uniqueModels = [];
+  for (const m of candidateModels) {
+    if (m && !uniqueModels.includes(m)) uniqueModels.push(m);
+  }
+
+  for (let i = 0; i < Math.min(uniqueModels.length, 9); i += 3) {
+    const batch = uniqueModels.slice(i, i + 3);
     try {
-      const r = await invokeOnce(model);
-      if (r.ok) {
-        lastWorkingModel = r.model;
-        return { text: r.text, model: r.model };
-      }
-      errors.push(`${model}:${r.status}(${r.msg})`);
-    } catch (e) {
-      errors.push(`${model}:${e?.name === 'AbortError' ? 'timeout' : 'net'}`);
+      const winner = await Promise.any(
+        batch.map(async (model) => {
+          const r = await invokeOnce(model);
+          if (r.ok) return r;
+          errors.push(`${model}:${r.status}(${r.msg})`);
+          throw new Error(`${model}:${r.status}`);
+        }),
+      );
+      lastWorkingModel = winner.model;
+      return { text: winner.text, model: winner.model };
+    } catch (_) {
+      // Whole batch failed -> proceed immediately to next batch
     }
   }
 

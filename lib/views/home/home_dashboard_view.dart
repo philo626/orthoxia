@@ -791,6 +791,101 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                     ),
                   ),
 
+                  // 1d. 100% OFFLINE Spiritual Exercise Box from Abouna (if set)
+                  Builder(
+                    builder: (ctx) {
+                      final st = StorageService();
+                      final isPriest = st.isPriestRole();
+                      final exercise = st.getActiveSpiritualExercise().trim();
+                      if (isPriest || exercise.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      final now = DateTime.now();
+                      final todayIso =
+                          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+                      final doneDays = st.getSpiritualExerciseDoneDays();
+                      final doneToday = doneDays.contains(todayIso);
+
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                          decoration: BoxDecoration(
+                            color: doneToday
+                                ? p.sage.withValues(alpha: p.isDark ? 0.16 : 0.09)
+                                : p.goldSoft,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: doneToday ? p.sage : p.goldBorder,
+                              width: 1.2,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                doneToday ? Icons.task_alt_rounded : Icons.spa_rounded,
+                                size: 22,
+                                color: doneToday ? p.sage : p.gold,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      doneDays.isNotEmpty
+                                          ? 'تدريبك الروحي من أبونا • واظبت ${doneDays.length} يوم'
+                                          : 'تدريبك الروحي من قدس أبونا',
+                                      style: GoogleFonts.cairo(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: doneToday ? p.sage : p.gold,
+                                      ),
+                                    ),
+                                    Text(
+                                      exercise,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.cairo(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: p.ink,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () async {
+                                  HapticFeedback.lightImpact();
+                                  await st.toggleSpiritualExerciseDoneToday(todayIso);
+                                  if (mounted) setState(() {});
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: doneToday ? p.sage : p.accent,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    doneToday ? 'تم ✓' : 'عملته',
+                                    style: GoogleFonts.cairo(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+
                   // 2. Live Liturgical "صلاة الآن" Sacred Hero Card
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),

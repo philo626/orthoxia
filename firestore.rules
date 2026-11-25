@@ -239,14 +239,14 @@ service cloud.firestore {
           && request.resource.data.attendeeUid == request.auth.uid
           && request.resource.data.sessionId == sessionId
           && request.resource.data.status in ['confirmed', 'waitlist', 'cancelled']
-          && validString(request.resource.data.attendeeName, 1, 60);
+          && validString(request.resource.data.attendeeName, 1, 120);
 
         allow update: if (
           isOwner(attendeeUid)
           && request.resource.data.attendeeUid == request.auth.uid
           && request.resource.data.sessionId == sessionId
           && request.resource.data.status in ['confirmed', 'waitlist', 'cancelled']
-          && validString(request.resource.data.attendeeName, 1, 60)
+          && validString(request.resource.data.attendeeName, 1, 120)
         ) || (
           // Priest marks attendee as confessed ✓ and sets next confession return interval!
           isSignedIn()

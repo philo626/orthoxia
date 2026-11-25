@@ -5,7 +5,9 @@ import '../../core/services/encryption_service.dart';
 import '../../core/services/security_guard_service.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/theme/app_palette.dart';
+import '../../core/widgets/luxe_widgets.dart';
 import '../../providers/spiritual_tracker_provider.dart';
+import '../confession/confession_companion_guide_view.dart';
 
 class ConscienceExamView extends StatefulWidget {
   const ConscienceExamView({super.key});
@@ -216,6 +218,14 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
             ),
             actions: [
               IconButton(
+                icon: Icon(Icons.menu_book_rounded, color: p.gold),
+                tooltip: 'صلوات قبل وبعد الاعتراف (أوفلاين)',
+                onPressed: () => Navigator.push(
+                  context,
+                  luxeRoute(const ConfessionCompanionGuideView(initialTab: 0)),
+                ),
+              ),
+              IconButton(
                 icon: Icon(Icons.delete_forever_rounded, color: p.crimson),
                 tooltip: 'محو الملاحظات بعد الاعتراف',
                 onPressed: _confirmSelfDestruct,
@@ -318,7 +328,7 @@ class _ConscienceExamViewState extends State<ConscienceExamView> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   itemCount: filteredQuestions.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     final q = filteredQuestions[index];
                     return Container(

@@ -39,6 +39,7 @@ import 'package:orthodox_app/views/ai_companion/ai_companion_view.dart';
 import 'package:orthodox_app/views/books/books_library_view.dart';
 import 'package:orthodox_app/views/community/online_trivia_arena_view.dart';
 import 'package:orthodox_app/views/confession/admin_priest_review_view.dart';
+import 'package:orthodox_app/views/confession/confession_companion_guide_view.dart';
 import 'package:orthodox_app/views/confession/fathers_directory_view.dart';
 import 'package:orthodox_app/views/confession/my_father_schedule_view.dart';
 import 'package:orthodox_app/views/confession/priest_dashboard_view.dart';
@@ -981,6 +982,8 @@ void main() {
         CommunionReadinessView(),
         SermonsLibraryView(),
         OnlineTriviaArenaView(),
+        ConfessionCompanionGuideView(initialTab: 0),
+        ConfessionCompanionGuideView(initialTab: 2),
       ]) {
         await tester.pumpWidget(
           MultiProvider(
@@ -1000,6 +1003,61 @@ void main() {
         await tester.pump(const Duration(milliseconds: 200));
         expect(find.byType(Scaffold), findsWidgets);
       }
+
+      // 4. Verify 10 New Pastoral Confession Features (Queue, Postpone, Audience, Family Booking, Spiritual Exercise, Clean Slate)
+      final sampleSession = ConfessionSession.fromMap('sess_1', {
+        'priestUid': 'p1',
+        'priestName': 'أبونا متى',
+        'church': 'كنيسة العذراء',
+        'diocese': 'القاهرة',
+        'dateIso': '2026-12-01',
+        'dayLabelAr': 'الثلاثاء ١ ديسمبر',
+        'startTimeAr': '٤:٠٠ مساءً',
+        'endTimeAr': '٦:٠٠ مساءً',
+        'audienceGroup': 'الشباب',
+        'isOpen': false,
+        'isCancelled': true,
+        'cancelNotice': 'عذراً لظرف طارئ سيتم التأجيل ليوم الخميس',
+        'currentServingNumber': 4,
+        'confirmedCount': 10,
+        'waitlistCount': 0,
+      });
+      expect(sampleSession.audienceGroup, 'الشباب');
+      expect(sampleSession.isCancelled, isTrue);
+      expect(sampleSession.cancelNotice, contains('طارئ'));
+      expect(sampleSession.currentServingNumber, 4);
+
+      final famAtt = ConfessionAttendee.fromMap('u1', {
+        'sessionId': 'sess_1',
+        'attendeeName': 'كيرلس فادي',
+        'companionNames': ['بيتر', 'مريم'],
+        'queueNumber': 6,
+        'status': 'confirmed',
+        'dayLabelAr': 'الثلاثاء',
+        'startTimeAr': '٤:٠٠ مساءً',
+      });
+      expect(famAtt.queueNumber, 6);
+      expect(famAtt.displayNameWithFamily, 'كيرلس فادي (+ بيتر، مريم)');
+      final famAttAlreadyFormatted = ConfessionAttendee.fromMap('u2', {
+        'sessionId': 'sess_1',
+        'attendeeName': 'كيرلس فادي (+ بيتر)',
+        'companionNames': ['بيتر'],
+        'queueNumber': 7,
+        'status': 'confirmed',
+        'dayLabelAr': 'الثلاثاء',
+        'startTimeAr': '٤:٠٠ مساءً',
+      });
+      expect(famAttAlreadyFormatted.displayNameWithFamily, 'كيرلس فادي (+ بيتر)');
+
+      final st = StorageService();
+      await st.setActiveSpiritualExercise('مزمور ٥٠ قبل النوم كل يوم');
+      expect(st.getActiveSpiritualExercise(), 'مزمور ٥٠ قبل النوم كل يوم');
+      await st.toggleSpiritualExerciseDoneToday('2026-11-25');
+      expect(st.getSpiritualExerciseDoneDays(), contains('2026-11-25'));
+      await st.toggleSpiritualExerciseDoneToday('2026-11-25');
+      expect(st.getSpiritualExerciseDoneDays(), isNot(contains('2026-11-25')));
+      await st.setLastCleanedConfessionIso('2026-11-25');
+      expect(st.getLastCleanedConfessionIso(), '2026-11-25');
     });
   });
 }

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -448,10 +449,20 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
     TimeOfDay pickedTime = const TimeOfDay(hour: 16, minute: 0);
     bool hasEndTime = true;
     TimeOfDay pickedEndTime = const TimeOfDay(hour: 18, minute: 0); // لغاية الساعة ٦:٠٠ مساءً
+    bool repeatWeekly = false; // جدول أسبوعي ثابت (ينشر ٤ أسابيع جاية تلقائياً)
+    String audienceGroup = 'عام للكل';
     bool unlimited = true;
     final capCtrl = TextEditingController(text: '15');
     final locationCtrl = TextEditingController();
     bool publishing = false;
+
+    const audienceOptions = [
+      'عام للكل',
+      'الشباب',
+      'الأسر والمتزوجين',
+      'كبار السن والمرضى',
+      'إعدادي وثانوي',
+    ];
 
     const endPresets = <(String, TimeOfDay)>[
       ('٦:٠٠ م', TimeOfDay(hour: 18, minute: 0)),
@@ -675,6 +686,71 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  // Weekly Fixed Schedule Toggle («جدول أسبوعي ثابت»)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: repeatWeekly ? p.goldSoft : p.surfaceSubtle,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: repeatWeekly ? p.goldBorder : p.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.repeat_rounded, size: 19, color: repeatWeekly ? p.gold : p.inkMuted),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'جدول أسبوعي ثابت (٤ أسابيع)',
+                                style: GoogleFonts.cairo(fontSize: 12.5, fontWeight: FontWeight.bold, color: p.ink),
+                              ),
+                              Text(
+                                'ينشر نفس اليوم والساعة للـ ٤ أسابيع الجاية تلقائياً وقدسك تقدر تلغي أي يوم لو مسافر.',
+                                style: GoogleFonts.cairo(fontSize: 10.8, color: p.inkMuted),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: repeatWeekly,
+                          activeThumbColor: p.gold,
+                          onChanged: (v) => setSheet(() => repeatWeekly = v),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Audience Group Selector (Optional)
+                  Text(
+                    'الفئة المخصصة (اختياري):',
+                    style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold, color: p.ink),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: audienceOptions.map((grp) {
+                      final sel = audienceGroup == grp;
+                      return ChoiceChip(
+                        visualDensity: VisualDensity.compact,
+                        selected: sel,
+                        selectedColor: p.gold,
+                        backgroundColor: p.surfaceSubtle,
+                        label: Text(
+                          grp,
+                          style: GoogleFonts.cairo(
+                            fontSize: 11.2,
+                            fontWeight: FontWeight.bold,
+                            color: sel ? const Color(0xFF19130A) : p.ink,
+                          ),
+                        ),
+                        onSelected: (_) => setSheet(() => audienceGroup = grp),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: locationCtrl,
                     style: GoogleFonts.cairo(color: p.ink, fontSize: 13.5),
@@ -689,6 +765,7 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
                         ? null
                         : () async {
                             setSheet(() => publishing = true);
+                            final messenger = ScaffoldMessenger.of(context);
                             final maxCap = unlimited ? null : int.tryParse(capCtrl.text.trim());
                             final (ok, msg) = await _service.publishConfessionSession(
                               priest: priest,
@@ -696,13 +773,15 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
                               dayLabelAr: _formatArDate(pickedDate),
                               startTimeAr: _formatArTime(pickedTime),
                               endTimeAr: hasEndTime ? _formatArTime(pickedEndTime) : '',
+                              audienceGroup: audienceGroup == 'عام للكل' ? '' : audienceGroup,
+                              repeatWeeks: repeatWeekly ? 4 : 1,
                               maxAttendees: maxCap,
                               locationNote: locationCtrl.text.trim(),
                             );
                             if (!ctx.mounted) return;
                             setSheet(() => publishing = false);
                             if (ok) Navigator.pop(ctx);
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.showSnackBar(
                               SnackBar(content: Text(msg, style: GoogleFonts.cairo())),
                             );
                           },
@@ -1611,6 +1690,69 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
                                       ),
                                     ),
                                   ),
+                                  if (due)
+                                    IconButton(
+                                      tooltip: 'إضافة لدفتر الافتقاد / سلام',
+                                      constraints: const BoxConstraints(),
+                                      padding: const EdgeInsets.only(right: 4),
+                                      icon: Icon(Icons.volunteer_activism_rounded, size: 17, color: p.accent),
+                                      onPressed: () {
+                                        showModalBottomSheet(
+                                          context: context,
+                                          backgroundColor: Colors.transparent,
+                                          builder: (ctx) => Container(
+                                            padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+                                            decoration: BoxDecoration(
+                                              color: p.surface,
+                                              borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+                                            ),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                                              children: [
+                                                Text(
+                                                  'افتقاد ومتابعة «${rec.fullName}»',
+                                                  style: GoogleFonts.amiri(
+                                                    fontSize: 21,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: p.ink,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 10),
+                                                ElevatedButton.icon(
+                                                  onPressed: () {
+                                                    Navigator.pop(ctx);
+                                                    SharePlus.instance.share(
+                                                      ShareParams(
+                                                        text:
+                                                            'سلام ونعمة يا ${rec.fullName}، وحشتنا جداً في الكنيسة وحبيت أطمن عليك! لما تفضى مستنيك في الاعتراف وربنا معاك 🙏',
+                                                      ),
+                                                    );
+                                                  },
+                                                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                                                  label: Text(
+                                                    'ابعتله رسالة سلام واطمئنان على واتساب',
+                                                    style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                OutlinedButton.icon(
+                                                  onPressed: () {
+                                                    Navigator.pop(ctx);
+                                                    _addOverdueToVisitation(rec);
+                                                  },
+                                                  icon: const Icon(Icons.home_work_outlined, size: 18),
+                                                  label: Text(
+                                                    'انقله لدفتر الافتقاد (أنا أفتقد)',
+                                                    style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
                                   IconButton(
                                     tooltip: 'حذف من الجدول',
                                     constraints: const BoxConstraints(),
@@ -1660,6 +1802,178 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
     );
   }
 
+  void _openPostponeSessionSheet(ConfessionSession s) {
+    final p = context.palette;
+    final noticeCtrl = TextEditingController(
+      text: 'عذراً يا أولادي، جالي ظرف طارئ ومش هقدر أنزل اعترافات يوم ${s.dayLabelAr} — هنعوّضها في الميعاد الجاي 🙏',
+    );
+    bool sending = false;
+
+    const quickReasons = [
+      'عذراً يا أولادي، جالي ظرف طارئ ومش هقدر أنزل النهاردة — هنعوّضها في الميعاد الجاي 🙏',
+      'سلام ونعمة يا أولادي، عندي خدمة قداس/جناز طارئ النهاردة فهنأجّل الاعترافات للميعاد الجاي.',
+      'عذراً يا أولادي، مسافر النهاردة وهنرجع نفتح الاعترافات الأسبوع الجاي بنعمة ربنا.',
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 26),
+            decoration: BoxDecoration(
+              color: p.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border(top: BorderSide(color: p.border)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(color: p.border, borderRadius: BorderRadius.circular(4)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'اعتذار وتأجيل طارئ (${s.dayLabelAr})',
+                    style: GoogleFonts.amiri(fontSize: 22, fontWeight: FontWeight.bold, color: p.danger),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'هيظهر إشعار الاعتذار ده فوراً لكل اللي سجّلوا في اليوم ده عشان ميتعبوش ويروحوا الكنيسة:',
+                    style: GoogleFonts.cairo(fontSize: 12, color: p.inkSecondary, height: 1.5),
+                  ),
+                  const SizedBox(height: 10),
+                  ...quickReasons.map((r) => Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(11),
+                          onTap: () => setSheet(() => noticeCtrl.text = r),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: p.surfaceSubtle,
+                              borderRadius: BorderRadius.circular(11),
+                              border: Border.all(color: p.border),
+                            ),
+                            child: Text(
+                              r,
+                              style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkSecondary),
+                            ),
+                          ),
+                        ),
+                      )),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: noticeCtrl,
+                    maxLines: 2,
+                    style: GoogleFonts.cairo(color: p.ink, fontSize: 13),
+                    decoration: const InputDecoration(hintText: 'رسالة الاعتذار لأولاد قدسك...'),
+                  ),
+                  const SizedBox(height: 14),
+                  ElevatedButton.icon(
+                    onPressed: sending
+                        ? null
+                        : () async {
+                            setSheet(() => sending = true);
+                            final messenger = ScaffoldMessenger.of(context);
+                            final ok = await _service.postponeSessionWithNotice(s.id, noticeCtrl.text);
+                            if (!ctx.mounted) return;
+                            setSheet(() => sending = false);
+                            if (ok) {
+                              Navigator.pop(ctx);
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'اتنشر إشعار التأجيل لأولاد قدسك فوراً ✓',
+                                    style: GoogleFonts.cairo(),
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: p.danger,
+                      foregroundColor: Colors.white,
+                    ),
+                    icon: const Icon(Icons.event_busy_rounded, size: 19),
+                    label: Text(
+                      'تأكيد التأجيل وإبلاغ المسجّلين',
+                      style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextButton.icon(
+                    onPressed: () {
+                      SharePlus.instance.share(
+                        ShareParams(
+                          text: '${noticeCtrl.text.trim()}\n— ${s.priestName}',
+                        ),
+                      );
+                    },
+                    icon: Icon(Icons.share_rounded, size: 16, color: p.accent),
+                    label: Text(
+                      'مشاركة رسالة الاعتذار على جروب واتساب كمان',
+                      style: GoogleFonts.cairo(fontSize: 12, color: p.accent, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addOverdueToVisitation(PriestConfessorRecord rec) async {
+    HapticFeedback.lightImpact();
+    try {
+      final raw = _storage.getEncryptedVisitationJson();
+      final list = (raw != null && raw.isNotEmpty)
+          ? (jsonDecode(raw) as List)
+              .map((e) => VisitationEntry.fromJson(e as Map<String, dynamic>))
+              .toList()
+          : <VisitationEntry>[];
+      final already = list.any((v) => v.personName.trim() == rec.fullName.trim() && !v.visited);
+      if (!already) {
+        list.insert(
+          0,
+          VisitationEntry(
+            id: DateTime.now().microsecondsSinceEpoch.toString(),
+            personName: rec.fullName,
+            tag: 'أسرة',
+            note: 'متأخر عن الاعتراف (آخر اعتراف: ${PriestConfessorRecord.formatArabicDateShort(rec.lastConfessionDateIso)})',
+            visited: false,
+            plannedByMe: true,
+            updatedAtIso: DateTime.now().toIso8601String(),
+          ),
+        );
+        await _storage.saveEncryptedVisitationJson(
+          jsonEncode(list.map((e) => e.toJson()).toList()),
+        );
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'اتضاف «${rec.fullName}» في دفتر الافتقاد (تبويب أنا أفتقد) ✓',
+              style: GoogleFonts.cairo(),
+            ),
+          ),
+        );
+      }
+    } catch (_) {}
+  }
+
   Widget _buildPriestSessionCard(AppPalette p, ConfessionSession s) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1684,11 +1998,32 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
                       '${s.dayLabelAr} • ${s.timeRangeLabelAr}',
                       style: GoogleFonts.cairo(fontSize: 13.5, fontWeight: FontWeight.bold, color: p.ink),
                     ),
+                    if (s.audienceGroup.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2, bottom: 2),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: p.goldSoft,
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          child: Text(
+                            'فئة: ${s.audienceGroup}',
+                            style: GoogleFonts.cairo(fontSize: 10.5, fontWeight: FontWeight.bold, color: p.gold),
+                          ),
+                        ),
+                      ),
                     Text(
-                      s.isUnlimited
-                          ? 'عدد مفتوح • المسجّلون: ${s.confirmedCount}'
-                          : 'الحد الأقصى: ${s.maxAttendees} • المسجّلون: ${s.confirmedCount}${s.waitlistCount > 0 ? ' (انتظار: ${s.waitlistCount})' : ''}',
-                      style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkSecondary),
+                      s.isCancelled
+                          ? 'مُؤجّل (تم إبلاغ المسجّلين)'
+                          : (s.isUnlimited
+                              ? 'عدد مفتوح • المسجّلون: ${s.confirmedCount}'
+                              : 'الحد الأقصى: ${s.maxAttendees} • المسجّلون: ${s.confirmedCount}${s.waitlistCount > 0 ? ' (انتظار: ${s.waitlistCount})' : ''}'),
+                      style: GoogleFonts.cairo(
+                        fontSize: 11.5,
+                        color: s.isCancelled ? p.danger : p.inkSecondary,
+                        fontWeight: s.isCancelled ? FontWeight.bold : FontWeight.normal,
+                      ),
                     ),
                   ],
                 ),
@@ -1700,18 +2035,99 @@ class _PriestDashboardViewState extends State<PriestDashboardView> {
               ),
             ],
           ),
+          if (s.isCancelled && s.cancelNotice.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: p.danger.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: p.danger.withValues(alpha: 0.35)),
+              ),
+              child: Text(
+                'إشعار التأجيل: ${s.cancelNotice}',
+                style: GoogleFonts.cairo(fontSize: 11.5, color: p.danger, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: () => _service.toggleSessionOpen(s.id, !s.isOpen),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: s.isOpen ? p.danger : p.sage,
-              side: BorderSide(color: s.isOpen ? p.danger : p.sage),
+          // Live Queue Serving Counter («الدور المباشر»)
+          if (!s.isCancelled && s.confirmedCount > 0) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: p.goldSoft,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: p.goldBorder),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.confirmation_number_outlined, size: 17, color: p.gold),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      s.currentServingNumber == 0
+                          ? 'الدور المباشر: لسه مبدأناش (الجاي رقم ١)'
+                          : 'الدور المباشر: خلّصنا لحد رقم ${s.currentServingNumber} (الجاي #${s.currentServingNumber + 1})',
+                      style: GoogleFonts.cairo(fontSize: 11.5, fontWeight: FontWeight.bold, color: p.ink),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'السابق',
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(4),
+                    icon: Icon(Icons.remove_circle_outline_rounded, size: 20, color: p.inkMuted),
+                    onPressed: s.currentServingNumber > 0
+                        ? () => _service.updateCurrentServingNumber(s.id, s.currentServingNumber - 1)
+                        : null,
+                  ),
+                  IconButton(
+                    tooltip: 'الدور اللي بعده',
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(4),
+                    icon: Icon(Icons.add_circle_rounded, size: 22, color: p.sage),
+                    onPressed: () =>
+                        _service.updateCurrentServingNumber(s.id, s.currentServingNumber + 1),
+                  ),
+                ],
+              ),
             ),
-            icon: Icon(s.isOpen ? Icons.lock_outline_rounded : Icons.lock_open_rounded, size: 17),
-            label: Text(
-              s.isOpen ? 'إيقاف تسجيل حضور جديد' : 'إعادة فتح التسجيل',
-              style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold),
-            ),
+            const SizedBox(height: 8),
+          ],
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: s.isCancelled ? null : () => _service.toggleSessionOpen(s.id, !s.isOpen),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: s.isOpen ? p.accent : p.sage,
+                    side: BorderSide(color: s.isOpen ? p.goldBorder : p.sage),
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                  ),
+                  icon: Icon(s.isOpen ? Icons.lock_outline_rounded : Icons.lock_open_rounded, size: 16),
+                  label: Text(
+                    s.isOpen ? 'قفل التسجيل' : 'فتح التسجيل',
+                    style: GoogleFonts.cairo(fontSize: 11.5, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              if (!s.isCancelled) ...[
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () => _openPostponeSessionSheet(s),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: p.danger,
+                    side: BorderSide(color: p.danger.withValues(alpha: 0.6)),
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                  ),
+                  icon: const Icon(Icons.event_busy_rounded, size: 16),
+                  label: Text(
+                    'تأجيل طارئ',
+                    style: GoogleFonts.cairo(fontSize: 11.5, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 10),
           StreamBuilder<List<ConfessionAttendee>>(

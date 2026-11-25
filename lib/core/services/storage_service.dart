@@ -367,6 +367,29 @@ class StorageService {
   Future<void> setLastCommunionDateIso(String iso) async =>
       await _prefs?.setString('last_communion_date_iso', iso);
 
+  // Spiritual Exercise Box from Abouna (100% offline local daily check-in!)
+  String getActiveSpiritualExercise() => _prefs?.getString('abouna_spiritual_exercise_v1') ?? '';
+  Future<void> setActiveSpiritualExercise(String text) async =>
+      await _prefs?.setString('abouna_spiritual_exercise_v1', text);
+
+  List<String> getSpiritualExerciseDoneDays() =>
+      _prefs?.getStringList('abouna_exercise_done_days_v1') ?? const [];
+  Future<void> toggleSpiritualExerciseDoneToday(String todayIso) async {
+    final list = List<String>.from(getSpiritualExerciseDoneDays());
+    if (list.contains(todayIso)) {
+      list.remove(todayIso);
+    } else {
+      list.add(todayIso);
+    }
+    await _prefs?.setStringList('abouna_exercise_done_days_v1', list);
+  }
+
+  String getLastCleanedConfessionIso() => _prefs?.getString('last_cleaned_confession_iso') ?? '';
+  Future<void> setLastCleanedConfessionIso(String iso) async =>
+      await _prefs?.setString('last_cleaned_confession_iso', iso);
+
+  bool hasAnyConscienceNotes() => (_prefs?.getString('conscience_exam_notes') ?? '').isNotEmpty;
+
   Future<void> clearConscienceNotes() async {
     await _prefs?.remove('conscience_exam_notes');
   }

@@ -580,12 +580,25 @@ class ConfessionService {
   // 3. PRIEST CONFESSION SESSIONS (WORKS IMMEDIATELY VIA PRIVATE CODE & PUBLIC)
   // ===========================================================================
 
+  static const List<String> _arWeekdays = [
+    'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد',
+  ];
+  static const List<String> _arMonths = [
+    'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+  ];
+
+  static String _formatArDay(DateTime d) =>
+      '${_arWeekdays[(d.weekday - 1).clamp(0, 6)]} ${d.day} ${_arMonths[(d.month - 1).clamp(0, 11)]}';
+
   Future<(bool, String)> publishConfessionSession({
     required PriestProfile priest,
     required DateTime date,
     required String dayLabelAr,
     required String startTimeAr,
     String endTimeAr = '',
+    String audienceGroup = '',
+    int repeatWeeks = 1,
     int? maxAttendees,
     String locationNote = '',
   }) async {
@@ -595,27 +608,43 @@ class ConfessionService {
       return (false, 'من فضلك سجّل دخول واتأكد من النت الأول.');
     }
 
-    final iso =
-        '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final weeks = repeatWeeks.clamp(1, 4);
+    final safeStart = SecurityGuardService.sanitizeText(startTimeAr, maxLength: 40, allowNewlines: false);
+    final safeEnd = SecurityGuardService.sanitizeText(endTimeAr, maxLength: 40, allowNewlines: false);
+    final safeLoc = SecurityGuardService.sanitizeText(locationNote, maxLength: 120, allowNewlines: false);
+    final safeGroup = SecurityGuardService.sanitizeText(audienceGroup, maxLength: 40, allowNewlines: false);
 
     try {
-      await db.collection('confession_sessions').add({
-        'priestUid': uid,
-        'priestName': priest.fullDisplayName,
-        'church': priest.church,
-        'diocese': priest.diocese,
-        'dateIso': iso,
-        'dayLabelAr': SecurityGuardService.sanitizeText(dayLabelAr, maxLength: 60, allowNewlines: false),
-        'startTimeAr': SecurityGuardService.sanitizeText(startTimeAr, maxLength: 40, allowNewlines: false),
-        'endTimeAr': SecurityGuardService.sanitizeText(endTimeAr, maxLength: 40, allowNewlines: false),
-        'locationNote': SecurityGuardService.sanitizeText(locationNote, maxLength: 120, allowNewlines: false),
-        'maxAttendees': (maxAttendees != null && maxAttendees > 0) ? maxAttendees : null,
-        'isOpen': true,
-        'confirmedCount': 0,
-        'waitlistCount': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      for (int w = 0; w < weeks; w++) {
+        final d = date.add(Duration(days: w * 7));
+        final iso =
+            '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+        final label = w == 0 ? dayLabelAr : _formatArDay(d);
+        await db.collection('confession_sessions').add({
+          'priestUid': uid,
+          'priestName': priest.fullDisplayName,
+          'church': priest.church,
+          'diocese': priest.diocese,
+          'dateIso': iso,
+          'dayLabelAr': SecurityGuardService.sanitizeText(label, maxLength: 60, allowNewlines: false),
+          'startTimeAr': safeStart,
+          'endTimeAr': safeEnd,
+          'locationNote': safeLoc,
+          'audienceGroup': safeGroup,
+          'maxAttendees': (maxAttendees != null && maxAttendees > 0) ? maxAttendees : null,
+          'isOpen': true,
+          'isCancelled': false,
+          'cancelNotice': '',
+          'currentServingNumber': 0,
+          'confirmedCount': 0,
+          'waitlistCount': 0,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      if (weeks > 1) {
+        return (true, 'اتنشر الجدول الأسبوعي الثابت ($weeks أسابيع جاية) بنجاح لأولاد قدسك ✓');
+      }
       return (
         true,
         priest.isVerifiedPublic
@@ -625,6 +654,43 @@ class ConfessionService {
     } catch (e) {
       if (kDebugMode) debugPrint('publishConfessionSession err: $e');
       return (false, 'مش قادرين ننشر الميعاد دلوقتي. اتأكد من النت وحاول تاني.');
+    }
+  }
+
+  /// Emergency Apology / Postpone button for Abouna («معلش هأجّل النهاردة»)
+  Future<bool> postponeSessionWithNotice(String sessionId, String cancelNotice) async {
+    final db = _db;
+    if (db == null) return false;
+    final safeNotice = SecurityGuardService.sanitizeText(
+      cancelNotice.trim().isEmpty
+          ? 'عذراً يا أولادي، جالي ظرف طارئ ومش هقدر أنزل النهاردة — هنعوّضها في الميعاد الجاي 🙏'
+          : cancelNotice,
+      maxLength: 220,
+    );
+    try {
+      await db.collection('confession_sessions').doc(sessionId).update({
+        'isCancelled': true,
+        'isOpen': false,
+        'cancelNotice': safeNotice,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> updateCurrentServingNumber(String sessionId, int servingNumber) async {
+    final db = _db;
+    if (db == null) return false;
+    try {
+      await db.collection('confession_sessions').doc(sessionId).update({
+        'currentServingNumber': servingNumber.clamp(0, 500),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -677,6 +743,7 @@ class ConfessionService {
     ConfessionSession session, {
     bool allowWaitlist = false,
     String? attendeeNameOverride,
+    List<String> companionNames = const [],
   }) async {
     final db = _db;
     final uid = currentUid;
@@ -687,14 +754,27 @@ class ConfessionService {
       );
     }
 
+    final cleanCompanions = companionNames
+        .map((c) => SecurityGuardService.sanitizeText(c, maxLength: 30, allowNewlines: false))
+        .where((c) => c.isNotEmpty)
+        .take(5)
+        .toList();
+
     final rawName = (attendeeNameOverride != null && attendeeNameOverride.trim().isNotEmpty)
         ? attendeeNameOverride.trim()
         : _storage.getUserName();
-    final attendeeName = SecurityGuardService.sanitizeText(
+    final baseName = SecurityGuardService.sanitizeText(
       rawName,
       maxLength: 60,
       allowNewlines: false,
     );
+    final attendeeName = cleanCompanions.isEmpty
+        ? baseName
+        : SecurityGuardService.sanitizeText(
+            '$baseName (+ ${cleanCompanions.join('، ')})',
+            maxLength: 115,
+            allowNewlines: false,
+          );
     final sessionRef = db.collection('confession_sessions').doc(session.id);
     final attendeeRef = sessionRef.collection('attendees').doc(uid);
 
@@ -760,26 +840,29 @@ class ConfessionService {
         }
 
         final wasWaitlist = prevStatus == 'waitlist';
+        final assignedQueue = liveSession.confirmedCount + 1;
         tx.set(attendeeRef, {
           'attendeeUid': uid,
           'sessionId': session.id,
           'priestUid': liveSession.priestUid,
           'attendeeName': attendeeName.isEmpty ? 'ابن الكنيسة' : attendeeName,
+          'companionNames': cleanCompanions,
+          'queueNumber': assignedQueue,
           'status': 'confirmed',
           'dayLabelAr': liveSession.dayLabelAr,
           'startTimeAr': liveSession.startTimeAr,
           'updatedAt': FieldValue.serverTimestamp(),
         });
         tx.update(sessionRef, {
-          'confirmedCount': liveSession.confirmedCount + 1,
+          'confirmedCount': assignedQueue,
           'waitlistCount': wasWaitlist && liveSession.waitlistCount > 0
               ? liveSession.waitlistCount - 1
               : liveSession.waitlistCount,
           'updatedAt': FieldValue.serverTimestamp(),
         });
-        return const AttendanceActionResult(
+        return AttendanceActionResult(
           status: AttendanceActionStatus.confirmed,
-          message: 'اتسجّل حضورك بنجاح وتم إبلاغ قدس أبونا.',
+          message: 'اتسجّل حضورك (دورك رقم $assignedQueue) وتم إبلاغ قدس أبونا.',
         );
       });
 
@@ -1065,7 +1148,7 @@ class ConfessionService {
     final safeName = SecurityGuardService.sanitizeText(attendee.attendeeName, maxLength: 80, allowNewlines: false);
 
     try {
-      // 1. Update attendee row inside the session
+      // 1. Update attendee row inside the session AND advance live queue serving number!
       await db
           .collection('confession_sessions')
           .doc(session.id)
@@ -1079,6 +1162,17 @@ class ConfessionService {
         'confessedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      // Advance live queue number so the next person in line knows «دورك اللي جاي يا جميل»!
+      final nextServing = attendee.queueNumber > session.currentServingNumber
+          ? attendee.queueNumber
+          : session.currentServingNumber + 1;
+      try {
+        await db.collection('confession_sessions').doc(session.id).update({
+          'currentServingNumber': nextServing,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } catch (_) {}
 
       // 2. Upsert into Abouna's Confessors Table (`priests/{uid}/confession_children/{attendeeUid}`)
       final childRef = db

@@ -165,8 +165,12 @@ class ConfessionSession {
   final String startTimeAr; // e.g. '٤:٠٠ مساءً'
   final String endTimeAr; // optional e.g. '٦:٠٠ مساءً' ('' = مفتوح بدون ساعة انتهاء)
   final String locationNote; // optional e.g. 'مكتب الاعتراف بالكنيسة'
+  final String audienceGroup; // '' / 'عام للكل' | 'الشباب' | 'الأسر والمتزوجين' | 'كبار السن والمرضى' | 'إعدادي وثانوي'
   final int? maxAttendees; // null = عدد مفتوح
   final bool isOpen; // false = أبونا قفل التسجيل
+  final bool isCancelled; // true = اعتذار / تأجيل طارئ من قدس أبونا
+  final String cancelNotice; // رسالة الاعتذار الطارئ من أبونا
+  final int currentServingNumber; // نظام الدور المباشر (اللي خلّصوا أو بيتخدموا دلوقتي)
   final int confirmedCount;
   final int waitlistCount;
   final DateTime? createdAt;
@@ -182,8 +186,12 @@ class ConfessionSession {
     required this.startTimeAr,
     this.endTimeAr = '',
     this.locationNote = '',
+    this.audienceGroup = '',
     this.maxAttendees,
     required this.isOpen,
+    this.isCancelled = false,
+    this.cancelNotice = '',
+    this.currentServingNumber = 0,
     required this.confirmedCount,
     required this.waitlistCount,
     this.createdAt,
@@ -212,8 +220,12 @@ class ConfessionSession {
       startTimeAr: '${data['startTimeAr'] ?? ''}',
       endTimeAr: '${data['endTimeAr'] ?? ''}',
       locationNote: '${data['locationNote'] ?? ''}',
+      audienceGroup: '${data['audienceGroup'] ?? ''}',
       maxAttendees: rawMax is num && rawMax.toInt() > 0 ? rawMax.toInt() : null,
       isOpen: data['isOpen'] != false,
+      isCancelled: data['isCancelled'] == true,
+      cancelNotice: '${data['cancelNotice'] ?? ''}',
+      currentServingNumber: (data['currentServingNumber'] as num?)?.toInt() ?? 0,
       confirmedCount: (data['confirmedCount'] as num?)?.toInt() ?? 0,
       waitlistCount: (data['waitlistCount'] as num?)?.toInt() ?? 0,
       createdAt: ts is Timestamp ? ts.toDate() : null,
@@ -225,6 +237,8 @@ class ConfessionAttendee {
   final String attendeeUid;
   final String sessionId;
   final String attendeeName;
+  final List<String> companionNames; // أفراد الأسرة أو الأطفال المسجّلين مع نفس الموبايل
+  final int queueNumber; // رقم الدور في اليوم (١، ٢، ٣...)
   final String status; // 'confirmed' | 'waitlist' | 'cancelled'
   final String dayLabelAr;
   final String startTimeAr;
@@ -239,6 +253,8 @@ class ConfessionAttendee {
     required this.attendeeUid,
     required this.sessionId,
     required this.attendeeName,
+    this.companionNames = const [],
+    this.queueNumber = 0,
     required this.status,
     required this.dayLabelAr,
     required this.startTimeAr,
@@ -250,13 +266,25 @@ class ConfessionAttendee {
     this.updatedAt,
   });
 
+  String get displayNameWithFamily =>
+      companionNames.isEmpty || attendeeName.contains('(+')
+          ? attendeeName
+          : '$attendeeName (+ ${companionNames.join('، ')})';
+
   factory ConfessionAttendee.fromMap(String uid, Map<String, dynamic> data) {
     final ts = data['updatedAt'];
     final cTs = data['confessedAt'];
+    final rawComp = (data['companionNames'] as List?)
+            ?.map((e) => '$e'.trim())
+            .where((e) => e.isNotEmpty)
+            .toList() ??
+        const <String>[];
     return ConfessionAttendee(
       attendeeUid: uid,
       sessionId: '${data['sessionId'] ?? ''}',
       attendeeName: '${data['attendeeName'] ?? ''}',
+      companionNames: rawComp,
+      queueNumber: (data['queueNumber'] as num?)?.toInt() ?? 0,
       status: '${data['status'] ?? 'confirmed'}',
       dayLabelAr: '${data['dayLabelAr'] ?? ''}',
       startTimeAr: '${data['startTimeAr'] ?? ''}',

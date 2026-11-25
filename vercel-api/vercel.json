@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/chat.js": {
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
     { "source": "/", "destination": "/api/chat" },
     { "source": "/health", "destination": "/api/chat" },

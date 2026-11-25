@@ -1,13 +1,14 @@
 /**
  * Orthoxia Patristic AI — Vercel Serverless Proxy (100% Free & Unblocked in Egypt)
  * --------------------------------------------------------------------------------
- * Keeps GEMINI_API_KEY & GROQ_API_KEY 100% hidden in Vercel Environment Variables.
- * Resilient multi-model routing:
- *   1) Auto-discovers active stable Gemini & Gemma models from Google's live catalog
- *      (filtering out quota-0 preview/omni/tts/image models)
- *   2) Automatically retries transient 503 spikes and gracefully falls back across
- *      Gemini Flash + Gemma 3 27B/12B (which have generous free quotas & high uptime)
- *   3) Optional Groq fallback if GROQ_API_KEY is also configured
+ * Keeps GEMINI_API_KEY & GROQ_API_KEY 100% hidden server-side.
+ * Bulletproof cross-family routing:
+ *   1) Auto-discovers ALL active text-generation models (Gemini 3.x / 2.5 + Gemma 4 / 3),
+ *      filtering out non-chat models (transcribe, tts, image, audio, live, embedding, etc.).
+ *   2) Does NOT send brittle thinkingConfig params that cause HTTP 400 on lite/gemma models.
+ *   3) Races diverse model families in parallel (Flash + Flash-Lite + Gemma) so if one
+ *      quota bucket hits 429 or 503, another bucket wins in ~1-3 seconds!
+ *   4) Optional automatic Groq fallback if GROQ_API_KEY is configured.
  */
 
 const SYSTEM_GUARDRAIL =
@@ -18,13 +19,13 @@ const SYSTEM_GUARDRAIL =
   'قواعد صارمة لا تحيد عنها: ' +
   '١) أجب مباشرة على سؤال المستخدم بالضبط — لا تغيّر الموضوع ولا تذكر قصصاً غير مرتبطة بالسؤال. ' +
   '٢) إذا سألك المستخدم بالعامية المصرية، رد عليه بأسلوب دافئ وقريب ومفهوم يجمع بين بساطة العامية المصرية المحترمة ووقار الكنيسة، مع وضع الآيات الكتابية وأقوال الآباء بنصها الصحيح بين «...». ' +
-  '٣) التزم بالحقائق القبطية الأرثوذكسية بدقة (الأسرار السبعة، الصوم الكبير ٥٥ يوماً، صوم يونان ٣ أيام، الشفاعة التوسلية للقديسين، التناول هو جسد الرب ودمه الحقيقيان). ' +
+  '٣) التزم بالحقائق القبطية الأرثوذكسية بدقة (الأسرار السبعة، الصوم الكبير ٥٥ يوماً، صوم يونان ٣ أيام قبل الصوم الكبير بأسبوعين، الشفاعة التوسلية للقديسين، التناول هو جسد الرب ودمه الحقيقيان). ' +
   '٤) لا تؤلف آيات أو أرقام إصحاحات أو أقوالاً غير متأكد منها أبداً. ' +
   '٥) ممنوع استخدام رموز الماركداون مثل (**) أو (***) أو (#). رتب إجابتك في نقاط واضحة (١. ٢. ٣.) أو (•). ' +
   '٦) في مسائل الطلاق أو الأحوال الشخصية الخاصة، وجّه السائل بمحبة للرجوع لأب الاعتراف أو المجلس الإكليريكي.';
 
 const RATE_WINDOW_MS = 10 * 60 * 1000;
-const MAX_REQ_PER_WINDOW = 40;
+const MAX_REQ_PER_WINDOW = 50;
 const ipHits = new Map();
 
 function checkRateLimit(ip) {
@@ -47,17 +48,26 @@ function setCorsHeaders(res) {
   res.setHeader('Cache-Control', 'no-store');
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 let cachedModelList = null;
 let cachedModelsAt = 0;
 let lastWorkingModel = null;
 
+// Cooldown map so 429/400/404 models aren't hammered repeatedly on the same warm instance
+const modelCooldownUntil = new Map();
+
+function isOnCooldown(model) {
+  const until = modelCooldownUntil.get(model) || 0;
+  return Date.now() < until;
+}
+
+function markCooldown(model, status) {
+  const ms = status === 400 || status === 404 ? 600_000 : status === 429 ? 90_000 : 20_000;
+  modelCooldownUntil.set(model, Date.now() + ms);
+}
+
 /**
- * Discovers ALL active text-generation models available to this API key,
- * strictly prioritizing fast stable flash-lite / gemma models and demoting preview/omni models.
+ * Discovers ALL active chat/text models available to this API key,
+ * strictly excluding non-chat models (transcribe, tts, image, audio, live, embedding, etc.).
  */
 async function discoverActiveModels(apiKey) {
   const now = Date.now();
@@ -65,12 +75,44 @@ async function discoverActiveModels(apiKey) {
     return cachedModelList;
   }
   try {
-    const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
-      headers: { 'x-goog-api-key': apiKey },
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    let resp;
+    try {
+      resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+        headers: { 'x-goog-api-key': apiKey },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
     if (!resp.ok) return [];
     const data = await resp.json();
     const list = Array.isArray(data?.models) ? data.models : [];
+
+    const bannedSubstrings = [
+      'image',
+      'tts',
+      'audio',
+      'vision',
+      'embedding',
+      'robotics',
+      'computer-use',
+      'deep-research',
+      'omni',
+      'transcribe',
+      'live',
+      'aqa',
+      'veo',
+      'lyria',
+      'imagen',
+      'learnlm',
+      'shield',
+      'medgemma',
+      'translate',
+      'nano',
+      'pro', // free tier pro models typically have 0 or tiny RPM quota
+    ];
 
     const filtered = list
       .filter((m) => {
@@ -78,44 +120,11 @@ async function discoverActiveModels(apiKey) {
         if (!m.supportedGenerationMethods.includes('generateContent')) return false;
         const name = String(m.name || '').toLowerCase();
         if (!name.includes('gemini') && !name.includes('gemma')) return false;
-        if (
-          name.includes('image') ||
-          name.includes('tts') ||
-          name.includes('audio') ||
-          name.includes('vision') ||
-          name.includes('embedding') ||
-          name.includes('robotics') ||
-          name.includes('computer-use') ||
-          name.includes('deep-research') ||
-          name.includes('omni')
-        ) {
-          return false;
-        }
+        if (bannedSubstrings.some((b) => name.includes(b))) return false;
         return true;
       })
       .map((m) => String(m.name).replace(/^models\//, ''));
 
-    // Score models: stable gemini flash > gemma-3-27b/12b > other stable gemini > preview
-    // Prefer FULL Gemini 3.x Flash models first for pristine Arabic & Coptic theological accuracy;
-    // keep flash-lite and gemma-4 as fast fallbacks if full Flash models experience spikes.
-    function rank(name) {
-      const n = name.toLowerCase();
-      if (n.includes('preview') || n.includes('exp')) return 90;
-      if (n.includes('2.5') || n.includes('2.0')) return 85;
-      if (n === 'gemini-3.8-flash') return 10;
-      if (n === 'gemini-3.7-flash') return 12;
-      if (n === 'gemini-3.6-flash') return 14;
-      if (n === 'gemini-3.5-flash') return 16;
-      if (n.startsWith('gemini-3') && !n.includes('lite')) return 18;
-      if (n.startsWith('gemma-4-31b')) return 24;
-      if (n.startsWith('gemma-4-26b')) return 26;
-      if (n.startsWith('gemini-3.5-flash-lite')) return 32;
-      if (n.startsWith('gemini-3.1-flash-lite')) return 35;
-      if (n.includes('flash')) return 40;
-      return 60;
-    }
-
-    filtered.sort((a, b) => rank(a) - rank(b) || b.localeCompare(a));
     cachedModelList = filtered;
     cachedModelsAt = now;
     return filtered;
@@ -124,35 +133,116 @@ async function discoverActiveModels(apiKey) {
   }
 }
 
+/**
+ * Builds a smart cross-family order: interleaves Gemini Flash, Gemini Flash-Lite, and Gemma
+ * so each parallel batch spans SEPARATE Google free-tier quota buckets!
+ */
+function buildCrossFamilyCandidates(discovered) {
+  const pool = Array.from(
+    new Set([
+      ...discovered,
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+      'gemma-4-31b-it',
+      'gemma-3-27b-it',
+      'gemini-3.5-flash-lite',
+      'gemini-3.5-flash',
+      'gemma-4-26b-a4b-it',
+      'gemma-3-12b-it',
+      'gemini-3.6-flash',
+      'gemini-2.0-flash',
+      'gemini-2.0-flash-lite',
+      'gemma-3-4b-it',
+    ]),
+  ).filter((m) => {
+    const n = m.toLowerCase();
+    return !n.includes('exp') && !n.includes('transcribe') && !n.includes('preview');
+  });
+
+  const flashFull = [];
+  const flashLite = [];
+  const gemmaLarge = [];
+  const other = [];
+
+  for (const m of pool) {
+    const n = m.toLowerCase();
+    if (n.startsWith('gemma')) {
+      gemmaLarge.push(m);
+    } else if (n.includes('lite')) {
+      flashLite.push(m);
+    } else if (n.includes('flash')) {
+      flashFull.push(m);
+    } else {
+      other.push(m);
+    }
+  }
+
+  // Prefer reliable high-quota models first within each family
+  const rankFlash = (m) => {
+    const n = m.toLowerCase();
+    if (n === 'gemini-2.5-flash') return 1;
+    if (n === 'gemini-3.5-flash') return 2;
+    if (n === 'gemini-3.6-flash') return 3;
+    if (n === 'gemini-2.0-flash') return 4;
+    return 10;
+  };
+  const rankLite = (m) => {
+    const n = m.toLowerCase();
+    if (n === 'gemini-2.5-flash-lite') return 1;
+    if (n === 'gemini-3.5-flash-lite') return 2;
+    if (n === 'gemini-2.0-flash-lite') return 3;
+    if (n === 'gemini-3.1-flash-lite') return 4;
+    return 10;
+  };
+  const rankGemma = (m) => {
+    const n = m.toLowerCase();
+    if (n.includes('gemma-4-31b')) return 1;
+    if (n.includes('gemma-3-27b')) return 2;
+    if (n.includes('gemma-4-26b')) return 3;
+    if (n.includes('gemma-3-12b')) return 4;
+    if (n.includes('gemma-3-4b')) return 5;
+    return 10;
+  };
+
+  flashFull.sort((a, b) => rankFlash(a) - rankFlash(b));
+  flashLite.sort((a, b) => rankLite(a) - rankLite(b));
+  gemmaLarge.sort((a, b) => rankGemma(a) - rankGemma(b));
+
+  // Interleave buckets: [FlashLite, Gemma, FlashFull, FlashLite2, Gemma2, FlashFull2, ...]
+  const ordered = [];
+  if (lastWorkingModel && !isOnCooldown(lastWorkingModel)) {
+    ordered.push(lastWorkingModel);
+  }
+  const maxLen = Math.max(flashFull.length, flashLite.length, gemmaLarge.length);
+  for (let i = 0; i < maxLen; i++) {
+    if (flashFull[i]) ordered.push(flashFull[i]);
+    if (flashLite[i]) ordered.push(flashLite[i]);
+    if (gemmaLarge[i]) ordered.push(gemmaLarge[i]);
+  }
+  for (const m of other) ordered.push(m);
+
+  // Deduplicate & push cooled-down models to the back
+  const unique = Array.from(new Set(ordered));
+  const ready = unique.filter((m) => !isOnCooldown(m));
+  const cooling = unique.filter((m) => isOnCooldown(m));
+  return [...ready, ...cooling];
+}
+
 async function callGemini(apiKey, userMessages) {
   const cleanMsgs = [];
   for (const m of userMessages) {
     const role = m.role === 'assistant' ? 'model' : 'user';
     const text = String(m.content || '').trim();
     if (!text) continue;
-    cleanMsgs.push({ role, text: text.slice(0, 4000) });
+    cleanMsgs.push({ role, text: text.slice(0, 3500) });
   }
   if (cleanMsgs.length === 0) return null;
 
   const discovered = await discoverActiveModels(apiKey);
-  const activeOnly = discovered.filter(
-    (m) => !m.includes('2.5') && !m.includes('2.0') && !m.includes('preview') && !m.includes('exp'),
-  );
-  const candidateModels = [
-    ...(lastWorkingModel && !lastWorkingModel.includes('lite') ? [lastWorkingModel] : []),
-    ...activeOnly,
-    'gemini-3.8-flash',
-    'gemini-3.7-flash',
-    'gemini-3.6-flash',
-    'gemini-3.5-flash',
-    'gemma-4-31b-it',
-    'gemini-3.5-flash-lite',
-  ];
-
-  const tried = new Set();
+  const candidateModels = buildCrossFamilyCandidates(discovered);
   const errors = [];
 
-  async function invokeOnce(model) {
+  async function invokeOnce(model, timeoutMs) {
     const isGemma = model.toLowerCase().startsWith('gemma');
     let bodyObj;
 
@@ -171,8 +261,8 @@ async function callGemini(apiKey, userMessages) {
       bodyObj = {
         contents,
         generationConfig: {
-          temperature: 0.15,
-          maxOutputTokens: 900,
+          temperature: 0.2,
+          maxOutputTokens: 1200,
         },
       };
     } else {
@@ -180,20 +270,20 @@ async function callGemini(apiKey, userMessages) {
         role: m.role,
         parts: [{ text: m.text }],
       }));
+      // IMPORTANT: Never pass thinkingConfig here — newer flash-lite models reject it with HTTP 400!
       bodyObj = {
         system_instruction: { parts: [{ text: SYSTEM_GUARDRAIL }] },
         contents,
         generationConfig: {
           temperature: 0.2,
           maxOutputTokens: 2048,
-          thinkingConfig: { thinkingBudget: 0 },
         },
       };
     }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 9000);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const resp = await fetch(url, {
         method: 'POST',
@@ -213,33 +303,33 @@ async function callGemini(apiKey, userMessages) {
           .map((p) => p.text)
           .join('\n')
           .trim();
-        if (text.length >= 20) return { ok: true, text, model };
-        return { ok: false, status: 200, msg: 'short_or_empty_response' };
+        if (text.length >= 12) return { ok: true, text, model };
+        return { ok: false, status: 200, msg: 'empty_response' };
       }
 
       let msg = '';
       try {
         const errJson = await resp.json();
-        msg = String(errJson?.error?.message || '').slice(0, 120);
+        msg = String(errJson?.error?.message || '').slice(0, 100);
       } catch (_) {}
+      markCooldown(model, resp.status);
       return { ok: false, status: resp.status, msg };
+    } catch (err) {
+      const isAbort = err && err.name === 'AbortError';
+      return { ok: false, status: isAbort ? 408 : 500, msg: isAbort ? 'timeout' : String(err?.message || 'net_err').slice(0, 60) };
     } finally {
       clearTimeout(timer);
     }
   }
 
-  // Race models in parallel batches of 3 for sub-2s response even during single-model 503 spikes!
-  const uniqueModels = [];
-  for (const m of candidateModels) {
-    if (m && !uniqueModels.includes(m)) uniqueModels.push(m);
-  }
-
-  for (let i = 0; i < Math.min(uniqueModels.length, 9); i += 3) {
-    const batch = uniqueModels.slice(i, i + 3);
+  // Race 3 cross-family models in parallel per batch (max 3 batches = 9 models, total <= ~22s)
+  for (let i = 0; i < Math.min(candidateModels.length, 9); i += 3) {
+    const batch = candidateModels.slice(i, i + 3);
+    const timeoutMs = i === 0 ? 9000 : 7000;
     try {
       const winner = await Promise.any(
         batch.map(async (model) => {
-          const r = await invokeOnce(model);
+          const r = await invokeOnce(model, timeoutMs);
           if (r.ok) return r;
           errors.push(`${model}:${r.status}(${r.msg})`);
           throw new Error(`${model}:${r.status}`);
@@ -248,7 +338,7 @@ async function callGemini(apiKey, userMessages) {
       lastWorkingModel = winner.model;
       return { text: winner.text, model: winner.model };
     } catch (_) {
-      // Whole batch failed -> proceed immediately to next batch
+      // Whole batch failed -> immediately try next cross-family batch
     }
   }
 
@@ -261,30 +351,40 @@ async function callGroq(apiKey, userMessages) {
     const role = m.role === 'assistant' ? 'assistant' : 'user';
     const content = String(m.content || '').trim();
     if (!content) continue;
-    messages.push({ role, content: content.slice(0, 4000) });
+    messages.push({ role, content: content.slice(0, 3500) });
   }
 
-  try {
-    const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages,
-        temperature: 0.25,
-        max_tokens: 1024,
-      }),
-    });
+  for (const model of ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant']) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+      let resp;
+      try {
+        resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages,
+            temperature: 0.25,
+            max_tokens: 1024,
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
 
-    if (resp.ok) {
-      const data = await resp.json();
-      const text = String(data?.choices?.[0]?.message?.content || '').trim();
-      if (text) return { text, model: 'llama-3.3-70b-versatile' };
-    }
-  } catch (_) {}
+      if (resp.ok) {
+        const data = await resp.json();
+        const text = String(data?.choices?.[0]?.message?.content || '').trim();
+        if (text) return { text, model };
+      }
+    } catch (_) {}
+  }
   return null;
 }
 
@@ -302,15 +402,19 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     const discovered = hasGemini ? await discoverActiveModels(geminiKey) : [];
+    const candidates = hasGemini ? buildCrossFamilyCandidates(discovered) : [];
     return res.status(200).json({
       status: 'ok',
       service: 'orthoxia-patristic-ai',
+      version: 'v3-cross-family',
       host: 'vercel',
       providers: {
         gemini: hasGemini,
         groq: hasGroq,
       },
-      discoveredModels: discovered.slice(0, 8),
+      lastWorkingModel,
+      discoveredModels: discovered,
+      candidateOrder: candidates.slice(0, 12),
     });
   }
 

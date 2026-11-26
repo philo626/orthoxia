@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../core/services/speech_pronunciation_service.dart';
 import '../../core/theme/app_palette.dart';
 import '../../core/widgets/coptic_cross.dart';
+import '../../core/widgets/sacred_section_banner.dart';
 import '../../providers/theme_provider.dart';
 
 List<Map<String, dynamic>> _decodeRitesList(String raw) =>
@@ -164,113 +165,102 @@ class _ChurchSacramentsRitesViewState extends State<ChurchSacramentsRitesView> {
 
     return Column(
       children: [
-        // 8-Rites Selector Ribbon
-        Container(
-          height: 50,
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: p.border)),
-          ),
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            itemCount: _rites.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
-            itemBuilder: (context, idx) {
-              final r = _rites[idx];
-              final sel = idx == safeIdx;
-              return ChoiceChip(
-                showCheckmark: false,
-                avatar: Icon(
-                  _resolveIcon('${r['icon'] ?? ''}'),
-                  size: 15,
-                  color: sel ? p.onAccent : p.accent,
-                ),
-                label: Text(
-                  '${r['title']}',
-                  style: GoogleFonts.cairo(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                    color: sel ? p.onAccent : p.ink,
-                  ),
-                ),
-                selected: sel,
-                selectedColor: p.accent,
-                backgroundColor: p.surfaceElevated,
-                side: BorderSide(color: sel ? p.accent : p.border),
-                onSelected: (_) {
-                  HapticFeedback.selectionClick();
-                  SpeechPronunciationService().stop();
-                  setState(() {
-                    _selectedRiteIdx = idx;
-                    _selectedSectionIdx = -1;
-                  });
-                },
-              );
-            },
-          ),
+        // Sacred Church Sacraments & Qandil Banner
+        SacredSectionBanner(
+          imageAsset: 'assets/images/banner_sacraments.jpg',
+          title: riteTitle,
+          subtitle: '$riteOccasion • ${sections.length} قسماً كاملاً',
+          badge: 'الطقوس والأسرار الكنسية',
+          height: 100,
+          margin: const EdgeInsets.fromLTRB(14, 8, 14, 6),
         ),
 
-        // Quick Prayer / Section Filter Strip (especially helpful for 40-section Qandil & 37-section Matrimony!)
-        if (sections.length > 5)
-          Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(vertical: 5),
-            decoration: BoxDecoration(
-              color: p.surfaceSubtle,
-              border: Border(bottom: BorderSide(color: p.border, width: 0.7)),
-            ),
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              itemCount: sections.length + 1,
-              separatorBuilder: (_, _) => const SizedBox(width: 6),
-              itemBuilder: (_, i) {
-                if (i == 0) {
-                  final sel = _selectedSectionIdx == -1;
-                  return ChoiceChip(
-                    showCheckmark: false,
-                    selected: sel,
-                    selectedColor: p.accent,
-                    backgroundColor: p.surface,
-                    side: BorderSide(color: sel ? p.accent : p.border),
-                    label: Text(
-                      'الكل (${sections.length})',
-                      style: GoogleFonts.cairo(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: sel ? p.onAccent : p.ink,
+        // Katameros-style Dual Dropdown Bar (Rite / Sacrament + Prayer Section)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 5,
+                child: LiturgicalDropdownBox<int>(
+                  label: 'السر / الطقس',
+                  dense: true,
+                  value: safeIdx,
+                  items: List.generate(_rites.length, (idx) {
+                    return DropdownMenuItem<int>(
+                      value: idx,
+                      child: Text(
+                        '${_rites[idx]['title']}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.cairo(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: p.ink,
+                        ),
                       ),
-                    ),
-                    onSelected: (_) => setState(() => _selectedSectionIdx = -1),
-                  );
-                }
-                final sIdx = i - 1;
-                final sel = _selectedSectionIdx == sIdx;
-                final raw = '${sections[sIdx]['title'] ?? ''}';
-                final compact = raw.length > 24 ? '${raw.substring(0, 24)}…' : raw;
-                return ChoiceChip(
-                  showCheckmark: false,
-                  selected: sel,
-                  selectedColor: p.accent,
-                  backgroundColor: p.surface,
-                  side: BorderSide(color: sel ? p.accent : p.border),
-                  label: Text(
-                    '${sIdx + 1}. $compact',
-                    style: GoogleFonts.cairo(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: sel ? p.onAccent : p.ink,
-                    ),
-                  ),
-                  onSelected: (_) {
+                    );
+                  }),
+                  onChanged: (idx) {
+                    if (idx == null) return;
                     HapticFeedback.selectionClick();
-                    setState(() => _selectedSectionIdx = sIdx);
+                    SpeechPronunciationService().stop();
+                    setState(() {
+                      _selectedRiteIdx = idx;
+                      _selectedSectionIdx = -1;
+                    });
                   },
-                );
-              },
-            ),
+                ),
+              ),
+              if (sections.length > 1) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 6,
+                  child: LiturgicalDropdownBox<int>(
+                    label: 'الانتقال للصلاة (${sections.length})',
+                    dense: true,
+                    value: _selectedSectionIdx.clamp(-1, sections.length - 1),
+                    items: [
+                      DropdownMenuItem<int>(
+                        value: -1,
+                        child: Text(
+                          'عرض الطقس كاملاً (${sections.length})',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.cairo(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: p.ink,
+                          ),
+                        ),
+                      ),
+                      ...List.generate(sections.length, (sIdx) {
+                        return DropdownMenuItem<int>(
+                          value: sIdx,
+                          child: Text(
+                            '${sIdx + 1}. ${sections[sIdx]['title'] ?? ''}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.cairo(
+                              fontSize: 11.8,
+                              fontWeight: FontWeight.bold,
+                              color: p.accent,
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                    onChanged: (v) {
+                      if (v == null) return;
+                      HapticFeedback.selectionClick();
+                      setState(() => _selectedSectionIdx = v);
+                    },
+                  ),
+                ),
+              ],
+            ],
           ),
+        ),
 
         // Lazy Virtualized ListView.builder
         Expanded(

@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/constants/app_colors.dart';
-import '../../core/services/speech_pronunciation_service.dart';
+import '../../core/theme/app_palette.dart';
 import '../../core/widgets/luxe_widgets.dart';
+import '../../core/widgets/sacred_section_banner.dart';
 
 class CopticLetterInfo {
   final String symbol;
@@ -40,6 +40,10 @@ class CopticFlashcardItem {
   });
 }
 
+/// Handcrafted Coptic Language Academy («أكاديمية اللغة القبطية»):
+/// - Pure written Bahairi Coptic alphabet rules (32 letters) with exact Arabized examples
+/// - ZERO synthesized TTS audio (prevents mispronunciation confusion!)
+/// - Adaptive Warm Parchment / Charcoal editorial design with illuminated manuscript header
 class CopticAcademyView extends StatefulWidget {
   const CopticAcademyView({super.key});
 
@@ -102,8 +106,7 @@ class CopticAcademyView extends StatefulWidget {
 }
 
 class _CopticAcademyViewState extends State<CopticAcademyView> {
-  final SpeechPronunciationService _speech = SpeechPronunciationService();
-  int _activeTab = 0; // 0: الحروف الـ 32, 1: بطاقات الكلمات الكنسية, 2: اختبار سريع
+  int _activeTab = 0; // 0: الأبجدية الـ 32, 1: بطاقات الكلمات, 2: اختبار سريع
   int _selectedLetterIdx = 0;
 
   // Flashcards state
@@ -116,128 +119,68 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
   int? _selectedOptionIdx;
 
   @override
-  void dispose() {
-    _speech.stop();
-    super.dispose();
-  }
-
-  void _speakCurrentLetter(CopticLetterInfo letter) {
-    HapticFeedback.selectionClick();
-    _speech.pronounceCopticLetter(
-      letterName: letter.name,
-      sound: letter.sound,
-      exampleArabized: letter.exampleArabized,
-      exampleMeaning: letter.exampleMeaning,
-    );
-  }
-
-  void _speakWordOnly(String arabized, String meaning) {
-    HapticFeedback.selectionClick();
-    _speech.pronounceCopticWord(arabized: arabized, meaning: meaning);
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     final letter = CopticAcademyView.alphabet[_selectedLetterIdx];
 
     return Scaffold(
-      backgroundColor: AppColors.deepNavy,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Top Header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 8, 18, 6),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  ValueListenableBuilder<bool>(
-                    valueListenable: _speech.isSpeakingNotifier,
-                    builder: (context, speaking, _) {
-                      return GestureDetector(
-                        onTap: () {
-                          if (speaking) {
-                            _speech.stop();
-                          } else {
-                            _speakCurrentLetter(letter);
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: speaking
-                                ? Colors.redAccent.withValues(alpha: 0.22)
-                                : AppColors.primaryGold.withValues(alpha: 0.16),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: speaking ? Colors.redAccent : AppColors.primaryGold,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                speaking ? Icons.stop_rounded : Icons.volume_up_rounded,
-                                size: 15,
-                                color: speaking ? Colors.redAccent : AppColors.primaryGoldLight,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                speaking ? 'إيقاف الصوت' : 'نطق صوتي',
-                                style: GoogleFonts.cairo(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primaryGoldLight,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  Text(
-                    'أكاديمية اللغة القبطية',
-                    style: GoogleFonts.cairo(
-                      fontSize: 17.5,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textLight,
-                    ),
-                  ),
-                  LuxeCircleButton(
-                    icon: Icons.chevron_right_rounded,
-                    onTap: () => Navigator.pop(context),
-                  ),
-                ],
+      backgroundColor: p.canvas,
+      appBar: AppBar(
+        backgroundColor: p.canvas,
+        foregroundColor: p.ink,
+        elevation: 0,
+        title: Text(
+          'أكاديمية اللغة القبطية',
+          style: GoogleFonts.amiri(
+            fontSize: 23,
+            fontWeight: FontWeight.bold,
+            color: p.ink,
+          ),
+        ),
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: Column(
+            children: [
+              // Handcrafted Illuminated Manuscript Banner
+              const SacredSectionBanner(
+                imageAsset: 'assets/images/banner_coptic_academy.jpg',
+                title: 'الأبجدية القبطية البحيرية',
+                subtitle: '٣٢ حرفاً بقواعد النطق الدقيقة وأشهر كلمات القداس',
+                badge: 'تراث الكنيسة القبطية',
+                height: 112,
+                margin: EdgeInsets.fromLTRB(16, 4, 16, 10),
               ),
-            ),
 
-            // 3 Interactive Tabs Bar
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Row(
-                children: [
-                  _buildTabChip(0, 'الأبجدية (٣٢ حرفاً)'),
-                  const SizedBox(width: 6),
-                  _buildTabChip(1, 'بطاقات الكلمات'),
-                  const SizedBox(width: 6),
-                  _buildTabChip(2, 'اختبار سريع'),
-                ],
+              // 3 Interactive Tabs Bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                child: Row(
+                  children: [
+                    _buildTabChip(p, 0, 'الأبجدية (٣٢ حرفاً)'),
+                    const SizedBox(width: 6),
+                    _buildTabChip(p, 1, 'بطاقات الكلمات'),
+                    const SizedBox(width: 6),
+                    _buildTabChip(p, 2, 'اختبار سريع'),
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(height: 8),
 
-            Expanded(
-              child: _activeTab == 0
-                  ? _buildAlphabetTab(letter)
-                  : (_activeTab == 1 ? _buildFlashcardsTab() : _buildQuizTab()),
-            ),
-          ],
+              Expanded(
+                child: _activeTab == 0
+                    ? _buildAlphabetTab(p, letter)
+                    : (_activeTab == 1 ? _buildFlashcardsTab(p) : _buildQuizTab(p)),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildTabChip(int idx, String label) {
+  Widget _buildTabChip(AppPalette p, int idx, String label) {
     final sel = _activeTab == idx;
     return Expanded(
       child: GestureDetector(
@@ -246,14 +189,12 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
           setState(() => _activeTab = idx);
         },
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: 9),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: sel ? AppColors.primaryGold : AppColors.cardNavy,
+            color: sel ? p.accent : p.surface,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: sel ? AppColors.primaryGold : AppColors.primaryGold.withValues(alpha: 0.25),
-            ),
+            border: Border.all(color: sel ? p.accent : p.border),
           ),
           child: Text(
             label,
@@ -262,7 +203,7 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
             style: GoogleFonts.cairo(
               fontSize: 11.5,
               fontWeight: FontWeight.bold,
-              color: sel ? Colors.black : AppColors.textLight,
+              color: sel ? p.onAccent : p.ink,
             ),
           ),
         ),
@@ -270,51 +211,47 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
     );
   }
 
-  Widget _buildAlphabetTab(CopticLetterInfo letter) {
+  Widget _buildAlphabetTab(AppPalette p, CopticLetterInfo letter) {
     return Column(
       children: [
-        // Active Letter Showcase Card with Audio Pronunciation Buttons
+        // Active Letter Rule Showcase Card (Pure written rules — zero synthetic TTS)
         Container(
-          margin: const EdgeInsets.fromLTRB(18, 6, 18, 10),
+          margin: const EdgeInsets.fromLTRB(16, 2, 16, 10),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF2B2215), Color(0xFF161513)],
-            ),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppColors.primaryGold, width: 1.4),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primaryGold.withValues(alpha: 0.22),
-                blurRadius: 18,
-              ),
-            ],
+            color: p.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: p.goldBorder, width: 1.3),
+            boxShadow: p.isDark
+                ? null
+                : [
+                    BoxShadow(
+                      color: p.shadow,
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
           ),
           child: Column(
             children: [
               Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => _speakCurrentLetter(letter),
-                    child: Container(
-                      width: 82,
-                      height: 82,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: AppColors.primaryGold.withValues(alpha: 0.5),
-                        ),
-                      ),
-                      child: Text(
-                        letter.symbol,
-                        style: const TextStyle(
-                          fontFamily: 'Coptic',
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primaryGoldLight,
-                        ),
+                  Container(
+                    width: 78,
+                    height: 78,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: p.goldSoft,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: p.goldBorder),
+                    ),
+                    child: Text(
+                      letter.symbol,
+                      style: TextStyle(
+                        fontFamily: 'Coptic',
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: p.isDark ? p.gold : p.accent,
                       ),
                     ),
                   ),
@@ -327,20 +264,20 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
                           children: [
                             Text(
                               'حرف ${letter.name}',
-                              style: GoogleFonts.cairo(
-                                fontSize: 17,
+                              style: GoogleFonts.amiri(
+                                fontSize: 21,
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.primaryGoldLight,
+                                color: p.ink,
                               ),
                             ),
                             const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
+                                horizontal: 9,
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.primaryGold,
+                                color: p.accent,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
@@ -348,7 +285,7 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
                                 style: GoogleFonts.cairo(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.black,
+                                  color: p.onAccent,
                                 ),
                               ),
                             ),
@@ -359,8 +296,8 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
                           letter.rule,
                           style: GoogleFonts.cairo(
                             fontSize: 12,
-                            color: AppColors.textLight,
-                            height: 1.45,
+                            color: p.inkSecondary,
+                            height: 1.5,
                           ),
                         ),
                       ],
@@ -368,132 +305,71 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
-              // Audio Pronunciation Buttons Row (نطق الحرف + نطق الكلمة + إيقاف الصوت)
-              ValueListenableBuilder<bool>(
-                valueListenable: _speech.isSpeakingNotifier,
-                builder: (context, speaking, _) {
-                  return Row(
+              const Divider(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  Column(
                     children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            if (speaking) {
-                              _speech.stop();
-                            } else {
-                              _speakCurrentLetter(letter);
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: speaking ? Colors.redAccent : AppColors.primaryGold,
-                            foregroundColor: speaking ? Colors.white : Colors.black,
-                            visualDensity: VisualDensity.compact,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          icon: Icon(speaking ? Icons.stop_circle_rounded : Icons.volume_up_rounded, size: 17),
-                          label: Text(
-                            speaking ? 'إيقاف الصوت ⏹️' : 'سماع نطق الحرف (${letter.name})',
-                            style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 11.5),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            if (speaking) {
-                              _speech.stop();
-                            } else {
-                              _speakWordOnly(letter.exampleArabized, letter.exampleMeaning);
-                            }
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: speaking ? Colors.redAccent : AppColors.primaryGoldLight,
-                            side: BorderSide(color: speaking ? Colors.redAccent : AppColors.primaryGold),
-                            visualDensity: VisualDensity.compact,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          icon: Icon(
-                            speaking ? Icons.stop_rounded : Icons.record_voice_over_rounded,
-                            size: 16,
-                            color: speaking ? Colors.redAccent : AppColors.primaryGold,
-                          ),
-                          label: Text(
-                            speaking ? 'إيقاف الصوت ⏹️' : 'نطق الكلمة (${letter.exampleArabized})',
-                            style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 11.5),
-                          ),
+                      Text('الكلمة بالقبطي',
+                          style: GoogleFonts.cairo(fontSize: 10.5, color: p.inkMuted)),
+                      const SizedBox(height: 2),
+                      Text(
+                        letter.exampleCoptic,
+                        style: TextStyle(
+                          fontFamily: 'Coptic',
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: p.isDark ? p.gold : p.accent,
                         ),
                       ),
                     ],
-                  );
-                },
-              ),
-              const Divider(height: 18, color: Colors.white12),
-              InkWell(
-                onTap: () => _speakWordOnly(letter.exampleArabized, letter.exampleMeaning),
-                borderRadius: BorderRadius.circular(12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    Column(
-                      children: [
-                        Text('الكلمة بالقبطي',
-                            style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textMuted)),
-                        Text(
-                          letter.exampleCoptic,
-                          style: const TextStyle(
-                            fontFamily: 'Coptic',
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primaryGoldLight,
-                          ),
+                  ),
+                  Column(
+                    children: [
+                      Text('النطق المعرّب',
+                          style: GoogleFonts.cairo(fontSize: 10.5, color: p.crimson)),
+                      const SizedBox(height: 2),
+                      Text(
+                        letter.exampleArabized,
+                        style: GoogleFonts.cairo(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.bold,
+                          color: p.crimson,
                         ),
-                      ],
-                    ),
-                    Column(
-                      children: [
-                        Text('النطق المعرب',
-                            style: GoogleFonts.cairo(fontSize: 11, color: AppColors.primaryGold)),
-                        Text(
-                          letter.exampleArabized,
-                          style: GoogleFonts.cairo(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textArabized,
-                          ),
+                      ),
+                    ],
+                  ),
+                  Column(
+                    children: [
+                      Text('المعنى العربي',
+                          style: GoogleFonts.cairo(fontSize: 10.5, color: p.inkMuted)),
+                      const SizedBox(height: 2),
+                      Text(
+                        letter.exampleMeaning,
+                        style: GoogleFonts.cairo(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.bold,
+                          color: p.ink,
                         ),
-                      ],
-                    ),
-                    Column(
-                      children: [
-                        Text('المعنى العربي',
-                            style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textMuted)),
-                        Text(
-                          letter.exampleMeaning,
-                          style: GoogleFonts.cairo(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textLight,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),
-        ).animate(key: ValueKey(_selectedLetterIdx)).fadeIn(duration: 220.ms),
+        ).animate(key: ValueKey(_selectedLetterIdx)).fadeIn(duration: 200.ms),
 
-        // 32 Coptic Letters Interactive Grid (Tapping any letter selects AND pronounces it!)
+        // 32 Coptic Letters Clean Grid
         Expanded(
           child: GridView.builder(
-            padding: const EdgeInsets.fromLTRB(18, 2, 18, 24),
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 24),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 4,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              childAspectRatio: 1.05,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: 1.04,
             ),
             itemCount: CopticAcademyView.alphabet.length,
             itemBuilder: (context, idx) {
@@ -501,67 +377,50 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
               final sel = idx == _selectedLetterIdx;
               return PressScale(
                 onTap: () {
+                  HapticFeedback.selectionClick();
                   setState(() => _selectedLetterIdx = idx);
-                  _speakCurrentLetter(item);
                 },
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
+                  duration: const Duration(milliseconds: 180),
                   decoration: BoxDecoration(
-                    gradient: sel ? AppColors.champagne : AppColors.obsidianCard,
-                    borderRadius: BorderRadius.circular(16),
+                    color: sel ? p.accent : p.surface,
+                    borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: sel
-                          ? AppColors.primaryGoldLight
-                          : AppColors.primaryGold.withValues(alpha: 0.25),
-                      width: sel ? 1.6 : 1.0,
+                      color: sel ? p.accent : p.border,
+                      width: sel ? 1.5 : 1.0,
                     ),
                   ),
-                  child: Stack(
-                    children: [
-                      Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              item.symbol,
-                              style: TextStyle(
-                                fontFamily: 'Coptic',
-                                fontSize: 19,
-                                fontWeight: FontWeight.bold,
-                                color: sel ? Colors.black : AppColors.primaryGoldLight,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              item.name,
-                              style: GoogleFonts.cairo(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.bold,
-                                color: sel ? Colors.black87 : AppColors.textLight,
-                              ),
-                            ),
-                            Text(
-                              item.sound,
-                              style: GoogleFonts.cairo(
-                                fontSize: 10,
-                                color: sel ? Colors.black54 : AppColors.textMuted,
-                              ),
-                            ),
-                          ],
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          item.symbol,
+                          style: TextStyle(
+                            fontFamily: 'Coptic',
+                            fontSize: 18.5,
+                            fontWeight: FontWeight.bold,
+                            color: sel ? p.onAccent : (p.isDark ? p.gold : p.accent),
+                          ),
                         ),
-                      ),
-                      Positioned(
-                        top: 5,
-                        left: 5,
-                        child: Icon(
-                          Icons.volume_up_rounded,
-                          size: 13,
-                          color: sel
-                              ? Colors.black54
-                              : AppColors.primaryGold.withValues(alpha: 0.65),
+                        const SizedBox(height: 2),
+                        Text(
+                          item.name,
+                          style: GoogleFonts.cairo(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: sel ? p.onAccent : p.ink,
+                          ),
                         ),
-                      ),
-                    ],
+                        Text(
+                          item.sound,
+                          style: GoogleFonts.cairo(
+                            fontSize: 9.5,
+                            color: sel ? p.onAccent.withValues(alpha: 0.85) : p.inkMuted,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -572,43 +431,42 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
     );
   }
 
-  Widget _buildFlashcardsTab() {
+  Widget _buildFlashcardsTab(AppPalette p) {
     final cards = CopticAcademyView.flashcards;
     final card = cards[_flashcardIdx % cards.length];
 
     return Padding(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'بطاقة ${_flashcardIdx + 1} من ${cards.length} • اضغط على البطاقة لتقليبها وسماع النطق',
+            'بطاقة ${_flashcardIdx + 1} من ${cards.length} • اضغط على البطاقة لإظهار المعنى',
             textAlign: TextAlign.center,
-            style: GoogleFonts.cairo(fontSize: 12, color: AppColors.textMuted),
+            style: GoogleFonts.cairo(fontSize: 12, color: p.inkMuted),
           ),
           const SizedBox(height: 12),
           Expanded(
             child: GestureDetector(
               onTap: () {
+                HapticFeedback.selectionClick();
                 setState(() => _flashcardFlipped = !_flashcardFlipped);
-                _speakWordOnly(card.arabized, card.meaning);
               },
               child: Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF2C2214), Color(0xFF14151D)],
-                    begin: Alignment.topRight,
-                    end: Alignment.bottomLeft,
-                  ),
-                  borderRadius: BorderRadius.circular(26),
-                  border: Border.all(color: AppColors.primaryGold, width: 1.6),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primaryGold.withValues(alpha: 0.18),
-                      blurRadius: 22,
-                    ),
-                  ],
+                  color: p.surface,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: p.goldBorder, width: 1.5),
+                  boxShadow: p.isDark
+                      ? null
+                      : [
+                          BoxShadow(
+                            color: p.shadow,
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -616,15 +474,16 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       decoration: BoxDecoration(
-                        color: AppColors.primaryGold.withValues(alpha: 0.18),
+                        color: p.goldSoft,
                         borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: p.goldBorder),
                       ),
                       child: Text(
                         _flashcardFlipped ? 'المعنى والاستخدام الطقسي' : 'الكلمة القبطية ونطقها',
                         style: GoogleFonts.cairo(
                           fontSize: 11.5,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.primaryGoldLight,
+                          color: p.accent,
                         ),
                       ),
                     ),
@@ -632,41 +491,41 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
                     Text(
                       card.coptic,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'Coptic',
                         fontSize: 34,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.primaryGoldLight,
+                        color: p.isDark ? p.gold : p.accent,
                       ),
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'النطق: ${card.arabized}',
+                      'النطق المعرّب: ${card.arabized}',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.cairo(
-                        fontSize: 21,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: p.crimson,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    if (_flashcardFlipped) ...[
+                    const SizedBox(height: 18),
+                    if (_flashcardFlipped)
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.35),
+                          color: p.surfaceSubtle,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.4)),
+                          border: Border.all(color: p.border),
                         ),
                         child: Column(
                           children: [
                             Text(
                               'المعنى: «${card.meaning}»',
                               textAlign: TextAlign.center,
-                              style: GoogleFonts.cairo(
-                                fontSize: 18,
+                              style: GoogleFonts.amiri(
+                                fontSize: 22,
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.primaryGold,
+                                color: p.ink,
                               ),
                             ),
                             const SizedBox(height: 6),
@@ -675,46 +534,21 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
                               textAlign: TextAlign.center,
                               style: GoogleFonts.cairo(
                                 fontSize: 12.5,
-                                color: Colors.white70,
+                                color: p.inkSecondary,
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    ] else
+                      )
+                    else
                       Text(
-                        'اضغط لإظهار المعنى وسماع النطق الصوتي',
+                        'اضغط هنا لكشف المعنى والاستخدام في القداس',
                         style: GoogleFonts.cairo(
                           fontSize: 12.5,
-                          color: AppColors.primaryGold,
+                          fontWeight: FontWeight.w600,
+                          color: p.inkMuted,
                         ),
                       ),
-                    const SizedBox(height: 20),
-                    ValueListenableBuilder<bool>(
-                      valueListenable: _speech.isSpeakingNotifier,
-                      builder: (context, speaking, _) {
-                        return ElevatedButton.icon(
-                          onPressed: () {
-                            if (speaking) {
-                              _speech.stop();
-                            } else {
-                              _speakWordOnly(card.arabized, card.meaning);
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: speaking ? Colors.redAccent : AppColors.primaryGold,
-                            foregroundColor: speaking ? Colors.white : Colors.black,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          ),
-                          icon: Icon(speaking ? Icons.stop_circle_rounded : Icons.volume_up_rounded, size: 19),
-                          label: Text(
-                            speaking ? 'إيقاف الصوت ⏹️' : 'استمع لنطق «${card.arabized}» صوتياً',
-                            style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 13),
-                          ),
-                        );
-                      },
-                    ),
                   ],
                 ),
               ),
@@ -726,25 +560,23 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
             children: [
               OutlinedButton.icon(
                 onPressed: () {
+                  HapticFeedback.selectionClick();
                   setState(() {
                     _flashcardIdx = (_flashcardIdx - 1 + cards.length) % cards.length;
                     _flashcardFlipped = false;
                   });
                 },
-                icon: const Icon(Icons.arrow_back_rounded, size: 16, color: AppColors.primaryGold),
-                label: Text('السابقة', style: GoogleFonts.cairo(color: AppColors.primaryGoldLight)),
+                icon: Icon(Icons.arrow_back_rounded, size: 16, color: p.accent),
+                label: Text('السابقة', style: GoogleFonts.cairo(color: p.ink)),
               ),
               ElevatedButton.icon(
                 onPressed: () {
+                  HapticFeedback.selectionClick();
                   setState(() {
                     _flashcardIdx = (_flashcardIdx + 1) % cards.length;
                     _flashcardFlipped = false;
                   });
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryGold,
-                  foregroundColor: Colors.black,
-                ),
                 icon: const Icon(Icons.arrow_forward_rounded, size: 16),
                 label: Text('الكلمة التالية', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
               ),
@@ -755,7 +587,7 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
     );
   }
 
-  Widget _buildQuizTab() {
+  Widget _buildQuizTab(AppPalette p) {
     final cards = CopticAcademyView.flashcards;
     final current = cards[_quizIdx % cards.length];
     final options = <CopticFlashcardItem>[
@@ -764,187 +596,151 @@ class _CopticAcademyViewState extends State<CopticAcademyView> {
       cards[(_quizIdx + 7) % cards.length],
       cards[(_quizIdx + 11) % cards.length],
     ];
-    // Deterministic shuffle by _quizIdx
     final shift = _quizIdx % 4;
     final rotated = [
       ...options.sublist(shift),
       ...options.sublist(0, shift),
     ];
 
-    return Padding(
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'السؤال ${_quizIdx + 1}',
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'السؤال ${_quizIdx + 1}',
+              style: GoogleFonts.cairo(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: p.ink,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: p.goldSoft,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: p.goldBorder),
+              ),
+              child: Text(
+                'النتيجة: $_quizScore',
                 style: GoogleFonts.cairo(
-                  fontSize: 14,
+                  fontSize: 12.5,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.primaryGoldLight,
+                  color: p.accent,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryGold.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(12),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: p.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: p.goldBorder),
+          ),
+          child: Column(
+            children: [
+              Text(
+                'ما هو معنى الكلمة القبطية الكنسية التالية؟',
+                style: GoogleFonts.cairo(fontSize: 13, color: p.inkSecondary),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                current.coptic,
+                style: TextStyle(
+                  fontFamily: 'Coptic',
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: p.isDark ? p.gold : p.accent,
                 ),
-                child: Text(
-                  'النتيجة: $_quizScore',
-                  style: GoogleFonts.cairo(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryGold,
-                  ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '(${current.arabized})',
+                style: GoogleFonts.cairo(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: p.crimson,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.cardNavy,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.45)),
+        ),
+        const SizedBox(height: 14),
+        ...List.generate(rotated.length, (i) {
+          final opt = rotated[i];
+          final isCorrect = opt.coptic == current.coptic;
+          final isPicked = _selectedOptionIdx == i;
+          Color borderCol = p.border;
+          Color bgCol = p.surface;
+          if (_selectedOptionIdx != null) {
+            if (isCorrect) {
+              borderCol = p.sage;
+              bgCol = p.sage.withValues(alpha: 0.14);
+            } else if (isPicked) {
+              borderCol = p.danger;
+              bgCol = p.danger.withValues(alpha: 0.14);
+            }
+          }
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: _selectedOptionIdx != null
+                  ? null
+                  : () {
+                      HapticFeedback.selectionClick();
+                      setState(() {
+                        _selectedOptionIdx = i;
+                        if (isCorrect) _quizScore++;
+                      });
+                    },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                decoration: BoxDecoration(
+                  color: bgCol,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: borderCol, width: 1.3),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      opt.meaning,
+                      style: GoogleFonts.cairo(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.bold,
+                        color: p.ink,
+                      ),
+                    ),
+                    if (_selectedOptionIdx != null && isCorrect)
+                      Icon(Icons.check_circle_rounded, color: p.sage, size: 20),
+                  ],
+                ),
+              ),
             ),
-            child: Column(
-              children: [
-                Text(
-                  'ما هو معنى الكلمة القبطية الكنسية التالية؟',
-                  style: GoogleFonts.cairo(fontSize: 13, color: AppColors.textMuted),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  current.coptic,
-                  style: const TextStyle(
-                    fontFamily: 'Coptic',
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryGoldLight,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '(${current.arabized})',
-                  style: GoogleFonts.cairo(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ValueListenableBuilder<bool>(
-                  valueListenable: _speech.isSpeakingNotifier,
-                  builder: (context, speaking, _) {
-                    return TextButton.icon(
-                      onPressed: () {
-                        if (speaking) {
-                          _speech.stop();
-                        } else {
-                          _speakWordOnly(current.arabized, '');
-                        }
-                      },
-                      icon: Icon(
-                        speaking ? Icons.stop_circle_rounded : Icons.volume_up_rounded,
-                        color: speaking ? Colors.redAccent : AppColors.primaryGold,
-                        size: 18,
-                      ),
-                      label: Text(
-                        speaking ? 'إيقاف الصوت' : 'استمع لنطق الكلمة',
-                        style: GoogleFonts.cairo(
-                          color: speaking ? Colors.redAccent : AppColors.primaryGoldLight,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ],
+          );
+        }),
+        if (_selectedOptionIdx != null)
+          ElevatedButton.icon(
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              setState(() {
+                _quizIdx++;
+                _selectedOptionIdx = null;
+              });
+            },
+            icon: const Icon(Icons.navigate_next_rounded),
+            label: Text(
+              'السؤال التالي',
+              style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 14),
             ),
           ),
-          const SizedBox(height: 14),
-          ...List.generate(rotated.length, (i) {
-            final opt = rotated[i];
-            final isCorrect = opt.coptic == current.coptic;
-            final isPicked = _selectedOptionIdx == i;
-            Color borderCol = Colors.white12;
-            Color bgCol = AppColors.cardNavy;
-            if (_selectedOptionIdx != null) {
-              if (isCorrect) {
-                borderCol = Colors.greenAccent;
-                bgCol = Colors.green.withValues(alpha: 0.18);
-              } else if (isPicked) {
-                borderCol = Colors.redAccent;
-                bgCol = Colors.red.withValues(alpha: 0.18);
-              }
-            }
-            return Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: _selectedOptionIdx != null
-                    ? null
-                    : () {
-                        setState(() {
-                          _selectedOptionIdx = i;
-                          if (isCorrect) _quizScore++;
-                        });
-                        _speakWordOnly(current.arabized, current.meaning);
-                      },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-                  decoration: BoxDecoration(
-                    color: bgCol,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: borderCol, width: 1.3),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        opt.meaning,
-                        style: GoogleFonts.cairo(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      if (_selectedOptionIdx != null && isCorrect)
-                        const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 20),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
-          if (_selectedOptionIdx != null)
-            ElevatedButton.icon(
-              onPressed: () {
-                setState(() {
-                  _quizIdx++;
-                  _selectedOptionIdx = null;
-                });
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryGold,
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-              icon: const Icon(Icons.navigate_next_rounded),
-              label: Text(
-                'السؤال التالي',
-                style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-            ),
-        ],
-      ),
+      ],
     );
   }
 }

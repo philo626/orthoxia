@@ -3,14 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../../core/services/patron_saint_service.dart';
 import '../../core/theme/app_palette.dart';
 import '../../core/widgets/blessing_poster_studio_sheet.dart';
 import '../../core/widgets/coptic_cross.dart';
+import '../../core/widgets/sacred_section_banner.dart';
+import '../../core/widgets/saint_icon_avatar.dart';
 import '../../providers/theme_provider.dart';
 
-/// Alphabetical Coptic Orthodox Madayeh & Tamagid Reader («المدائح والتماجيد»):
-/// - Alphabetical letter filter + Search + Dropdown Saint Picker
-/// - Authentic 2-column poetic couplets layout adapted to Warm Parchment / Charcoal / AMOLED
+/// Katameros-Organized Coptic Orthodox Madayeh & Tamagid Reader («مدايح الشهداء والقديسين»):
+/// Exact 3-level cascading selector bar right under the Neo-Coptic Banner:
+///   1) الحرف الأبجدي (أ، ب، ت، ج، ح، د، ر، س، ش، ص، ع، غ، ف، ق، ك، ل، م، ه، ي)
+///   2) اسم الشهيد أو القديس (يُظهر عدد المدائح لو للقديس أكتر من مديح)
+///   3) اسم المديح (للتنقل بين مدائح نفس القديس بسهولة)
+/// Plus authentic 2-column poetic couplets layout + Neo-Coptic Saint Portrait + Instant Search.
 class MadayehLibraryView extends StatefulWidget {
   const MadayehLibraryView({super.key});
 
@@ -19,11 +25,19 @@ class MadayehLibraryView extends StatefulWidget {
 }
 
 class _MadayehLibraryViewState extends State<MadayehLibraryView> {
+  static const List<String> _arabicAlphaOrder = [
+    'أ', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر', 'ز', 'س', 'ش', 'ص',
+    'ض', 'ط', 'ظ', 'ع', 'غ', 'ف', 'ق', 'ك', 'ل', 'م', 'ن', 'ه', 'و', 'ي',
+  ];
+
   List<Map<String, dynamic>> _items = [];
   bool _loading = true;
+  bool _showSearch = false;
   String _selectedLetter = 'الكل';
+  String _selectedSaint = '';
+  String _selectedMadyhId = '';
   String _query = '';
-  int _selectedIdx = 0;
+  double _localFontBoost = 0;
 
   @override
   void initState() {
@@ -33,12 +47,45 @@ class _MadayehLibraryViewState extends State<MadayehLibraryView> {
 
   Future<void> _load() async {
     try {
+      await PatronSaintService.ensureLoaded();
       final raw = await rootBundle.loadString('assets/data/madayeh_tamagid.json');
-      _items = (jsonDecode(raw) as List).map((e) => Map<String, dynamic>.from(e)).toList();
+      _items = (jsonDecode(raw) as List)
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      if (_items.isNotEmpty) {
+        _selectedLetter = 'الكل';
+        _selectedSaint = '${_items.first['saint']}';
+        _selectedMadyhId = '${_items.first['id']}';
+      }
     } catch (_) {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  String? _resolveSaintPortrait(String saintName) {
+    final s = saintName;
+    if (s.contains('العذراء')) return 'assets/images/saints/virgin_mary.jpg';
+    if (s.contains('ميخائيل')) return 'assets/images/saints/archangel_michael.jpg';
+    if (s.contains('مارجرجس')) return 'assets/images/saints/st_george.jpg';
+    if (s.contains('مارمرقس')) return 'assets/images/saints/st_mark.jpg';
+    if (s.contains('كيرلس السادس')) return 'assets/images/saints/pope_kyrillos.jpg';
+    if (s.contains('دميانة')) return 'assets/images/saints/st_demiana.jpg';
+    if (s.contains('أنطونيوس')) return 'assets/images/saints/st_anthony.jpg';
+    if (s.contains('مارمينا')) return 'assets/images/saints/st_mina.jpg';
+    if (s.contains('موسى الأسود')) return 'assets/images/saints/st_moses.jpg';
+    if (s.contains('أبانوب')) return 'assets/images/saints/st_abanoub.jpg';
+    if (s.contains('أثناسيوس')) return 'assets/images/saints/st_athanasius.jpg';
+    if (s.contains('أبو سيفين') || s.contains('مرقوريوس')) {
+      return 'assets/images/saints/st_philopateer.jpg';
+    }
+    // Check PatronSaintService catalog for any other matched portrait
+    for (final ps in PatronSaintService.saints) {
+      if (ps.shortName.length >= 4 && s.contains(ps.shortName)) {
+        return PatronSaintService.getImageUrlForSaint(ps);
+      }
+    }
+    return null;
   }
 
   @override
@@ -46,25 +93,54 @@ class _MadayehLibraryViewState extends State<MadayehLibraryView> {
     final p = context.palette;
     final fontScale = context.watch<ThemeProvider>().fontScale;
 
-    final letters = <String>['الكل'];
+    // 1. Build sorted available letters list
+    final letterSet = <String>{};
     for (final item in _items) {
       final l = '${item['letter'] ?? ''}'.trim();
-      if (l.isNotEmpty && !letters.contains(l)) letters.add(l);
+      if (l.isNotEmpty) letterSet.add(l);
     }
+    final sortedLetters = letterSet.toList()
+      ..sort((a, b) {
+        final ia = _arabicAlphaOrder.indexOf(a);
+        final ib = _arabicAlphaOrder.indexOf(b);
+        return (ia == -1 ? 99 : ia).compareTo(ib == -1 ? 99 : ib);
+      });
+    final letterOptions = <String>['الكل', ...sortedLetters];
+    final safeLetter =
+        letterOptions.contains(_selectedLetter) ? _selectedLetter : 'الكل';
 
-    final filtered = _items.where((item) {
-      if (_selectedLetter != 'الكل' && '${item['letter']}' != _selectedLetter) {
+    // 2. Filter items by letter & optional search query
+    final q = _query.trim();
+    final letterFiltered = _items.where((item) {
+      if (safeLetter != 'الكل' && '${item['letter']}' != safeLetter) {
         return false;
       }
-      final q = _query.trim();
       if (q.isEmpty) return true;
       return '${item['saint']}'.contains(q) ||
           '${item['title']}'.contains(q) ||
           '${item['refrain']}'.contains(q);
     }).toList();
 
-    final safeIdx = filtered.isEmpty ? 0 : _selectedIdx.clamp(0, filtered.length - 1);
-    final current = filtered.isEmpty ? null : filtered[safeIdx];
+    // 3. Group unique saints under current letter/query (preserving order)
+    final saintMap = <String, List<Map<String, dynamic>>>{};
+    for (final item in letterFiltered) {
+      final sName = '${item['saint']}';
+      saintMap.putIfAbsent(sName, () => []).add(item);
+    }
+    final uniqueSaints = saintMap.keys.toList();
+    final safeSaint = uniqueSaints.isEmpty
+        ? ''
+        : (saintMap.containsKey(_selectedSaint) ? _selectedSaint : uniqueSaints.first);
+
+    // 4. All madayeh belonging to the chosen saint!
+    final saintMadayeh = saintMap[safeSaint] ?? const <Map<String, dynamic>>[];
+    final current = saintMadayeh.isEmpty
+        ? null
+        : saintMadayeh.firstWhere(
+            (m) => '${m['id']}' == _selectedMadyhId,
+            orElse: () => saintMadayeh.first,
+          );
+    final safeMadyhId = current == null ? '' : '${current['id']}';
 
     return Scaffold(
       backgroundColor: p.canvas,
@@ -72,24 +148,44 @@ class _MadayehLibraryViewState extends State<MadayehLibraryView> {
         backgroundColor: p.canvas,
         foregroundColor: p.ink,
         elevation: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'مدائح وتماجيد القديسين',
-              style: GoogleFonts.amiri(
-                fontWeight: FontWeight.bold,
-                fontSize: 22,
-                color: p.ink,
-                height: 1.15,
-              ),
-            ),
-            Text(
-              '${_items.length} مديحاً وتمجيداً للعذراء والشهداء والقديسين',
-              style: GoogleFonts.cairo(fontSize: 11, color: p.inkMuted),
-            ),
-          ],
+        title: Text(
+          'مدايح الشهداء والقديسين',
+          style: GoogleFonts.amiri(
+            fontWeight: FontWeight.bold,
+            fontSize: 23,
+            color: p.ink,
+          ),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'بحث باسم القديس أو المديح',
+            icon: Icon(
+              _showSearch ? Icons.close_rounded : Icons.search_rounded,
+              color: p.accent,
+            ),
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              setState(() {
+                _showSearch = !_showSearch;
+                if (!_showSearch) _query = '';
+              });
+            },
+          ),
+          IconButton(
+            tooltip: 'تكبير الخط',
+            icon: Icon(Icons.text_increase_rounded, size: 20, color: p.inkSecondary),
+            onPressed: () => setState(
+              () => _localFontBoost = (_localFontBoost + 1.5).clamp(-3.0, 8.0),
+            ),
+          ),
+          IconButton(
+            tooltip: 'تصغير الخط',
+            icon: Icon(Icons.text_decrease_rounded, size: 20, color: p.inkSecondary),
+            onPressed: () => setState(
+              () => _localFontBoost = (_localFontBoost - 1.5).clamp(-3.0, 8.0),
+            ),
+          ),
+        ],
       ),
       body: _loading
           ? Center(child: CircularProgressIndicator(color: p.accent, strokeWidth: 2))
@@ -98,111 +194,173 @@ class _MadayehLibraryViewState extends State<MadayehLibraryView> {
                 constraints: const BoxConstraints(maxWidth: 740),
                 child: Column(
                   children: [
-                    // Search bar
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
-                      child: TextField(
-                        onChanged: (v) => setState(() {
-                          _query = v;
-                          _selectedIdx = 0;
-                        }),
-                        style: GoogleFonts.cairo(color: p.ink, fontSize: 13.5),
-                        decoration: const InputDecoration(
-                          hintText: 'ابحث باسم القديس أو الشهيد (العذراء، مارجرجس، مارمينا، أبو سيفين...)',
-                          prefixIcon: Icon(Icons.search_rounded, size: 20),
-                        ),
-                      ),
+                    // Handcrafted Neo-Coptic Angels & Praises Banner
+                    SacredSectionBanner(
+                      imageAsset: 'assets/images/banner_madayeh.jpg',
+                      title: 'المدائح والتماجيد القبطية',
+                      subtitle:
+                          '${_items.length} مديحاً وتمجيداً لـ ${_items.map((e) => e['saint']).toSet().length} قديساً وشهيداً — مرتبة بالحرف والقديس واسم المديح',
+                      badge: 'كنوز الكنيسة',
+                      height: 108,
+                      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                     ),
 
-                    // Alphabetical Letter Strip
-                    SizedBox(
-                      height: 38,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: letters.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 6),
-                        itemBuilder: (_, i) {
-                          final l = letters[i];
-                          final sel = l == _selectedLetter;
-                          return ChoiceChip(
-                            showCheckmark: false,
-                            selected: sel,
-                            selectedColor: p.accent,
-                            backgroundColor: p.surface,
-                            side: BorderSide(color: sel ? p.accent : p.border),
-                            label: Text(
-                              l,
-                              style: GoogleFonts.cairo(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: sel ? p.onAccent : p.ink,
-                              ),
-                            ),
-                            onSelected: (_) {
-                              HapticFeedback.selectionClick();
-                              setState(() {
-                                _selectedLetter = l;
-                                _selectedIdx = 0;
-                              });
-                            },
-                          );
-                        },
-                      ),
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // Saint & Madyh Dropdown Picker
-                    if (filtered.isNotEmpty)
-                      Container(
-                        margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        decoration: BoxDecoration(
-                          color: p.surface,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: p.goldBorder),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<int>(
-                            isExpanded: true,
-                            dropdownColor: p.surface,
-                            value: safeIdx,
-                            icon: Icon(Icons.keyboard_arrow_down_rounded, color: p.accent),
-                            items: List.generate(filtered.length, (i) {
-                              final f = filtered[i];
-                              return DropdownMenuItem<int>(
-                                value: i,
-                                child: Text(
-                                  '${f['saint']} — ${f['title']}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.cairo(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: p.ink,
-                                  ),
-                                ),
-                              );
-                            }),
-                            onChanged: (v) {
-                              if (v != null) {
-                                HapticFeedback.selectionClick();
-                                setState(() => _selectedIdx = v);
-                              }
-                            },
+                    if (_showSearch)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: TextField(
+                          autofocus: true,
+                          onChanged: (v) => setState(() => _query = v),
+                          style: GoogleFonts.cairo(color: p.ink, fontSize: 13),
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            hintText: 'ابحث باسم القديس أو الشهيد أو المديح...',
+                            prefixIcon: Icon(Icons.search_rounded, size: 19),
                           ),
                         ),
                       ),
 
-                    // 2-Column Traditional Couplet Reader
+                    // ==============================================================
+                    // EXACT KATAMEROS-STYLE 3-DROPDOWN SELECTOR BAR:
+                    // [ الحرف ]  +  [ اسم الشهيد / القديس ]  +  [ اسم المديح ]
+                    // ==============================================================
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              // Dropdown 1: الحرف
+                              SizedBox(
+                                width: 84,
+                                child: LiturgicalDropdownBox<String>(
+                                  label: 'الحرف',
+                                  dense: true,
+                                  value: safeLetter,
+                                  items: letterOptions
+                                      .map(
+                                        (l) => DropdownMenuItem<String>(
+                                          value: l,
+                                          child: Text(
+                                            l,
+                                            style: GoogleFonts.cairo(
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.bold,
+                                              color: p.ink,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (v) {
+                                    if (v == null) return;
+                                    HapticFeedback.selectionClick();
+                                    setState(() {
+                                      _selectedLetter = v;
+                                      _selectedSaint = '';
+                                      _selectedMadyhId = '';
+                                    });
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              // Dropdown 2: اسم الشهيد أو القديس
+                              Expanded(
+                                child: uniqueSaints.isEmpty
+                                    ? Container(
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: p.surfaceSubtle,
+                                          borderRadius: BorderRadius.circular(13),
+                                          border: Border.all(color: p.border),
+                                        ),
+                                        child: Text(
+                                          'لا يوجد قديس بهذا الحرف',
+                                          style: GoogleFonts.cairo(
+                                              fontSize: 12, color: p.inkMuted),
+                                        ),
+                                      )
+                                    : LiturgicalDropdownBox<String>(
+                                        label: 'الشهيد / القديس (${uniqueSaints.length})',
+                                        dense: true,
+                                        value: safeSaint,
+                                        items: uniqueSaints.map((sName) {
+                                          final cnt = saintMap[sName]?.length ?? 1;
+                                          return DropdownMenuItem<String>(
+                                            value: sName,
+                                            child: Text(
+                                              cnt > 1 ? '$sName ($cnt مدائح)' : sName,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: GoogleFonts.cairo(
+                                                fontSize: 12.2,
+                                                fontWeight: FontWeight.bold,
+                                                color: p.ink,
+                                              ),
+                                            ),
+                                          );
+                                        }).toList(),
+                                        onChanged: (v) {
+                                          if (v == null) return;
+                                          HapticFeedback.selectionClick();
+                                          setState(() {
+                                            _selectedSaint = v;
+                                            _selectedMadyhId = '';
+                                          });
+                                        },
+                                      ),
+                              ),
+                            ],
+                          ),
+                          // Dropdown 3: اسم المديح (always visible clearly so multi-madyh saints shine!)
+                          if (saintMadayeh.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            LiturgicalDropdownBox<String>(
+                              label: saintMadayeh.length > 1
+                                  ? 'اختر المديح (${saintMadayeh.length} مدائح لهذا القديس)'
+                                  : 'اسم المديح',
+                              dense: true,
+                              value: safeMadyhId,
+                              items: saintMadayeh.map((m) {
+                                return DropdownMenuItem<String>(
+                                  value: '${m['id']}',
+                                  child: Text(
+                                    '${m['title']}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.cairo(
+                                      fontSize: 12.2,
+                                      fontWeight: FontWeight.bold,
+                                      color: p.accent,
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (v) {
+                                if (v == null) return;
+                                HapticFeedback.selectionClick();
+                                setState(() => _selectedMadyhId = v);
+                              },
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+
+                    // 2-Column Traditional Poetic Couplets Reader
                     Expanded(
                       child: current == null
                           ? Center(
                               child: Text('لا يوجد مديح مطابق للبحث.',
                                   style: GoogleFonts.cairo(color: p.inkMuted)),
                             )
-                          : _buildMadeyhCard(context, p, current, fontScale),
+                          : _buildMadeyhCard(
+                              context,
+                              p,
+                              current,
+                              saintMadayeh.length,
+                              fontScale,
+                            ),
                     ),
                   ],
                 ),
@@ -215,14 +373,17 @@ class _MadayehLibraryViewState extends State<MadayehLibraryView> {
     BuildContext context,
     AppPalette p,
     Map<String, dynamic> item,
+    int saintTotalPraises,
     double fontScale,
   ) {
     final couplets = (item['couplets'] as List? ?? [])
         .map((c) => List<String>.from((c as List).map((e) => '$e')))
         .toList();
+    final saintName = '${item['saint']}';
+    final portraitUrl = _resolveSaintPortrait(saintName);
 
     final fullPlain = StringBuffer()
-      ..writeln('${item['saint']} — ${item['title']}')
+      ..writeln('$saintName — ${item['title']}')
       ..writeln('المرد: ${item['refrain']}')
       ..writeln();
     for (final c in couplets) {
@@ -230,11 +391,11 @@ class _MadayehLibraryViewState extends State<MadayehLibraryView> {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 36),
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 36),
       children: [
-        // Illuminated Header
+        // Illuminated Saint & Praise Header Card with Neo-Coptic Icon Portrait
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: p.goldSoft,
             borderRadius: BorderRadius.circular(18),
@@ -243,39 +404,66 @@ class _MadayehLibraryViewState extends State<MadayehLibraryView> {
           child: Column(
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CopticCross(size: 16, color: p.accent),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      '${item['saint']}',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.amiri(
-                        fontSize: 22 * fontScale.clamp(0.85, 1.3),
-                        fontWeight: FontWeight.bold,
-                        color: p.ink,
-                      ),
+                  if (portraitUrl != null) ...[
+                    SaintIconAvatar(
+                      imageUrl: portraitUrl,
+                      size: 56,
+                      shape: SaintAvatarShape.arch,
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: portraitUrl != null
+                          ? CrossAxisAlignment.start
+                          : CrossAxisAlignment.center,
+                      children: [
+                        Row(
+                          mainAxisAlignment: portraitUrl != null
+                              ? MainAxisAlignment.start
+                              : MainAxisAlignment.center,
+                          children: [
+                            CopticCross(size: 14, color: p.accent),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                saintName,
+                                textAlign: portraitUrl != null
+                                    ? TextAlign.start
+                                    : TextAlign.center,
+                                style: GoogleFonts.amiri(
+                                  fontSize: (20 + _localFontBoost * 0.4) *
+                                      fontScale.clamp(0.85, 1.3),
+                                  fontWeight: FontWeight.bold,
+                                  color: p.ink,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '${item['title']}',
+                          textAlign: portraitUrl != null
+                              ? TextAlign.start
+                              : TextAlign.center,
+                          style: GoogleFonts.cairo(
+                            fontSize: 12.2,
+                            fontWeight: FontWeight.w700,
+                            color: p.accent,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  CopticCross(size: 16, color: p.accent),
                 ],
               ),
-              const SizedBox(height: 4),
-              Text(
-                '${item['title']}',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.cairo(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  color: p.accent,
-                ),
-              ),
               if ('${item['refrain'] ?? ''}'.isNotEmpty) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   decoration: BoxDecoration(
                     color: p.surface,
                     borderRadius: BorderRadius.circular(12),
@@ -298,9 +486,9 @@ class _MadayehLibraryViewState extends State<MadayehLibraryView> {
 
         const SizedBox(height: 12),
 
-        // 2-Column Rhythmic Poetic Couplets (just like Orsozoxi!)
+        // 2-Column Rhythmic Poetic Couplets (Exact Katameros Traditional Layout!)
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           decoration: BoxDecoration(
             color: p.surface,
             borderRadius: BorderRadius.circular(18),
@@ -313,41 +501,44 @@ class _MadayehLibraryViewState extends State<MadayehLibraryView> {
               final leftHemistich = pair.length > 1 ? pair[1] : '';
               final isAlt = idx.isOdd;
               return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
                 decoration: BoxDecoration(
                   color: isAlt ? p.surfaceSubtle : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: Text(
-                        '+ $rightHemistich',
+                        rightHemistich,
                         textAlign: TextAlign.center,
                         style: GoogleFonts.amiri(
-                          fontSize: 18.5 * fontScale,
+                          fontSize: (18.5 + _localFontBoost) *
+                              fontScale.clamp(0.85, 1.35),
                           fontWeight: FontWeight.bold,
                           color: p.ink,
-                          height: 1.5,
+                          height: 1.55,
                         ),
                       ),
                     ),
-                    Container(
-                      width: 1,
-                      height: 24,
-                      margin: const EdgeInsets.symmetric(horizontal: 8),
-                      color: p.goldBorder,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                      child: CopticCross(
+                        size: 11,
+                        color: p.gold.withValues(alpha: 0.75),
+                      ),
                     ),
                     Expanded(
                       child: Text(
                         leftHemistich,
                         textAlign: TextAlign.center,
                         style: GoogleFonts.amiri(
-                          fontSize: 18.5 * fontScale,
-                          fontWeight: FontWeight.bold,
-                          color: p.accent,
-                          height: 1.5,
+                          fontSize: (18.5 + _localFontBoost) *
+                              fontScale.clamp(0.85, 1.35),
+                          fontWeight: FontWeight.w600,
+                          color: p.inkSecondary,
+                          height: 1.55,
                         ),
                       ),
                     ),
@@ -358,32 +549,41 @@ class _MadayehLibraryViewState extends State<MadayehLibraryView> {
           ),
         ),
 
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
+
+        // Clean Share & Copy Actions
         Row(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            OutlinedButton.icon(
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: fullPlain.toString()));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('تم نسخ المديح بالكامل', style: GoogleFonts.cairo())),
-                );
-              },
-              icon: Icon(Icons.copy_rounded, size: 16, color: p.accent),
-              label: Text('نسخ المديح', style: GoogleFonts.cairo(color: p.accent, fontWeight: FontWeight.bold)),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  Clipboard.setData(ClipboardData(text: fullPlain.toString()));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('تم نسخ المديح كاملاً', style: GoogleFonts.cairo()),
+                    ),
+                  );
+                },
+                icon: Icon(Icons.copy_rounded, size: 17, color: p.accent),
+                label: Text('نسخ المديح', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+              ),
             ),
             const SizedBox(width: 10),
-            ElevatedButton.icon(
-              onPressed: () {
-                BlessingPosterStudioSheet.show(
-                  context,
-                  title: '${item['saint']}',
-                  bodyText: couplets.take(4).map((c) => '${c[0]} — ${c.length > 1 ? c[1] : ''}').join('\n'),
-                  reference: '${item['title']}',
-                );
-              },
-              icon: const Icon(Icons.ios_share_rounded, size: 16),
-              label: Text('مشاركة بطاقة', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  BlessingPosterStudioSheet.show(
+                    context,
+                    title: saintName,
+                    bodyText: couplets.take(4).map((c) => '${c[0]} — ${c.length > 1 ? c[1] : ''}').join('\n'),
+                    reference: '${item['title']}',
+                  );
+                },
+                icon: const Icon(Icons.ios_share_rounded, size: 17),
+                label: Text('مشاركة كبطاقة بركة',
+                    style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+              ),
             ),
           ],
         ),

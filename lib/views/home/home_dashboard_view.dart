@@ -13,6 +13,7 @@ import '../../core/theme/app_palette.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/blessing_poster_studio_sheet.dart';
 import '../../core/widgets/luxe_widgets.dart';
+import '../../core/widgets/sacred_section_banner.dart';
 import '../../core/widgets/saint_icon_avatar.dart';
 import '../../models/katameros_model.dart';
 import '../../providers/bible_provider.dart';
@@ -370,106 +371,106 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
     final dailyQuote = PatronSaintService.getDailyQuote(saint.id);
     final saintImgUrl = PatronSaintService.getImageUrlForSaint(saint);
 
-    // «كنوز كنيستنا» — Encyclopedic Coptic Treasures matching Orsozoxi's complete richness
-    final churchTreasures = <({String title, String sub, IconData icon, VoidCallback onTap})>[
+    // «كنوز كنيستنا» — Encyclopedic Coptic Treasures with handcrafted sacred artwork thumbnails
+    final churchTreasures = <({String title, String sub, String image, VoidCallback onTap})>[
       (
         title: 'رفع بخور عشية وباكر',
         sub: 'الخدمة الكاملة قبطي وعربي',
-        icon: Icons.local_fire_department_outlined,
+        image: 'assets/images/banner_tasbeha.jpg',
         onTap: () => Navigator.push(context, luxeRoute(const RaisingOfIncenseView())),
       ),
       (
         title: 'صلوات القِسَم (٣٩)',
         sub: 'قسمة كل عيد وموسم وصوم',
-        icon: Icons.auto_awesome_outlined,
+        image: 'assets/images/thumb_cyril.jpg',
         onTap: () => Navigator.push(context, luxeRoute(const FractionsLibraryView())),
       ),
       (
         title: 'الموسوعة الطقسية',
         sub: 'طقس وألحان ١٨ موسماً كنسياً',
-        icon: Icons.menu_book_outlined,
+        image: 'assets/images/thumb_katameros.jpg',
         onTap: () => Navigator.push(context, luxeRoute(const LiturgicalEncyclopediaView())),
       ),
       (
         title: 'المدائح والتماجيد',
-        sub: 'فهرس أبجدي للشهداء والقديسين',
-        icon: Icons.library_music_outlined,
+        sub: '٥٧ مديحاً بالحرف والقديس',
+        image: 'assets/images/banner_madayeh.jpg',
         onTap: () => Navigator.push(context, luxeRoute(const MadayehLibraryView())),
       ),
       (
         title: 'موسوعة أقوال الآباء',
-        sub: 'أقوال مصنفة أوفلاين بدون إنترنت',
-        icon: Icons.format_quote_rounded,
+        sub: 'أقوال مصنفة أوفلاين بدون نت',
+        image: 'assets/images/thumb_fathers.jpg',
         onTap: () => Navigator.push(context, luxeRoute(const PatristicSayingsView())),
       ),
       (
         title: 'تاريخ الكنيسة والمجامع',
         sub: 'من مارمرقس ونيقية حتى اليوم',
-        icon: Icons.account_balance_outlined,
+        image: 'assets/images/banner_trivia.jpg',
         onTap: () => Navigator.push(context, luxeRoute(const ChurchHistoryView())),
       ),
       (
         title: 'كشكول الخدمة',
         sub: 'تحضير دروس مدارس الأحد والخدام',
-        icon: Icons.note_alt_outlined,
+        image: 'assets/images/banner_coptic_academy.jpg',
         onTap: () => Navigator.push(context, luxeRoute(const ServiceNotebookView())),
       ),
       (
         title: 'الإبصلمودية الكيهكية',
         sub: 'تسبحة ٧ و ٤ وذكصولوجيات الأعياد',
-        icon: Icons.nights_stay_outlined,
+        image: 'assets/images/banner_pascha.jpg',
         onTap: () => widget.onNavigateTab(1, subTab: 2),
       ),
     ];
 
-    // Clear 2-column directory — ZERO hidden horizontal scrolls, EVERY tool visible at a glance
-    final directoryTools = <({String title, String sub, IconData icon, VoidCallback onTap})>[
+    // Complete 2-column visual directory — every tool illustrated with authentic Coptic artwork
+    final directoryTools = <({String title, String sub, String image, VoidCallback onTap})>[
       (
         title: 'الطقوس والأسرار',
         sub: 'اللقان • السجدة • الإكليل • القنديل',
-        icon: Icons.church_outlined,
+        image: 'assets/images/banner_sacraments.jpg',
         onTap: () => widget.onNavigateTab(1, subTab: 3),
       ),
       (
         title: 'الألحان والمردات',
-        sub: 'صوتيات حقيقية مع كلمات قبطي وعربي',
-        icon: Icons.graphic_eq_rounded,
+        sub: '٣٣٨ لحناً صوتياً بكلمات متزامنة',
+        image: 'assets/images/thumb_hymns.jpg',
         onTap: () => widget.onNavigateTab(3),
       ),
       (
         title: 'المرشد الآبائي',
         sub: 'اسأل في العقيدة والكتاب والطقس',
-        icon: Icons.forum_outlined,
+        image: 'assets/images/thumb_fathers.jpg',
         onTap: () => widget.onNavigateTab(4),
       ),
       (
         title: 'خلوة ٥ دقائق',
         sub: 'آية ومزمور وإرشاد لقلبك الآن',
-        icon: Icons.spa_outlined,
+        image: 'assets/images/christ_good_shepherd.jpg',
         onTap: () => Navigator.push(context, luxeRoute(const SpiritualPrescriptionView())),
       ),
       (
         title: 'المسبحة القبطية',
         sub: 'صلاة يسوع وعداد المطانيات',
-        icon: Icons.radio_button_checked_rounded,
+        image: 'assets/images/thumb_agpeya.jpg',
         onTap: () => Navigator.push(context, luxeRoute(const CopticPrayerRopeView())),
       ),
       (
         title: 'الأكاديمية القبطية',
-        sub: 'تعلّم الحروف القبطية بالنطق الصوتي',
-        icon: Icons.translate_rounded,
+        sub: '٣٢ حرفاً قبطياً بقواعد النطق والبطاقات',
+        image: 'assets/images/banner_coptic_academy.jpg',
         onTap: () => Navigator.push(context, luxeRoute(const CopticAcademyView())),
       ),
       (
         title: 'اذكرهم يا رب',
         sub: 'دفتر صلاتك لأحبائك بالاسم',
-        icon: Icons.edit_note_rounded,
+        image: 'assets/images/banner_confession.jpg',
         onTap: () => Navigator.push(context, luxeRoute(const RememberThemView())),
       ),
       (
         title: 'حائط الصلاة',
         sub: 'اطلب صلاة وصلِّ مع إخوتك',
-        icon: Icons.volunteer_activism_outlined,
+        image: 'assets/images/christ_pantocrator.jpg',
         onTap: () => Navigator.push(context, luxeRoute(const PrayerWallView())),
       ),
       (
@@ -477,7 +478,7 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
         sub: StorageService().getConfessionFatherName().isNotEmpty
             ? StorageService().getConfessionFatherName()
             : 'دليل الآباء الكهنة وتسجيل حضور الاعتراف',
-        icon: Icons.event_available_outlined,
+        image: 'assets/images/banner_confession.jpg',
         onTap: () async {
           final hasFather = StorageService().getConfessionFatherUid().isNotEmpty;
           await Navigator.push(
@@ -489,32 +490,32 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
       ),
       (
         title: 'مكتبة العظات الصوتية',
-        sub: 'البابا شنودة • داود لمعي • بيشوي كامل (بالخلفية)',
-        icon: Icons.headphones_rounded,
+        sub: 'البابا شنودة • داود لمعي • بيشوي كامل',
+        image: 'assets/images/banner_sermons.jpg',
         onTap: () => Navigator.push(context, luxeRoute(const SermonsLibraryView())),
       ),
       (
         title: 'الاستعداد للقداس والتناول',
         sub: 'تابع آخر اعتراف وتناول وقائمة الاستعداد',
-        icon: Icons.church_outlined,
+        image: 'assets/images/thumb_gregory.jpg',
         onTap: () => Navigator.push(context, luxeRoute(const CommunionReadinessView())),
       ),
       (
         title: 'مذكرة الاعتراف',
         sub: 'فحص ضمير خاص ومشفّر على جهازك',
-        icon: Icons.lock_outline_rounded,
+        image: 'assets/images/banner_confession.jpg',
         onTap: () => _openPersonalGuarded(context, 'مذكرة الاعتراف', const ConscienceExamView()),
       ),
       (
         title: 'الجهاد الروحي',
         sub: 'تابع صلاتك وقراءاتك يومياً',
-        icon: Icons.insights_outlined,
+        image: 'assets/images/christ_resurrection.jpg',
         onTap: () => _openPersonalGuarded(context, 'متتبع الجهاد الروحي', const SpiritualTrackerView()),
       ),
       (
         title: 'المسابقات أونلاين ومع أصحابك',
         sub: 'تلمذة الشمامسة • غرفة مع أصحابك • التحدي اليومي',
-        icon: Icons.emoji_events_outlined,
+        image: 'assets/images/banner_trivia.jpg',
         onTap: () => Navigator.push(
           context,
           luxeRoute(const TitledPage(title: 'المسابقات القبطية', child: TriviaGameView())),
@@ -523,7 +524,7 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
       (
         title: 'حسابي والإعدادات',
         sub: 'المظهر • حجم الخط • المنبّهات',
-        icon: Icons.tune_rounded,
+        image: 'assets/images/app_cover.jpg',
         onTap: () async {
           await Navigator.push(context, luxeRoute(const ProfileSettingsView()));
           if (mounted) setState(() {});
@@ -730,19 +731,15 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                             ),
                             child: Row(
                               children: [
-                                Container(
-                                  width: 42,
-                                  height: 42,
-                                  decoration: BoxDecoration(
-                                    color: p.accentSoft,
-                                    borderRadius: BorderRadius.circular(13),
-                                  ),
-                                  child: Icon(
-                                    isPriest
-                                        ? Icons.church_rounded
-                                        : Icons.event_available_rounded,
-                                    color: p.accent,
-                                    size: 22,
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(13),
+                                  child: const SizedBox(
+                                    width: 48,
+                                    height: 48,
+                                    child: SafeAssetImage(
+                                      'assets/images/banner_confession.jpg',
+                                      fit: BoxFit.cover,
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -1112,15 +1109,14 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                     },
                   ),
 
-                  // 2b. Clean Paired Daily Readings Pills (Katameros + Synaxarium)
+                  // 2b. Clean Paired Daily Readings Cards (Katameros + Synaxarium with Real Artwork)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Row(
                       children: [
                         Expanded(
-                          child: _quickDailyStrip(
-                            p: p,
-                            icon: Icons.auto_stories_outlined,
+                          child: SacredThumbItemCard(
+                            imageAsset: 'assets/images/thumb_katameros.jpg',
                             title: 'قراءات اليوم',
                             subtitle: 'القطمارس اليومي',
                             onTap: () => Navigator.push(
@@ -1131,9 +1127,8 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: _quickDailyStrip(
-                            p: p,
-                            icon: Icons.history_edu_outlined,
+                          child: SacredThumbItemCard(
+                            imageAsset: 'assets/images/thumb_synaxarium.jpg',
                             title: 'سنكسار اليوم',
                             subtitle: CopticCalendarService.isAfterVespers()
                                 ? 'قراءة الغد (بعد العشية)'
@@ -1148,9 +1143,9 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                     ),
                   ),
 
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 16),
 
-                  // 3. 4 Big Crystal-Clear Primary Entry Cards (Zero guesswork!)
+                  // 3. 4 Big Photographic Editorial Entry Cards (Handcrafted Coptic Art — zero generic boxes!)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Column(
@@ -1158,9 +1153,8 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                         Row(
                           children: [
                             Expanded(
-                              child: _primaryHubCard(
-                                p: p,
-                                icon: Icons.church_outlined,
+                              child: SacredImageTileCard(
+                                imageAsset: 'assets/images/thumb_basil.jpg',
                                 title: 'القداسات والأجبية',
                                 subtitle: 'الباسيلي • الغريغوري • الكيرلسي',
                                 onTap: () => widget.onNavigateTab(1, subTab: 0),
@@ -1168,9 +1162,8 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: _primaryHubCard(
-                                p: p,
-                                icon: Icons.menu_book_outlined,
+                              child: SacredImageTileCard(
+                                imageAsset: 'assets/images/bible_cover.jpg',
                                 title: 'الكتاب المقدس',
                                 subtitle: '٧٣ سفراً مع التفسير الفوري',
                                 onTap: () => widget.onNavigateTab(2, subTab: 0),
@@ -1182,9 +1175,8 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                         Row(
                           children: [
                             Expanded(
-                              child: _primaryHubCard(
-                                p: p,
-                                icon: Icons.nights_stay_outlined,
+                              child: SacredImageTileCard(
+                                imageAsset: 'assets/images/banner_tasbeha.jpg',
                                 title: 'التسبحة والبصخة',
                                 subtitle: 'الإبصلمودية • البصخة • الأعياد',
                                 onTap: () => widget.onNavigateTab(1, subTab: 2),
@@ -1192,9 +1184,8 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: _primaryHubCard(
-                                p: p,
-                                icon: Icons.local_library_outlined,
+                              child: SacredImageTileCard(
+                                imageAsset: 'assets/images/banner_sermons.jpg',
                                 title: 'التفاسير والكتب',
                                 subtitle: 'تفاسير ٧٣ سفراً + ٩٨ كتاباً كاملاً',
                                 onTap: () => widget.onNavigateTab(2, subTab: 1),
@@ -1417,78 +1408,16 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                         crossAxisCount: 2,
                         crossAxisSpacing: 10,
                         mainAxisSpacing: 10,
-                        childAspectRatio: 2.05,
+                        childAspectRatio: 2.0,
                       ),
                       itemBuilder: (_, idx) {
                         final item = churchTreasures[idx];
-                        return PressScale(
-                          scale: 0.97,
+                        return SacredThumbItemCard(
+                          imageAsset: item.image,
+                          title: item.title,
+                          subtitle: item.sub,
+                          highlightBorder: true,
                           onTap: item.onTap,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: p.surface,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: p.goldBorder),
-                              boxShadow: p.isDark
-                                  ? null
-                                  : [
-                                      BoxShadow(
-                                        color: p.shadow,
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    color: p.goldSoft,
-                                    borderRadius: BorderRadius.circular(11),
-                                  ),
-                                  child: Icon(
-                                    item.icon,
-                                    color: p.isDark ? p.gold : p.accent,
-                                    size: 19,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        item.title,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: GoogleFonts.cairo(
-                                          fontSize: 12.2,
-                                          fontWeight: FontWeight.bold,
-                                          color: p.ink,
-                                          height: 1.2,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        item.sub,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: GoogleFonts.cairo(
-                                          fontSize: 9.8,
-                                          color: p.inkMuted,
-                                          height: 1.25,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
                         );
                       },
                     ),
@@ -1496,7 +1425,7 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
 
                   const SizedBox(height: 22),
 
-                  // 6b. Complete Scannable 2-Column Spiritual Directory (Everything visible in 1 glance!)
+                  // 6b. Complete Scannable 2-Column Visual Spiritual Directory
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Text(
@@ -1519,78 +1448,15 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
                         crossAxisCount: 2,
                         crossAxisSpacing: 10,
                         mainAxisSpacing: 10,
-                        childAspectRatio: 2.05,
+                        childAspectRatio: 2.0,
                       ),
                       itemBuilder: (_, idx) {
                         final tool = directoryTools[idx];
-                        return PressScale(
-                          scale: 0.97,
+                        return SacredThumbItemCard(
+                          imageAsset: tool.image,
+                          title: tool.title,
+                          subtitle: tool.sub,
                           onTap: tool.onTap,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: p.surface,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: p.border),
-                              boxShadow: p.isDark
-                                  ? null
-                                  : [
-                                      BoxShadow(
-                                        color: p.shadow,
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    color: p.goldSoft,
-                                    borderRadius: BorderRadius.circular(11),
-                                  ),
-                                  child: Icon(
-                                    tool.icon,
-                                    color: p.isDark ? p.gold : p.accent,
-                                    size: 19,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        tool.title,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: GoogleFonts.cairo(
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.bold,
-                                          color: p.ink,
-                                          height: 1.2,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        tool.sub,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: GoogleFonts.cairo(
-                                          fontSize: 10,
-                                          color: p.inkMuted,
-                                          height: 1.25,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
                         );
                       },
                     ),
@@ -1599,142 +1465,6 @@ class _HomeDashboardViewState extends State<HomeDashboardView> {
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _primaryHubCard({
-    required AppPalette p,
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return PressScale(
-      scale: 0.97,
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: p.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: p.goldBorder),
-          boxShadow: p.isDark
-              ? null
-              : [
-                  BoxShadow(
-                    color: p.shadow,
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: p.goldSoft,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, size: 21, color: p.isDark ? p.gold : p.accent),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.amiri(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: p.ink,
-                height: 1.15,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.cairo(
-                fontSize: 10.5,
-                color: p.inkSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _quickDailyStrip({
-    required AppPalette p,
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return PressScale(
-      scale: 0.98,
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
-        decoration: BoxDecoration(
-          color: p.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: p.border),
-          boxShadow: p.isDark
-              ? null
-              : [
-                  BoxShadow(
-                    color: p.shadow,
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: p.goldSoft,
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: Icon(icon, size: 19, color: p.isDark ? p.gold : p.accent),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.cairo(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.bold,
-                      color: p.ink,
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.cairo(
-                      fontSize: 10.5,
-                      color: p.inkMuted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ),
       ),
     );

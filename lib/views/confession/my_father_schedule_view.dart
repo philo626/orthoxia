@@ -6,8 +6,8 @@ import '../../core/services/confession_service.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/theme/app_palette.dart';
-import '../../core/widgets/coptic_cross.dart';
 import '../../core/widgets/luxe_widgets.dart';
+import '../../core/widgets/sacred_section_banner.dart';
 import '../../models/confession_models.dart';
 import '../conscience/conscience_exam_view.dart';
 import '../onboarding/auth_view.dart';
@@ -724,62 +724,29 @@ class _MyFatherScheduleViewState extends State<MyFatherScheduleView> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 36),
             children: [
+              // Handcrafted Sunlit Coptic Sanctuary Banner
+              SacredSectionBanner(
+                imageAsset: 'assets/images/banner_confession.jpg',
+                title: fatherName,
+                subtitle: fatherChurch.isNotEmpty
+                    ? fatherChurch
+                    : 'مواعيد الاعتراف والأبوة الروحية بسرية تامة',
+                badge: fatherDiocese.isNotEmpty ? 'إيبارشية $fatherDiocese' : 'أب اعترافي',
+                height: 118,
+                margin: const EdgeInsets.only(bottom: 12),
+              ),
+
               // 1. Selected Father Identity Card + 1-Tap Greeting/Congratulation Button
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: p.goldSoft,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(18),
                   border: Border.all(color: p.goldBorder),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: p.surface,
-                            border: Border.all(color: p.goldBorder),
-                          ),
-                          child: Center(child: CopticCross(size: 22, color: p.accent)),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                fatherName,
-                                style: GoogleFonts.amiri(
-                                  fontSize: 21,
-                                  fontWeight: FontWeight.bold,
-                                  color: p.ink,
-                                ),
-                              ),
-                              if (fatherChurch.isNotEmpty)
-                                Text(
-                                  fatherChurch,
-                                  style: GoogleFonts.cairo(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: p.accent,
-                                  ),
-                                ),
-                              if (fatherDiocese.isNotEmpty)
-                                Text(
-                                  'إيبارشية: $fatherDiocese',
-                                  style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkSecondary),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
                     Row(
                       children: [
                         Expanded(

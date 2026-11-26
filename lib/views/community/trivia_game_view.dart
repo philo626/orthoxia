@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/widgets/luxe_widgets.dart';
+import '../../core/widgets/sacred_section_banner.dart';
 import '../../providers/trivia_provider.dart';
 import 'online_trivia_arena_view.dart';
 
@@ -31,6 +32,15 @@ class TriviaGameView extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                const SacredSectionBanner(
+                  imageAsset: 'assets/images/banner_trivia.jpg',
+                  title: 'مسابقات تلمذة الشمامسة والأصدقاء',
+                  subtitle: 'أكثر من ٣٥,٠٠٠ سؤال متجدد في الكتاب المقدس والطقس والسنكسار والألحان',
+                  badge: 'المسابقات الأرثوذكسية',
+                  height: 106,
+                  margin: EdgeInsets.only(bottom: 12),
+                ),
+
                 // 1. Ornate Rank, XP Bar, Coins & Streak Header
                 Container(
                   padding: const EdgeInsets.all(18),

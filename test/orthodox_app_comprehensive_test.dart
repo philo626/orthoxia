@@ -568,7 +568,8 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('أكاديمية اللغة القبطية'), findsOneWidget);
-      expect(find.textContaining('سماع نطق الحرف'), findsOneWidget);
+      expect(find.text('الأبجدية القبطية البحيرية'), findsOneWidget);
+      expect(find.textContaining('سماع نطق الحرف'), findsNothing);
 
       await tester.pumpWidget(
         const MaterialApp(
@@ -1058,6 +1059,36 @@ void main() {
       expect(st.getSpiritualExerciseDoneDays(), isNot(contains('2026-11-25')));
       await st.setLastCleanedConfessionIso('2026-11-25');
       expect(st.getLastCleanedConfessionIso(), '2026-11-25');
+
+      // 5. Verify Expanded Madayeh Catalog (55+ praises, multi-madyh saints) & All 8 Bespoke Sacred Banners exist
+      final madayehList =
+          jsonDecode(File('assets/data/madayeh_tamagid.json').readAsStringSync()) as List;
+      expect(madayehList.length, greaterThanOrEqualTo(55));
+      final madBySaint = <String, int>{};
+      for (final m in madayehList) {
+        final s = '${m['saint']}';
+        madBySaint[s] = (madBySaint[s] ?? 0) + 1;
+      }
+      expect(madBySaint.values.where((c) => c >= 2).length, greaterThanOrEqualTo(10),
+          reason: 'Major saints must have multiple selectable praises');
+
+      for (final img in const [
+        'assets/images/banner_tasbeha.jpg',
+        'assets/images/banner_madayeh.jpg',
+        'assets/images/banner_pascha.jpg',
+        'assets/images/banner_sacraments.jpg',
+        'assets/images/banner_confession.jpg',
+        'assets/images/banner_sermons.jpg',
+        'assets/images/banner_coptic_academy.jpg',
+        'assets/images/banner_trivia.jpg',
+      ]) {
+        expect(File(img).existsSync(), isTrue, reason: 'Missing sacred banner: $img');
+      }
+
+      // Verify CopticAcademyView no longer uses synthesized Coptic TTS pronunciation
+      final academySrc =
+          File('lib/views/coptic_academy/coptic_academy_view.dart').readAsStringSync();
+      expect(academySrc.contains('SpeechPronunciationService'), isFalse);
     });
   });
 }

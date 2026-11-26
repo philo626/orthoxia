@@ -5,19 +5,21 @@ import 'package:provider/provider.dart';
 import '../../core/services/speech_pronunciation_service.dart';
 import '../../core/theme/app_palette.dart';
 import '../../core/widgets/coptic_cross.dart';
+import '../../core/widgets/sacred_section_banner.dart';
 import '../../models/agpeya_model.dart';
 import '../../providers/theme_provider.dart';
 import 'widgets/floating_church_bar.dart';
 
 /// Interactive Book-Printed Coptic Agpeya Reader:
 /// - Complete canonical Coptic Orthodox prayers (zero truncations)
-/// - Quick Section Jump Index (jump straight to Psalms, Gospel, Creed, Kyrie 41, Absolution, Watches)
+/// - Katameros-style Dual Dropdown Bar (Hour switcher + Instant Section jump)
+/// - Sacred Banner Header adapted to each liturgical hour
 /// - Interactive 41x Kyrie Eleison Haptic Tap Counter
-/// - Adapts seamlessly to Warm Parchment Daylight, Charcoal Night & AMOLED Church Mode
 class AgpeyaReaderView extends StatefulWidget {
   final AgpeyaHour hour;
+  final List<AgpeyaHour>? allHours;
 
-  const AgpeyaReaderView({super.key, required this.hour});
+  const AgpeyaReaderView({super.key, required this.hour, this.allHours});
 
   @override
   State<AgpeyaReaderView> createState() => _AgpeyaReaderViewState();
@@ -26,7 +28,29 @@ class AgpeyaReaderView extends StatefulWidget {
 class _AgpeyaReaderViewState extends State<AgpeyaReaderView> {
   final ScrollController _scrollController = ScrollController();
   final Map<int, GlobalKey> _sectionKeys = {};
+  late AgpeyaHour _currentHour;
+  int _selectedSectionIdx = 0;
   int _kyrieCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentHour = widget.hour;
+  }
+
+  String _hourBannerAsset(String id) {
+    switch (id) {
+      case 'prime':
+        return 'assets/images/christ_resurrection.jpg';
+      case 'vespers':
+      case 'compline':
+      case 'veil':
+      case 'midnight':
+        return 'assets/images/banner_tasbeha.jpg';
+      default:
+        return 'assets/images/thumb_agpeya.jpg';
+    }
+  }
 
   @override
   void dispose() {
@@ -36,8 +60,8 @@ class _AgpeyaReaderViewState extends State<AgpeyaReaderView> {
   }
 
   String _collectHourFullText() {
-    final buf = StringBuffer('${widget.hour.nameAr}. ${widget.hour.theme}. ');
-    for (final s in widget.hour.sections) {
+    final buf = StringBuffer('${_currentHour.nameAr}. ${_currentHour.theme}. ');
+    for (final s in _currentHour.sections) {
       buf.write('${s.title}. ');
       if (s.content != null) buf.write('${s.content} ');
       if (s.psalms != null) {
@@ -50,6 +74,7 @@ class _AgpeyaReaderViewState extends State<AgpeyaReaderView> {
   }
 
   void _jumpToSection(int idx) {
+    setState(() => _selectedSectionIdx = idx);
     final key = _sectionKeys[idx];
     final ctx = key?.currentContext;
     if (ctx != null) {
@@ -94,7 +119,7 @@ class _AgpeyaReaderViewState extends State<AgpeyaReaderView> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'فهرس ${widget.hour.nameAr}',
+                    'فهرس ${_currentHour.nameAr}',
                     style: GoogleFonts.amiri(
                       fontSize: 21,
                       fontWeight: FontWeight.bold,
@@ -112,10 +137,10 @@ class _AgpeyaReaderViewState extends State<AgpeyaReaderView> {
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.only(top: 8, bottom: 16),
-                itemCount: widget.hour.sections.length,
+                itemCount: _currentHour.sections.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 6),
                 itemBuilder: (_, idx) {
-                  final sec = widget.hour.sections[idx];
+                  final sec = _currentHour.sections[idx];
                   final isKey = sec.type == 'gospel' ||
                       sec.type == 'kyrie41' ||
                       sec.type == 'absolution' ||
@@ -273,16 +298,16 @@ class _AgpeyaReaderViewState extends State<AgpeyaReaderView> {
         title: Column(
           children: [
             Text(
-              widget.hour.nameAr,
+              _currentHour.nameAr,
               style: GoogleFonts.amiri(
                 fontWeight: FontWeight.bold,
                 fontSize: 21,
                 color: p.ink,
               ),
             ),
-            if (widget.hour.nameCoptic.isNotEmpty)
+            if (_currentHour.nameCoptic.isNotEmpty)
               Text(
-                widget.hour.nameCoptic,
+                _currentHour.nameCoptic,
                 style: TextStyle(
                   fontFamily: 'Coptic',
                   fontSize: 11.5,
@@ -301,7 +326,7 @@ class _AgpeyaReaderViewState extends State<AgpeyaReaderView> {
             padding: const EdgeInsets.only(left: 10, top: 8, bottom: 8),
             child: SpeechPlayStopButton(
               textToSpeak: _collectHourFullText(),
-              label: widget.hour.nameAr,
+              label: _currentHour.nameAr,
               playText: 'استماع',
               stopText: 'إيقاف',
               compact: true,
@@ -314,45 +339,117 @@ class _AgpeyaReaderViewState extends State<AgpeyaReaderView> {
           Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 680),
-              child: SingleChildScrollView(
-                controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 110),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Calm Book Header Card
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: p.surface,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: p.border),
-                      ),
-                      child: Column(
-                        children: [
-                          CopticCross(size: 24, color: p.isDark ? p.gold : p.accent),
-                          const SizedBox(height: 8),
-                          Text(
-                            widget.hour.theme,
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.cairo(
-                              fontSize: 13.5 * fontScale.clamp(0.85, 1.3),
-                              fontWeight: FontWeight.w600,
-                              color: p.inkSecondary,
-                              height: 1.5,
+              child: Column(
+                children: [
+                  // Katameros-style Dual Quick-Jump Dropdown Bar (Hour Switcher + Section Jump)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+                    child: Row(
+                      children: [
+                        if (widget.allHours != null && widget.allHours!.length > 1) ...[
+                          Expanded(
+                            flex: 4,
+                            child: LiturgicalDropdownBox<String>(
+                              label: 'الساعة',
+                              dense: true,
+                              value: _currentHour.id,
+                              items: widget.allHours!.map((h) {
+                                return DropdownMenuItem<String>(
+                                  value: h.id,
+                                  child: Text(
+                                    h.nameAr,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.cairo(
+                                      fontSize: 11.8,
+                                      fontWeight: FontWeight.bold,
+                                      color: p.ink,
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (newId) {
+                                if (newId == null) return;
+                                final picked = widget.allHours!
+                                    .where((h) => h.id == newId)
+                                    .firstOrNull;
+                                if (picked != null) {
+                                  HapticFeedback.selectionClick();
+                                  SpeechPronunciationService().stop();
+                                  setState(() {
+                                    _currentHour = picked;
+                                    _sectionKeys.clear();
+                                    _selectedSectionIdx = 0;
+                                    _kyrieCount = 0;
+                                  });
+                                  if (_scrollController.hasClients) {
+                                    _scrollController.jumpTo(0);
+                                  }
+                                }
+                              },
                             ),
                           ),
+                          const SizedBox(width: 8),
                         ],
-                      ),
+                        if (_currentHour.sections.isNotEmpty)
+                          Expanded(
+                            flex: 5,
+                            child: LiturgicalDropdownBox<int>(
+                              label: 'الانتقال السريع للجزء',
+                              dense: true,
+                              value: _selectedSectionIdx.clamp(
+                                0,
+                                _currentHour.sections.length - 1,
+                              ),
+                              items: List.generate(_currentHour.sections.length, (i) {
+                                return DropdownMenuItem<int>(
+                                  value: i,
+                                  child: Text(
+                                    _currentHour.sections[i].title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.cairo(
+                                      fontSize: 11.8,
+                                      fontWeight: FontWeight.bold,
+                                      color: p.accent,
+                                    ),
+                                  ),
+                                );
+                              }),
+                              onChanged: (idx) {
+                                if (idx != null) {
+                                  HapticFeedback.selectionClick();
+                                  _jumpToSection(idx);
+                                }
+                              },
+                            ),
+                          ),
+                      ],
                     ),
+                  ),
 
-                    const SizedBox(height: 20),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.fromLTRB(20, 6, 20, 110),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Sacred Illuminated Hour Banner (just like Katameros Agpeya!)
+                          SacredSectionBanner(
+                            imageAsset: _hourBannerAsset(_currentHour.id),
+                            title: _currentHour.nameAr,
+                            subtitle: _currentHour.theme,
+                            badge: _currentHour.timeRange,
+                            height: 118,
+                            margin: const EdgeInsets.only(bottom: 18),
+                          ),
 
-                    // All Canonical Sections
-                    for (int i = 0; i < widget.hour.sections.length; i++) ...[
-                      Builder(
-                        builder: (_) {
-                          final section = widget.hour.sections[i];
+                          // All Canonical Sections
+                          for (int i = 0; i < _currentHour.sections.length; i++) ...[
+                            Builder(
+                              builder: (_) {
+                                final section = _currentHour.sections[i];
                           final key = _sectionKeys.putIfAbsent(i, () => GlobalKey());
                           final isGospel = section.type == 'gospel';
                           final isWatch = section.type == 'watch_header';
@@ -475,7 +572,10 @@ class _AgpeyaReaderViewState extends State<AgpeyaReaderView> {
                 ),
               ),
             ),
-          ),
+                  ],
+                ),
+              ),
+            ),
 
           const FloatingChurchBar(),
         ],

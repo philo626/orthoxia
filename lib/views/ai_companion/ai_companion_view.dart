@@ -7,6 +7,7 @@ import '../../core/theme/app_palette.dart';
 import '../../core/widgets/blessing_poster_studio_sheet.dart';
 import '../../core/widgets/coptic_cross.dart';
 import '../../core/widgets/luxe_widgets.dart';
+import '../../core/widgets/sacred_section_banner.dart';
 import '../../providers/ai_companion_provider.dart';
 import '../../providers/theme_provider.dart';
 
@@ -513,51 +514,26 @@ class _AiCompanionViewState extends State<AiCompanionView> {
   }
 
   Widget _buildOrganizedWelcome(AppPalette p, AiCompanionProvider aiProv) {
-    final icons = const [
-      Icons.auto_awesome_outlined,
-      Icons.church_outlined,
-      Icons.menu_book_outlined,
-      Icons.spa_outlined,
+    const topicImages = [
+      'assets/images/thumb_fathers.jpg',
+      'assets/images/thumb_basil.jpg',
+      'assets/images/bible_cover.jpg',
+      'assets/images/banner_confession.jpg',
     ];
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Center(
-            child: Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: p.goldSoft,
-                border: Border.all(color: p.goldBorder, width: 1.4),
-              ),
-              child: Center(child: CopticCross(size: 32, color: p.accent)),
-            ),
+          const SacredSectionBanner(
+            imageAsset: 'assets/images/banner_sermons.jpg',
+            title: 'سلام ونعمة، كيف أخدمك اليوم؟',
+            subtitle: 'مرجعك الأرثوذكسي في العقيدة والكتاب المقدس والطقس وأقوال الآباء',
+            badge: 'تراث آباء الكنيسة',
+            height: 132,
+            margin: EdgeInsets.only(bottom: 16),
           ),
-          const SizedBox(height: 16),
-          Text(
-            'سلام ونعمة، كيف أخدمك اليوم؟',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.amiri(
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-              color: p.ink,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'اسأل أي سؤال في الإيمان القبطي الأرثوذكسي، تفاسير الكتاب المقدس، طقوس الكنيسة، أو أقوال الآباء.',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.cairo(
-              fontSize: 13,
-              color: p.inkSecondary,
-              height: 1.55,
-            ),
-          ),
-          const SizedBox(height: 26),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -566,66 +542,15 @@ class _AiCompanionViewState extends State<AiCompanionView> {
               crossAxisCount: 2,
               crossAxisSpacing: 10,
               mainAxisSpacing: 10,
-              childAspectRatio: 1.35,
+              childAspectRatio: 1.38,
             ),
             itemBuilder: (_, i) {
               final topic = aiProv.starterTopics[i];
-              return PressScale(
-                scale: 0.97,
+              return SacredImageTileCard(
+                imageAsset: topicImages[i % topicImages.length],
+                title: topic['title']!,
+                subtitle: topic['category']!,
                 onTap: () => _sendPrompt(aiProv, topic['prompt']!),
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: p.surface,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: p.border),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(icons[i % icons.length], size: 18, color: p.accent),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              topic['category']!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.cairo(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.bold,
-                                color: p.accent,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        topic['title']!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.amiri(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                          color: p.ink,
-                          height: 1.25,
-                        ),
-                      ),
-                      Text(
-                        topic['prompt']!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.cairo(
-                          fontSize: 10.5,
-                          color: p.inkMuted,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               );
             },
           ),

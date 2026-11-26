@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../core/services/coptic_calendar_service.dart';
 import '../../core/theme/app_palette.dart';
 import '../../core/widgets/coptic_cross.dart';
+import '../../core/widgets/sacred_section_banner.dart';
 import '../../providers/theme_provider.dart';
 
 /// Complete Raising of Incense (رفع بخور عشية وباكر) Reader:
@@ -101,6 +102,14 @@ class _RaisingOfIncenseViewState extends State<RaisingOfIncenseView> {
                 )
               : Column(
                   children: [
+                    SacredSectionBanner(
+                      imageAsset: 'assets/images/banner_tasbeha.jpg',
+                      title: 'رفع بخور عشية وباكر',
+                      subtitle: '${copticToday.formatted} • ${copticToday.seasonName}',
+                      badge: 'الخولاجي المقدس',
+                      height: 98,
+                      margin: const EdgeInsets.fromLTRB(14, 6, 14, 6),
+                    ),
                     // 1. Instant 5-checkbox language strip (ع | م | ق | E | ص.ك)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),

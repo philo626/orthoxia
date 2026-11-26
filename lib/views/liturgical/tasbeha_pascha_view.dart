@@ -8,6 +8,7 @@ import '../../core/services/coptic_calendar_service.dart';
 import '../../core/services/speech_pronunciation_service.dart';
 import '../../core/theme/app_palette.dart';
 import '../../core/widgets/coptic_cross.dart';
+import '../../core/widgets/sacred_section_banner.dart';
 import '../../providers/theme_provider.dart';
 
 Map<String, dynamic> _decodeTasbehaJson(String raw) =>
@@ -51,6 +52,9 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
   int _selectedWeekdayIdx = 0;
   int _selectedKiahkIdx = 0;
   String _doxQuery = '';
+  bool _showArabic = true;
+  bool _showCoptic = true;
+  bool _showArabized = true;
 
   int _selectedPaschaDayIdx = 0;
   int _selectedPaschaHourIdx = -1; // -1 = show overview + selected hour, >= 0 = specific hour
@@ -295,28 +299,98 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
       );
     }
 
-    final modeSwitcher = Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      decoration: BoxDecoration(
-        color: p.surfaceSubtle,
-        border: Border(bottom: BorderSide(color: p.border, width: 0.7)),
+    // Clean Katameros-style Psalmody Type Dropdown + Language Toggles (ع | ق | م)
+    final modeItems = <DropdownMenuItem<String>>[
+      DropdownMenuItem(
+        value: 'annual',
+        child: Text('الإبصلمودية السنوية (${_tasbehaSections.length} قسماً)',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold, color: p.ink)),
       ),
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        children: [
-          _tasbehaModePill(p, 'annual', 'تسبحة نصف الليل (${_tasbehaSections.length})'),
-          const SizedBox(width: 6),
-          if (_weekdaySections.isNotEmpty) ...[
-            _tasbehaModePill(p, 'weekdays', 'ثيؤطوكيات الأسبوع (${_weekdaySections.length})'),
-            const SizedBox(width: 6),
-          ],
-          _tasbehaModePill(p, 'kiahk', 'الكيهكية ٧ و ٤ (${_kiahkSections.length})'),
-          const SizedBox(width: 6),
-          _tasbehaModePill(p, 'doxologies', 'الذكصولوجيات (${_seasonalDoxologies.length})'),
-        ],
+      if (_weekdaySections.isNotEmpty)
+        DropdownMenuItem(
+          value: 'weekdays',
+          child: Text('ثيؤطوكيات أيام الأسبوع (${_weekdaySections.length})',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold, color: p.ink)),
+        ),
+      DropdownMenuItem(
+        value: 'kiahk',
+        child: Text('الإبصلمودية الكيهكية ٧ و ٤ (${_kiahkSections.length})',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold, color: p.ink)),
       ),
+      DropdownMenuItem(
+        value: 'doxologies',
+        child: Text('ذكصولوجيات المناسبات والأعياد (${_seasonalDoxologies.length})',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold, color: p.ink)),
+      ),
+    ];
+
+    final bannerImg = (_tasbehaMode == 'kiahk' || _tasbehaMode == 'doxologies')
+        ? 'assets/images/banner_madayeh.jpg'
+        : 'assets/images/banner_tasbeha.jpg';
+    final bannerTitle = _tasbehaMode == 'kiahk'
+        ? 'الإبصلمودية الكيهكية المقدسة'
+        : (_tasbehaMode == 'doxologies'
+            ? 'ذكصولوجيات المناسبات والأعياد'
+            : (_tasbehaMode == 'weekdays'
+                ? 'ثيؤطوكيات وإبصاليات الأسبوع'
+                : 'الإبصلمودية السنوية (تسبحة نصف الليل)'));
+
+    final modeSwitcher = Column(
+      children: [
+        SacredSectionBanner(
+          imageAsset: bannerImg,
+          title: bannerTitle,
+          subtitle: 'اختر نوع الإبصلمودية والقسم مباشرة من القوائم أدناه',
+          badge: 'التسبحة المقدسة',
+          height: 98,
+          margin: const EdgeInsets.fromLTRB(14, 8, 14, 6),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+          child: Row(
+            children: [
+              Expanded(
+                child: LiturgicalDropdownBox<String>(
+                  label: 'نوع الإبصلمودية',
+                  dense: true,
+                  value: _tasbehaMode,
+                  items: modeItems,
+                  onChanged: (v) {
+                    if (v == null) return;
+                    HapticFeedback.selectionClick();
+                    SpeechPronunciationService().stop();
+                    setState(() => _tasbehaMode = v);
+                  },
+                ),
+              ),
+              const SizedBox(width: 6),
+              // Katameros-style Language Toggles (ع | ق | م)
+              _langTogglePill(p, 'ع', _showArabic, () {
+                if (_showArabic && !_showCoptic && !_showArabized) return;
+                setState(() => _showArabic = !_showArabic);
+              }),
+              const SizedBox(width: 4),
+              _langTogglePill(p, 'ق', _showCoptic, () {
+                if (_showCoptic && !_showArabic && !_showArabized) return;
+                setState(() => _showCoptic = !_showCoptic);
+              }),
+              const SizedBox(width: 4),
+              _langTogglePill(p, 'م', _showArabized, () {
+                if (_showArabized && !_showArabic && !_showCoptic) return;
+                setState(() => _showArabized = !_showArabized);
+              }),
+            ],
+          ),
+        ),
+      ],
     );
 
     if (_tasbehaMode == 'doxologies') {
@@ -463,67 +537,52 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
     return Column(
       children: [
         modeSwitcher,
-        // Quick Part Selector Strip + Index Button
-        Container(
-          height: 48,
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: p.border)),
-          ),
+        // Katameros-style Instant Section Jump Dropdown + Full Index Button
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
           child: Row(
             children: [
-              Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: ActionChip(
-                  avatar: Icon(Icons.list_rounded, size: 16, color: p.accent),
-                  label: Text(
-                    'الفهرس',
-                    style: GoogleFonts.cairo(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: p.accent,
-                    ),
-                  ),
-                  backgroundColor: p.goldSoft,
-                  side: BorderSide(color: p.goldBorder),
-                  onPressed: () => _openSectionsIndexSheet(
-                    title: 'فهرس الإبصلمودية',
-                    labels: activeList.map((e) => '${e['title'] ?? ''}').toList(),
-                    selectedIndex: safeIdx,
-                    onPick: setActiveIdx,
-                  ),
-                ),
-              ),
               Expanded(
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  itemCount: activeList.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 6),
-                  itemBuilder: (context, idx) {
-                    final sel = idx == safeIdx;
-                    final rawLbl = '${activeList[idx]['title'] ?? ''}'.split('(').first.trim();
-                    final shortLbl = rawLbl.length > 26 ? '${rawLbl.substring(0, 26)}…' : rawLbl;
-                    return ChoiceChip(
-                      showCheckmark: false,
-                      selected: sel,
-                      selectedColor: p.accent,
-                      backgroundColor: p.surfaceElevated,
-                      side: BorderSide(color: sel ? p.accent : p.border),
-                      label: Text(
-                        shortLbl,
+                child: LiturgicalDropdownBox<int>(
+                  label: 'الانتقال السريع للقسم (${safeIdx + 1} من ${activeList.length})',
+                  dense: true,
+                  value: safeIdx,
+                  items: List.generate(activeList.length, (i) {
+                    return DropdownMenuItem<int>(
+                      value: i,
+                      child: Text(
+                        '${i + 1}. ${activeList[i]['title'] ?? ''}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.cairo(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: sel ? p.onAccent : p.ink,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: p.accent,
                         ),
                       ),
-                      onSelected: (_) {
-                        HapticFeedback.selectionClick();
-                        setActiveIdx(idx);
-                      },
                     );
+                  }),
+                  onChanged: (v) {
+                    if (v != null) {
+                      HapticFeedback.selectionClick();
+                      setActiveIdx(v);
+                    }
                   },
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filledTonal(
+                tooltip: 'فهرس الإبصلمودية الكامل',
+                style: IconButton.styleFrom(
+                  backgroundColor: p.goldSoft,
+                  foregroundColor: p.accent,
+                ),
+                icon: const Icon(Icons.format_list_bulleted_rounded, size: 20),
+                onPressed: () => _openSectionsIndexSheet(
+                  title: 'فهرس الإبصلمودية',
+                  labels: activeList.map((e) => '${e['title'] ?? ''}').toList(),
+                  selectedIndex: safeIdx,
+                  onPick: setActiveIdx,
                 ),
               ),
             ],
@@ -598,8 +657,9 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
 
               const SizedBox(height: 12),
 
-              // Coptic & Arabized Stanza Box
-              if (coptic.isNotEmpty || arabized.isNotEmpty) ...[
+              // Coptic & Arabized Stanza Box (respects ع | ق | م toggles)
+              if ((_showCoptic && coptic.isNotEmpty) ||
+                  (_showArabized && arabized.isNotEmpty)) ...[
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
@@ -610,7 +670,7 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (coptic.isNotEmpty) ...[
+                      if (_showCoptic && coptic.isNotEmpty) ...[
                         Text(
                           'النص القبطي:',
                           style: GoogleFonts.cairo(
@@ -632,7 +692,7 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
                           ),
                         ),
                       ],
-                      if (arabized.isNotEmpty) ...[
+                      if (_showArabized && arabized.isNotEmpty) ...[
                         const SizedBox(height: 8),
                         Text(
                           'النطق القبطي المعرب:',
@@ -660,25 +720,26 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
               ],
 
               // Full Verbatim Arabic Text
-              GestureDetector(
-                onLongPress: () => _copyText(arabic),
-                child: Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: p.surfaceElevated,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: p.border),
-                  ),
-                  child: Text(
-                    arabic,
-                    style: GoogleFonts.amiri(
-                      fontSize: 20 * fontScale,
-                      height: 1.9,
-                      color: p.ink,
+              if (_showArabic)
+                GestureDetector(
+                  onLongPress: () => _copyText(arabic),
+                  child: Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: p.surfaceElevated,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: p.border),
+                    ),
+                    child: Text(
+                      arabic,
+                      style: GoogleFonts.amiri(
+                        fontSize: 20 * fontScale,
+                        height: 1.9,
+                        color: p.ink,
+                      ),
                     ),
                   ),
                 ),
-              ),
 
               const SizedBox(height: 16),
 
@@ -718,16 +779,20 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
     );
   }
 
-  Widget _tasbehaModePill(AppPalette p, String mode, String label) {
-    final active = _tasbehaMode == mode;
+  Widget _langTogglePill(
+    AppPalette p,
+    String label,
+    bool active,
+    VoidCallback onTap,
+  ) {
     return GestureDetector(
       onTap: () {
         HapticFeedback.selectionClick();
-        SpeechPronunciationService().stop();
-        setState(() => _tasbehaMode = mode);
+        onTap();
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 11),
+        width: 32,
+        height: 44,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: active ? p.accent : p.surface,
@@ -737,9 +802,9 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
         child: Text(
           label,
           style: GoogleFonts.cairo(
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: active ? p.onAccent : p.ink,
+            color: active ? p.onAccent : p.inkMuted,
           ),
         ),
       ),
@@ -773,108 +838,105 @@ class _TasbehaPaschaViewState extends State<TasbehaPaschaView>
 
     return Column(
       children: [
-        // 7-Day Holy Week Selector
-        Container(
-          height: 46,
-          padding: const EdgeInsets.symmetric(vertical: 5),
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: p.border)),
-          ),
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            itemCount: _paschaDays.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
-            itemBuilder: (context, idx) {
-              final sel = idx == safeDay;
-              return ChoiceChip(
-                showCheckmark: false,
-                selected: sel,
-                selectedColor: p.crimson,
-                backgroundColor: p.surfaceElevated,
-                side: BorderSide(color: sel ? p.crimson : p.border),
-                label: Text(
-                  '${_paschaDays[idx]['day_name']}',
-                  style: GoogleFonts.cairo(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                    color: sel ? Colors.white : p.ink,
-                  ),
-                ),
-                onSelected: (_) {
-                  HapticFeedback.selectionClick();
-                  SpeechPronunciationService().stop();
-                  setState(() {
-                    _selectedPaschaDayIdx = idx;
-                    _selectedPaschaHourIdx = -1;
-                    _thokCount = 0;
-                  });
-                },
-              );
-            },
-          ),
+        // Sacred Holy Week Banner
+        SacredSectionBanner(
+          imageAsset: 'assets/images/banner_pascha.jpg',
+          title: 'دلال أسبوع الآلام المقدس',
+          subtitle: '${day['day_name']} • ${day['tone'] ?? 'اللحن الإدريبي الحزايني'}',
+          badge: 'البصخة المقدسة',
+          height: 98,
+          margin: const EdgeInsets.fromLTRB(14, 8, 14, 6),
         ),
 
-        // Quick Hour Filter Strip (jump directly to any Pascha hour!)
-        if (sections.isNotEmpty)
-          Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(vertical: 5),
-            decoration: BoxDecoration(
-              color: p.surfaceSubtle,
-              border: Border(bottom: BorderSide(color: p.border, width: 0.7)),
-            ),
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              itemCount: sections.length + 1,
-              separatorBuilder: (_, _) => const SizedBox(width: 6),
-              itemBuilder: (_, i) {
-                if (i == 0) {
-                  final sel = _selectedPaschaHourIdx == -1;
-                  return ChoiceChip(
-                    showCheckmark: false,
-                    selected: sel,
-                    selectedColor: p.accent,
-                    backgroundColor: p.surface,
-                    side: BorderSide(color: sel ? p.accent : p.border),
-                    label: Text(
-                      'كل الساعات (${sections.length})',
-                      style: GoogleFonts.cairo(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: sel ? p.onAccent : p.ink,
+        // Katameros-style Dual Dropdown Selector (Day + Hour)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 5,
+                child: LiturgicalDropdownBox<int>(
+                  label: 'يوم البصخة',
+                  dense: true,
+                  value: safeDay,
+                  items: List.generate(_paschaDays.length, (i) {
+                    return DropdownMenuItem<int>(
+                      value: i,
+                      child: Text(
+                        '${_paschaDays[i]['day_name']}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.cairo(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: p.crimson,
+                        ),
                       ),
-                    ),
-                    onSelected: (_) => setState(() => _selectedPaschaHourIdx = -1),
-                  );
-                }
-                final sIdx = i - 1;
-                final sel = _selectedPaschaHourIdx == sIdx;
-                final hrLabel = '${sections[sIdx]['hour'] ?? sections[sIdx]['title'] ?? 'ساعة ${sIdx + 1}'}';
-                final compact = hrLabel.length > 26 ? '${hrLabel.substring(0, 26)}…' : hrLabel;
-                return ChoiceChip(
-                  showCheckmark: false,
-                  selected: sel,
-                  selectedColor: p.accent,
-                  backgroundColor: p.surface,
-                  side: BorderSide(color: sel ? p.accent : p.border),
-                  label: Text(
-                    compact,
-                    style: GoogleFonts.cairo(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: sel ? p.onAccent : p.ink,
-                    ),
-                  ),
-                  onSelected: (_) {
+                    );
+                  }),
+                  onChanged: (idx) {
+                    if (idx == null) return;
                     HapticFeedback.selectionClick();
-                    setState(() => _selectedPaschaHourIdx = sIdx);
+                    SpeechPronunciationService().stop();
+                    setState(() {
+                      _selectedPaschaDayIdx = idx;
+                      _selectedPaschaHourIdx = -1;
+                      _thokCount = 0;
+                    });
                   },
-                );
-              },
-            ),
+                ),
+              ),
+              if (sections.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 6,
+                  child: LiturgicalDropdownBox<int>(
+                    label: 'الساعة (${sections.length})',
+                    dense: true,
+                    value: _selectedPaschaHourIdx.clamp(-1, sections.length - 1),
+                    items: [
+                      DropdownMenuItem<int>(
+                        value: -1,
+                        child: Text(
+                          'كل ساعات اليوم (${sections.length})',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.cairo(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: p.ink,
+                          ),
+                        ),
+                      ),
+                      ...List.generate(sections.length, (sIdx) {
+                        final hrLabel =
+                            '${sections[sIdx]['hour'] ?? sections[sIdx]['title'] ?? 'ساعة ${sIdx + 1}'}';
+                        return DropdownMenuItem<int>(
+                          value: sIdx,
+                          child: Text(
+                            hrLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.cairo(
+                              fontSize: 11.8,
+                              fontWeight: FontWeight.w700,
+                              color: p.accent,
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                    onChanged: (v) {
+                      if (v == null) return;
+                      HapticFeedback.selectionClick();
+                      setState(() => _selectedPaschaHourIdx = v);
+                    },
+                  ),
+                ),
+              ],
+            ],
           ),
+        ),
 
         // Lazy ListView.builder for 60fps Smooth Reading of Full Holy Week Texts
         Expanded(

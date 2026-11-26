@@ -224,14 +224,14 @@ class _LiturgicalHubViewState extends State<LiturgicalHubView>
             _groupedCard(p, [
               _hubRow(
                 p: p,
-                icon: Icons.local_fire_department_outlined,
+                image: 'assets/images/banner_tasbeha.jpg',
                 title: 'رفع بخور عشية وباكر كاملاً',
                 subtitle: 'الشكر • أرباع الناقوس • الأواشي • أجيوس • الذكصولوجيات • التحاليل',
                 onTap: () => Navigator.push(context, luxeRoute(const RaisingOfIncenseView())),
               ),
               _hubRow(
                 p: p,
-                icon: Icons.auto_awesome_outlined,
+                image: 'assets/images/thumb_cyril.jpg',
                 title: 'صلوات القِسَم (٣٩ قسمة سنوية وموسمية)',
                 subtitle: 'الميلاد • الغطاس • الصوم الكبير • الشعانين • القيامة • النيروز • العذراء',
                 onTap: () => Navigator.push(context, luxeRoute(const FractionsLibraryView())),
@@ -247,7 +247,7 @@ class _LiturgicalHubViewState extends State<LiturgicalHubView>
             _groupedCard(p, [
               _hubRow(
                 p: p,
-                icon: Icons.auto_stories_outlined,
+                image: 'assets/images/thumb_katameros.jpg',
                 title: 'القطمارس اليومي والآحاد والصوم الكبير',
                 subtitle: 'قراءات البولس والكاثوليكون والإبركسيس والمزمور والإنجيل',
                 onTap: () {
@@ -258,7 +258,7 @@ class _LiturgicalHubViewState extends State<LiturgicalHubView>
               ),
               _hubRow(
                 p: p,
-                icon: Icons.history_edu_outlined,
+                image: 'assets/images/thumb_synaxarium.jpg',
                 title: 'السنكسار القبطي اليومي',
                 subtitle: 'سير القديسين والشهداء (يتجدد تلقائياً بعد صلاة عشية)',
                 onTap: () => Navigator.push(context, luxeRoute(const SynaxariumDailyView())),
@@ -274,21 +274,21 @@ class _LiturgicalHubViewState extends State<LiturgicalHubView>
             _groupedCard(p, [
               _hubRow(
                 p: p,
-                icon: Icons.spa_outlined,
+                image: 'assets/images/christ_good_shepherd.jpg',
                 title: 'خلوة ٥ دقائق',
                 subtitle: 'آية وعد ومزمور وإرشاد آبائي حسب شعورك الآن',
                 onTap: () => Navigator.push(context, luxeRoute(const SpiritualPrescriptionView())),
               ),
               _hubRow(
                 p: p,
-                icon: Icons.edit_note_rounded,
+                image: 'assets/images/banner_confession.jpg',
                 title: 'دفتر «اذكرهم يا رب» في صلاتي',
                 subtitle: 'أضف أسماء أسرتك والمرضى والراقدين ليُذكروا في صلاتك',
                 onTap: () => Navigator.push(context, luxeRoute(const RememberThemView())),
               ),
               _hubRow(
                 p: p,
-                icon: Icons.radio_button_checked_rounded,
+                image: 'assets/images/thumb_agpeya.jpg',
                 title: 'المسبحة القبطية وعداد المطانيات',
                 subtitle: 'صلاة يسوع السهمية بعداد هادئ',
                 onTap: () => Navigator.push(context, luxeRoute(const CopticPrayerRopeView())),
@@ -416,7 +416,7 @@ class _LiturgicalHubViewState extends State<LiturgicalHubView>
 
   Widget _hubRow({
     required AppPalette p,
-    required IconData icon,
+    required String image,
     required String title,
     required String subtitle,
     required VoidCallback onTap,
@@ -428,17 +428,16 @@ class _LiturgicalHubViewState extends State<LiturgicalHubView>
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: p.goldSoft,
-                    borderRadius: BorderRadius.circular(12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(
+                    width: 46,
+                    height: 46,
+                    child: SafeAssetImage(image, fit: BoxFit.cover),
                   ),
-                  child: Icon(icon, size: 20, color: p.isDark ? p.gold : p.accent),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/theme/app_palette.dart';
 import '../../core/widgets/luxe_widgets.dart';
+import '../../core/widgets/sacred_section_banner.dart';
 import '../../models/agpeya_model.dart';
 import 'agpeya_reader_view.dart';
 
@@ -303,75 +304,44 @@ class _AgpeyaViewState extends State<AgpeyaView> {
           constraints: const BoxConstraints(maxWidth: 680),
           child: Column(
             children: [
-              // Clean Adaptive Alarms Strip
-              Container(
-                margin: const EdgeInsets.fromLTRB(18, 12, 18, 8),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: p.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: p.border),
-                  boxShadow: p.isDark
-                      ? null
-                      : [
-                          BoxShadow(
-                            color: p.shadow,
-                            blurRadius: 10,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: p.goldSoft,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(Icons.notifications_active_outlined, color: p.gold, size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'منبّه سواعي الأجبية',
-                            style: GoogleFonts.cairo(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.bold,
-                              color: p.ink,
-                            ),
-                          ),
-                          Text(
-                            _enabledAlarmIds.isEmpty
-                                ? 'اختياري — اضبط الساعات التي تحب التذكير بها'
-                                : 'مُفعّل لـ ${_enabledAlarmIds.length} من سواعي الصلاة يومياً',
-                            style: GoogleFonts.cairo(fontSize: 11.5, color: p.inkSecondary),
-                          ),
-                        ],
+              // Handcrafted Sacred Header Banner for Agpeya
+              SacredSectionBanner(
+                imageAsset: 'assets/images/thumb_agpeya.jpg',
+                title: 'الأجبية المقدسة',
+                subtitle: 'صلوات السواعي السبع وصلاة الستار وصلوات أخرى',
+                badge: 'كتاب السواعي',
+                height: 108,
+                margin: const EdgeInsets.fromLTRB(18, 10, 18, 8),
+                trailing: GestureDetector(
+                  onTap: _openAgpeyaAlarmsSheet,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.52),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFFD4AF37).withValues(alpha: 0.65),
                       ),
                     ),
-                    OutlinedButton(
-                      onPressed: _openAgpeyaAlarmsSheet,
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(0, 36),
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        side: BorderSide(color: p.goldBorder),
-                        backgroundColor: p.goldSoft,
-                      ),
-                      child: Text(
-                        'ضبط',
-                        style: GoogleFonts.cairo(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: p.isDark ? p.gold : p.accent,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.notifications_active_outlined,
+                            size: 14, color: Color(0xFFF5E6C4)),
+                        const SizedBox(width: 4),
+                        Text(
+                          _enabledAlarmIds.isEmpty
+                              ? 'المنبّه'
+                              : 'المنبّه (${_enabledAlarmIds.length})',
+                          style: GoogleFonts.cairo(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
 
@@ -444,7 +414,7 @@ class _AgpeyaViewState extends State<AgpeyaView> {
                       scale: 0.985,
                       onTap: () => Navigator.push(
                         context,
-                        luxeRoute(AgpeyaReaderView(hour: hour)),
+                        luxeRoute(AgpeyaReaderView(hour: hour, allHours: _hours)),
                       ),
                       child: Container(
                         padding: const EdgeInsets.all(15),

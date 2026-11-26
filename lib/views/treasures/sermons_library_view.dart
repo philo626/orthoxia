@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_palette.dart';
 import '../../core/widgets/coptic_cross.dart';
+import '../../core/widgets/sacred_section_banner.dart';
 import '../../models/hymn_model.dart';
 import '../../providers/audio_provider.dart';
 import '../hymns/widgets/full_audio_player_sheet.dart';
@@ -170,6 +171,14 @@ class _SermonsLibraryViewState extends State<SermonsLibraryView> {
                 constraints: const BoxConstraints(maxWidth: 740),
                 child: Column(
                   children: [
+                    SacredSectionBanner(
+                      imageAsset: 'assets/images/banner_sermons.jpg',
+                      title: 'مكتبة العظات الصوتية',
+                      subtitle: '${_allSermons.length} عظة صوتية لآباء الكنيسة — تعمل بالخلفية وشاشة القفل',
+                      badge: 'صوتيات الكنيسة',
+                      height: 102,
+                      margin: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+                    ),
                     // 1. Search Bar
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),

@@ -7,6 +7,7 @@ import '../../core/theme/app_palette.dart';
 import '../../core/widgets/blessing_poster_studio_sheet.dart';
 import '../../core/widgets/coptic_cross.dart';
 import '../../core/widgets/luxe_widgets.dart';
+import '../../core/widgets/sacred_section_banner.dart';
 import '../../providers/theme_provider.dart';
 
 /// Complete Seasonal & Annual Fractions Encyclopedia («صلوات القِسَم» — 39+ Fractions).
@@ -91,6 +92,14 @@ class _FractionsLibraryViewState extends State<FractionsLibraryView> {
                 constraints: const BoxConstraints(maxWidth: 740),
                 child: Column(
                   children: [
+                    SacredSectionBanner(
+                      imageAsset: 'assets/images/thumb_cyril.jpg',
+                      title: 'صلوات القِسَم المقدسة',
+                      subtitle: '${_fractions.length} قسمة سنوية وموسمية وللأعياد والأصوام',
+                      badge: 'الخولاجي المقدس',
+                      height: 98,
+                      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                    ),
                     // Search bar
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
